@@ -1,0 +1,24 @@
+# Source stories
+src/stories
+.storybook
+**/*.stories.tsx
+**/*.stories.ts
+
+# Compiled stories in dist
+dist/stories
+
+# Storybook build output
+storybook-static
+
+# Development files
+*.log
+.vscode
+.idea
+*.tsbuildinfo
+
+# Test files
+test
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
