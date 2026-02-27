@@ -1,23 +1,4 @@
-export interface BackendWidgetConfig {
-    name: string;
-    componentName: string;
-    defaultProps: Record<string, any>
-    [key: string]: any;
-}
-
-export type widgetInfo = {
-    widgetId: string;
-    name: string;
-    componentName: string;
-    defaultProps: Record<string, any>;
-}
-
-export type widgetGroup = Record<string, widgetInfo[]>
-
-export type widgetGroupWithStatus = Record<string, {
-    widgets: widgetInfo[];
-    isConnected: boolean;
-}>
+import type { BackendWidgetConfig } from "@/lib/puck/types";
 
 export interface DragItem {
     widget: BackendWidgetConfig;

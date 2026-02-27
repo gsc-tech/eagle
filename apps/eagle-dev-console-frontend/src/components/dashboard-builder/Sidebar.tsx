@@ -1,7 +1,9 @@
 import { useDrag } from "react-dnd";
+import type { BackendWidgetConfig } from "@/lib/puck/types";
 import { ChevronDown, ChevronRight, GripVertical, WifiOff, RefreshCw } from "lucide-react";
-import { WIDGET_DRAG_TYPE, type BackendWidgetConfig, type widgetGroupWithStatus, type widgetInfo } from "./types";
+import { WIDGET_DRAG_TYPE } from "./types";
 import { useState, useMemo } from "react";
+import type { widgetGroupWithStatus, widgetInfo } from "@/pages/widgets";
 
 interface WidgetSidebarProps {
     widgetGroups: widgetGroupWithStatus;

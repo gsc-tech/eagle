@@ -20,10 +20,9 @@ import type { Layout } from "react-grid-layout";
 interface DroppableCanvasProps {
     onLayoutChange?: (layout: LayoutItem[]) => void;
     initialLayout?: LayoutItem[];
-    isReadOnly?: boolean;
 }
 
-export default function DroppableCanvas({ onLayoutChange, initialLayout, isReadOnly = false }: DroppableCanvasProps) {
+export default function DroppableCanvas({ onLayoutChange, initialLayout }: DroppableCanvasProps) {
     const [layoutItems, setLayoutItems] = useState<LayoutItem[]>(initialLayout || []);
 
     const { width, containerRef, mounted } = useContainerWidth({
@@ -148,7 +147,7 @@ export default function DroppableCanvas({ onLayoutChange, initialLayout, isReadO
         [&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 
         [&::-webkit-scrollbar-thumb]:rounded-full 
         hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/70
-        ${!isReadOnly && isOver && canDrop ? "bg-primary/10" : "bg-background"}
+        ${isOver && canDrop ? "bg-primary/10" : "bg-background"}
       `}
         >
             {!mounted ? (
@@ -160,7 +159,7 @@ export default function DroppableCanvas({ onLayoutChange, initialLayout, isReadO
                     <div className="text-center">
                         <p className="text-muted-foreground text-lg mb-2">Canvas area - Drag widgets here</p>
                         <p className="text-muted-foreground text-sm">
-                            {!isReadOnly && isOver && canDrop ? "Drop to add widget" : "Drag from the sidebar to get started"}
+                            {isOver && canDrop ? "Drop to add widget" : "Drag from the sidebar to get started"}
                         </p>
                     </div>
                 </div>
@@ -175,18 +174,18 @@ export default function DroppableCanvas({ onLayoutChange, initialLayout, isReadO
                         margin: GRID_MARGIN,
                     }}
                     dragConfig={{
-                        enabled: !isReadOnly,
+                        enabled: true,
                         handle: ".drag-handle",
                     }}
                     resizeConfig={{
-                        enabled: !isReadOnly,
+                        enabled: true,
                         handles: ["se", "sw", "ne", "nw"],
                     }}
                     compactor={verticalCompactor}
                 >
                     {layoutItems.map((item) => (
                         <div key={item.i}>
-                            <WidgetRenderer layoutItem={item} onRemove={handleRemoveWidget} isReadOnly={isReadOnly} />
+                            <WidgetRenderer layoutItem={item} onRemove={handleRemoveWidget} />
                         </div>
                     ))}
 
@@ -194,7 +193,7 @@ export default function DroppableCanvas({ onLayoutChange, initialLayout, isReadO
             )}
 
             {/* Drop indicator overlay */}
-            {!isReadOnly && isOver && canDrop && layoutItems.length > 0 && (
+            {isOver && canDrop && layoutItems.length > 0 && (
                 <div className="fixed inset-0 pointer-events-none bg-primary/10" />
             )}
         </div>
