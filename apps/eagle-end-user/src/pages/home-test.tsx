@@ -45,7 +45,7 @@ export default function DashboardWorkspaceTest() {
     useEffect(() => {
         const fetchDashboards = async () => {
             try {
-                const baseURL = import.meta.env.BACKEND__URL
+                const baseURL = import.meta.env.VITE_API_BASE_URL
                 const resp = await axios.get(`${baseURL}/dashboards/end-user`);
                 const data = resp.data;
                 const filteredData = data.filter((d: Dashboard) => d.publishedLayout.tabs);
