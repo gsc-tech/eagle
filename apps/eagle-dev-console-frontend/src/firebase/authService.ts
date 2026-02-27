@@ -4,9 +4,6 @@ import { signInWithEmailAndPassword, onAuthStateChanged } from '@firebase/auth';
 export async function login(email: string, password: string) {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        if (userCredential.user) {
-            console.log("User signed in");
-        }
     } catch (error) {
         throw new Error("Incorrect Password or Email");
     }

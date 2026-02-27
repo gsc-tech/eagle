@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { api } from "@/utils/apiClient";
-import type { widgetGroupWithStatus, LayoutItem } from "@gsc-tech/dashboard-builder";
-import { Sidebar as WidgetSidebar, DroppableCanvas } from "@gsc-tech/dashboard-builder";
+import type { widgetGroupWithStatus } from "./widgets";
+import type { LayoutItem } from "@/components/dashboard-builder/types";
+import WidgetSidebar from "@/components/dashboard-builder/Sidebar";
+import DroppableCanvas from "@/components/dashboard-builder/DroppableCanvas";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useLocation, useBlocker } from "react-router-dom";
 import {

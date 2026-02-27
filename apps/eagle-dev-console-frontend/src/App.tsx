@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, createRoutesFromElements, Route, Navigate } from "react-router-dom";
 import { useState, useMemo, useEffect } from "react";
 import Home from "./pages/home";
 import Backends from "./pages/backends";
@@ -26,33 +26,39 @@ function App() {
 
   const router = useMemo(
     () =>
-      createBrowserRouter([
-        {
-          path: "/login",
-          element: <LoginForm onLogin={() => setIsLoggedIn(true)} />
-        },
-        {
-          path: "/",
-          element: isLoggedIn ? (
-            <Home
-              onLogout={() => {
-                auth.signOut();
-                setIsLoggedIn(false);
-              }}
+      createBrowserRouter(
+        createRoutesFromElements(
+          <>
+            <Route
+              path="/login"
+              element={<LoginForm onLogin={() => setIsLoggedIn(true)} />}
             />
-          ) : (
-            <Navigate to="/login" replace />
-          ),
-          children: [
-            { index: true, element: <Navigate to="/backends" replace /> },
-            { path: "backends", element: <Backends /> },
-            { path: "widgets", element: <Widgets /> },
-            { path: "dashboards", element: <Dashboards /> },
-            { path: "dashboard-builder", element: <DashBuilder /> },
-            { path: "users", element: <Users /> }
-          ]
-        }
-      ]),
+
+            <Route
+              path="/"
+              element={
+                isLoggedIn ? (
+                  <Home
+                    onLogout={() => {
+                      auth.signOut();
+                      setIsLoggedIn(false);
+                    }}
+                  />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            >
+              <Route index element={<Navigate to="/backends" replace />} />
+              <Route path="backends" element={<Backends />} />
+              <Route path="widgets" element={<Widgets />} />
+              <Route path="dashboards" element={<Dashboards />} />
+              <Route path="dashboard-builder" element={<DashBuilder />} />
+              <Route path="users" element={<Users />} />
+            </Route>
+          </>
+        )
+      ),
     [isLoggedIn]
   );
 

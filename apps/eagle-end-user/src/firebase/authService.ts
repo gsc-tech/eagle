@@ -1,9 +1,9 @@
 import { auth } from './config';
 import { signInWithEmailAndPassword, onAuthStateChanged } from '@firebase/auth';
 
-export async function login(email: string, password: string) {
+export async function login(email : string, password: string) {
     try {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
         throw new Error("Incorrect Password or Email");
     }

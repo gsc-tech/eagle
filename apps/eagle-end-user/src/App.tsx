@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './App.css'
-
+import DashboardWorkspace from './pages/home'
 import DashboardWorkspaceTest from './pages/home-test'
 
 

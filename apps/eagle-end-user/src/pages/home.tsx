@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { Render } from "@measured/puck";
 import { LayoutDashboard, ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -66,20 +66,20 @@ export default function DashboardWorkspace() {
   const [componentConfig, setComponentConfig] = useState({});
 
   // later we would have user_id after login
-  // const autoSave = async (instanceID: string, data: any) => {
-  //   // console.log("Auto save");
-  //   try {
-  //     const res = await axios.post("http://localhost:900/widgets/save-state", {
-  //       dashboardID: selected?.dashboardID,
-  //       userID: "123", // would come from the authContext.
-  //       instanceID: instanceID,
-  //       state: data
-  //     })
-  //     console.log(res.data);
-  //   } catch (error) {
-  //     console.error(error);
-  //   }
-  // }
+  const autoSave = async (instanceID: string, data: any) => {
+    // console.log("Auto save");
+    try {
+      const res = await axios.post("http://localhost:900/widgets/save-state", {
+        dashboardID: selected?.dashboardID,
+        userID: "123", // would come from the authContext.
+        instanceID: instanceID,
+        state: data
+      })
+      console.log(res.data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
   // instance id wil be in dashboard layout and we will pass it to widgets while rendering as prop.!
   useEffect(() => {
     const fetchDashboards = async () => {

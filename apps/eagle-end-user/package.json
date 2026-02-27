@@ -4,14 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5177",
+    "dev": "vite --port 5177 --host",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@gsc-tech/dashboard-builder": "*",
-    "@gsc-tech/eagle-widget-library": "*",
+    "@gsc-tech/eagle-widget-library": "github:gsc-tech/eagle-widget-library#feature/new-widgets",
     "@measured/puck": "^0.20.2",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -26,8 +25,6 @@
     "firebase": "^12.6.0",
     "lucide-react": "^0.553.0",
     "react": "^19.2.0",
-    "react-dnd": "^16.0.1",
-    "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^19.2.0",
     "react-grid-layout": "^2.1.0",
     "react-router-dom": "^7.9.6",

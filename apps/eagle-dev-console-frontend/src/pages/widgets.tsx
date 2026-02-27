@@ -15,7 +15,19 @@ import { Label } from "@/components/ui/label";
 
 
 
-import type { widgetInfo, widgetGroup } from "@gsc-tech/dashboard-builder";
+export type widgetInfo = {
+  widgetId: string;
+  name: string;
+  componentName: string;
+  defaultProps: Record<string, any>;
+}
+
+export type widgetGroup = Record<string, widgetInfo[]>
+
+export type widgetGroupWithStatus = Record<string, {
+  widgets: widgetInfo[];
+  isConnected: boolean;
+}>
 
 export default function Widgets() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
