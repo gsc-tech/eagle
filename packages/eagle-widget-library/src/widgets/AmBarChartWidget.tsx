@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
+import { useSheetDependency } from "../hooks/useSheetDependency";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
 import * as am5 from "@amcharts/amcharts5";
@@ -25,7 +26,7 @@ export interface AmBarChartWidgetProps extends BaseWidgetProps {
 }
 
 export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
-    apiUrl = "http://localhost:8080/api/data",
+    apiUrl = null,
     parameters,
     categoryField = "category",
     title = "AmBarChartWidget",
@@ -39,6 +40,7 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     darkMode = false,
     onGroupedParametersChange,
     groupedParametersValues,
+    sheetDependency,
 }) => {
     const chartId = useId();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -49,9 +51,18 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
 
-    const { data: rawData } = useWidgetData(apiUrl as string, {
-        parameters: currentParams,
-    });
+    let routeData;
+    if (apiUrl !== null) {
+        const { data } = useWidgetData(apiUrl as string, {
+            parameters: currentParams,
+        });
+        routeData = data;
+    }
+
+    const { sheetData } = useSheetDependency(sheetDependency);
+    const rawData = sheetDependency?.isDependent ? sheetData : routeData;
+
+    console.log("rawData", rawData);
 
     const handleParametersChange = (values: ParameterValues) => {
         setCurrentParams(values);
@@ -212,18 +223,40 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
                 chart.appear(1000, 100);
 
                 if (seriesRefs.current.length > 0 && rawData && Array.isArray(rawData)) {
+                    let processedData = [...rawData];
+
+                    processedData = processedData.map((item: any) => {
+                        const mappedItem = { ...item };
+                        if (item.$x !== undefined && mappedItem[categoryField] === undefined) {
+                            mappedItem[categoryField] = String(item.$x);
+                        }
+                        if (mappedItem[categoryField] != null) {
+                            mappedItem[categoryField] = String(mappedItem[categoryField]);
+                        }
+                        return mappedItem;
+                    });
+
                     const xAxis = chartRef.current?.xAxes.getIndex(0);
                     const yAxis = chartRef.current?.yAxes.getIndex(0);
 
                     // For CategoryAxis, we need to set data on the axis as well
                     if (orientation === 'horizontal') {
-                        if (yAxis instanceof am5xy.CategoryAxis) yAxis.data.setAll(rawData);
+                        if (yAxis instanceof am5xy.CategoryAxis) yAxis.data.setAll(processedData);
                     } else {
-                        if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(rawData);
+                        if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(processedData);
                     }
 
                     seriesRefs.current.forEach(series => {
-                        series.data.setAll(rawData);
+                        const isHorizontal = orientation === 'horizontal';
+                        const originalValueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
+                        const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? "$y" : originalValueField;
+
+                        if (isHorizontal) {
+                            series.set("valueXField", valueField);
+                        } else {
+                            series.set("valueYField", valueField);
+                        }
+                        series.data.setAll(processedData);
                     });
                 }
 
@@ -246,21 +279,43 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     // Update Data
     useEffect(() => {
         if (seriesRefs.current.length > 0 && rawData && Array.isArray(rawData)) {
+            let processedData = [...rawData];
+
+            processedData = processedData.map((item: any) => {
+                const mappedItem = { ...item };
+                if (item.$x !== undefined && mappedItem[categoryField] === undefined) {
+                    mappedItem[categoryField] = String(item.$x);
+                }
+                if (mappedItem[categoryField] != null) {
+                    mappedItem[categoryField] = String(mappedItem[categoryField]);
+                }
+                return mappedItem;
+            });
+
             const xAxis = chartRef.current?.xAxes.getIndex(0);
             const yAxis = chartRef.current?.yAxes.getIndex(0);
 
             // For CategoryAxis, we need to set data on the axis as well
             if (orientation === 'horizontal') {
-                if (yAxis instanceof am5xy.CategoryAxis) yAxis.data.setAll(rawData);
+                if (yAxis instanceof am5xy.CategoryAxis) yAxis.data.setAll(processedData);
             } else {
-                if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(rawData);
+                if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(processedData);
             }
 
             seriesRefs.current.forEach(series => {
-                series.data.setAll(rawData);
+                const isHorizontal = orientation === 'horizontal';
+                const originalValueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
+                const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? "$y" : originalValueField;
+
+                if (isHorizontal) {
+                    series.set("valueXField", valueField);
+                } else {
+                    series.set("valueYField", valueField);
+                }
+                series.data.setAll(processedData);
             });
         }
-    }, [rawData, orientation]);
+    }, [rawData, orientation, categoryField, sheetDependency]);
 
     return (
         <WidgetContainer

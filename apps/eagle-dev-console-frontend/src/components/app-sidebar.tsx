@@ -68,7 +68,6 @@ export function AppSidebar({
   const location = useLocation();
 
   const user = getUser();
-  console.log(user);
   const name = user?.email?.split(".")[0] || "user";
   const CapitalizeName = name.charAt(0).toUpperCase() + name.slice(1);
 
