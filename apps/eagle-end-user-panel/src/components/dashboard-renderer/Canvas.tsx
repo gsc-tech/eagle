@@ -7,6 +7,7 @@ import type { LayoutItem } from "./types";
 import { GRID_COLS, GRID_ROW_HEIGHT, GRID_MARGIN } from "./types";
 import WidgetRenderer from "./WidgetRenderer";
 import type { Layout } from "react-grid-layout";
+import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 
 interface DashboardCanvasProps {
     onLayoutChange?: (layout: LayoutItem[]) => void;
@@ -25,9 +26,11 @@ export default function DashboardCanvas({
         initialWidth: 1280,
     });
 
-    const [groupedParametersValues, setGroupedParametersValues] = useState<
-        Record<string, string>
-    >({});
+    // Reset grouped params whenever a new dashboard/tab is loaded
+    const reset = useGroupedParamsStore((s) => s.reset);
+    useEffect(() => {
+        reset();
+    }, [initialLayout, reset]);
 
     // Update layout items when initialLayout prop changes
     useEffect(() => {
@@ -79,7 +82,7 @@ export default function DashboardCanvas({
         <div
             ref={containerRef}
             className={`
-        flex-1 overflow-auto p-6 transition-colors
+        h-full w-full overflow-auto p-6 transition-colors
         [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5
         [&::-webkit-scrollbar-track]:bg-transparent 
         [&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 
@@ -125,11 +128,7 @@ export default function DashboardCanvas({
                 >
                     {layoutItems.map((item) => (
                         <div key={item.i}>
-                            <WidgetRenderer
-                                layoutItem={item}
-                                groupedParametersValues={groupedParametersValues}
-                                onGroupedParametersValuesChange={setGroupedParametersValues}
-                            />
+                            <WidgetRenderer layoutItem={item} />
                         </div>
                     ))}
                 </ReactGridLayout>
