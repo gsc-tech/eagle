@@ -6,7 +6,7 @@ import type { BaseWidgetProps } from "../types";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { InsertSheetModal } from "../components/InsertSheetModal";
 import { useSheetStore } from "../store/sheetStore";
-import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
+import { CalculationMode, UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import { InsertSheetCommand } from "@univerjs/preset-sheets-core";
 import { createUniver, defaultTheme, greenTheme, LocaleType, merge } from "@univerjs/presets";
 import "@univerjs/presets/lib/styles/preset-sheets-core.css";
@@ -14,12 +14,21 @@ import sheetsCoreEnUs from "@univerjs/presets/preset-sheets-core/locales/en-US";
 import sheetData from "../../sheetData.json";
 import { buildProductSheet } from "../utils/sheetBuilder";
 
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SheetWidgetProps extends BaseWidgetProps {
     wsUrl?: string;
-    sheetName?: string;
-    wsColumnMapping?: Record<string, string>; // Maps a WS data key to a Column key (e.g. { "positions": "Symbol" })
+    /**
+     * A previously saved Univer workbook snapshot (returned by `fWorkbook.save()`).
+     * When provided the widget skips the default template build and loads this data directly.
+     */
+    initialWorkbookData?: Record<string, any>;
+    /**
+     * Called with the full workbook snapshot when the widget unmounts (i.e. the window is closed).
+     * Use this to persist the workbook state to your database.
+     */
+    onSave?: (workbookSnapshot: Record<string, any>) => void;
 }
 
 
@@ -40,73 +49,6 @@ function colLetter(index: number): string {
     return letter;
 }
 
-/** Write a numeric array column into the active Univer sheet using the mapped key. */
-function writeDataToSheet(univerAPI: any, targetColKey: string, dataArray: number[]): void {
-    try {
-        const workbook = univerAPI.getActiveWorkbook();
-        if (!workbook) return;
-
-        const sheet = workbook.getActiveSheet();
-        if (!sheet) return;
-
-        const sheetSnapshot = sheet.getSheet().getSnapshot();
-
-        const sheetName = sheetSnapshot.name ? sheetSnapshot.name : "Sheet1";
-
-        // Find existing column by targetColKey in the header row (row 0)
-        let totalCols = sheetSnapshot.columnCount;
-        let targetColIdx = -1;
-
-        // Scan the first row to find the matching header
-        for (let c = 0; c < totalCols; c++) {
-            const headerVal = sheet.getRange(`${colLetter(c)}1`)?.getValue();
-            if (headerVal === targetColKey) {
-                targetColIdx = c;
-                break;
-            } else if (headerVal == null || headerVal === '') {
-                // We reached the end of headers, let's create it here if not found.
-                if (targetColIdx === -1) {
-                    targetColIdx = c;
-                    sheet.getRange(`${colLetter(c)}1`)?.setValue(targetColKey);
-                }
-                break;
-            }
-        }
-
-        if (targetColIdx === -1) {
-            targetColIdx = 0; // Fallback
-        }
-
-        const updates: { row: number, col: number, value: any }[] = [];
-
-        // Data rows start at row 1 (0-indexed array)
-        const values2D: any[] = [];
-        for (let i = 0; i < dataArray.length; i++) {
-            const rowIndex = i + 1;
-            const val = dataArray[i];
-
-            values2D.push([{ v: val }]);
-            updates.push({ row: rowIndex, col: targetColIdx, value: val });
-        }
-
-        const targetColStr = colLetter(targetColIdx);
-        const range = sheet.getRange(`${targetColStr}2:${targetColStr}${dataArray.length + 1}`);
-        if (range && typeof range.setValues === "function") {
-            range.setValues(values2D);
-        } else {
-            // Fallback for older API versions
-            for (let i = 0; i < dataArray.length; i++) {
-                sheet.getRange(`${targetColStr}${i + 2}`)?.setValue(dataArray[i]);
-            }
-        }
-
-        if (updates.length > 0) {
-            useSheetStore.getState().updateCells(sheetName, updates);
-        }
-    } catch (err) {
-        console.error("[SheetWidget] Failed to write data to sheet:", err);
-    }
-}
 
 const MONTH_CODE_TO_NAME: Record<string, string> = {
     F: "Jan", G: "Feb", H: "Mar", J: "Apr", K: "May", M: "Jun",
@@ -131,14 +73,22 @@ function parseSymbol(symbol: string): { product: string; label: string } | null 
 export const SheetWidget: React.FC<SheetWidgetProps> = ({
     title = "Positions Sheet",
     darkMode = false,
-    sheetName = "Positions",
     wsUrl = "ws://localhost:8000/ws",
-    wsColumnMapping = {}
+    initialWorkbookData,
+    onSave,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const univerRef = useRef<any>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Keep latest prop values accessible inside async/cleanup closures
+    const onSaveRef = useRef(onSave);
+    const initialWorkbookDataRef = useRef(initialWorkbookData);
+    useEffect(() => {
+        onSaveRef.current = onSave;
+        initialWorkbookDataRef.current = initialWorkbookData;
+    }, [onSave, initialWorkbookData]);
 
     // ── Modal state ───────────────────────────────────────────────────────────
     const [modalOpen, setModalOpen] = useState(false);
@@ -170,11 +120,24 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
         async function initUniver() {
             try {
-                // Fetch template sheet for RB
-                const { sheetId, sheetSnapshot } = await buildProductSheet("RB");
+                let workbookData: Record<string, any>;
 
-                // console.log(sheetSnapshot);
-                sheetSnapshot[sheetId].name = "RB";
+                if (initialWorkbookDataRef.current) {
+                    workbookData = initialWorkbookDataRef.current;
+                } else {
+                    console.log("setting new data")
+                    // ── Build default template (RB sheet) ────────────────────
+                    const { sheetId, sheetSnapshot } = await buildProductSheet("RB");
+                    sheetSnapshot[sheetId].name = "RB";
+
+                    workbookData = {
+                        ...(sheetData as any),
+                        id: "workbook-01",
+                        sheets: sheetSnapshot,
+                        sheetOrder: [sheetId],
+                        name: "Universheet",
+                    };
+                }
 
                 if (isCancelled) return;
 
@@ -188,36 +151,41 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         UniverSheetsCorePreset({
                             container: container!,
                             header: true,
+                            formula: {
+                                initialFormulaComputing: CalculationMode.FORCED,
+                            }
                         }),
                     ],
                 });
 
-                // Set up the workbook data with our new sheet but existing styles
-                const workbookData = {
-                    ...(sheetData as any),
-                    id: "workbook-01",
-                    sheets: sheetSnapshot,
-                    sheetOrder: [sheetId],
-                    name: "Universheet",
-                };
-
-                const workbook = univerAPI.createWorkbook(workbookData);
+                univerAPI.createWorkbook(workbookData);
                 univerRef.current = univerAPI;
 
-                // Sync initial setup explicitly to store immediately
+                // Sync ALL sheets from the loaded workbook into the store
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 if (fWorkbook) {
                     const snapshot = fWorkbook.save();
-                    const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === "RB") as any;
-                    if (targetSheetObj && targetSheetObj.cellData) {
-                        useSheetStore.getState().setSheet("RB", targetSheetObj.cellData);
+                    for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
+                        if (sheetObj?.name && sheetObj?.cellData) {
+                            useSheetStore.getState().setSheet(sheetObj.name, sheetObj.cellData);
+                        }
                     }
                 }
+
+
+                // Give Univer one JS task to finish its internal async setup
+                // (formula-engine warm-up, canvas render) before we accept data.
+                setTimeout(() => {
+                    // Send snapshot request now that Univer is ready
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
+                    }
+                }, 500);
 
                 // ── Intercept InsertSheetCommand ──────────────────────────────────────
                 const disposable = univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (event: any) => {
                     const { id } = event;
-
+                    console.log("event id", id);
                     if (id === InsertSheetCommand.id) {
                         // If WE triggered this programmatically, let it through.
                         if (isProgrammaticInsertRef.current) return;
@@ -234,29 +202,42 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 let editSubscription: any = null;
                 if (univerAPI.Event && univerAPI.Event.SheetEditEnded) {
                     editSubscription = univerAPI.addEvent(univerAPI.Event.SheetEditEnded, (params: any) => {
-                        console.log(params);
-                        const { worksheet, row, column } = params;
+                        // console.log(params);
+                        const { worksheet } = params;
                         const name = worksheet._worksheet._snapshot.name;
-                        // row and column from Univer are 0-indexed
-                        const cellRef = `${colLetter(column)}${row + 1}`;
-                        let value = undefined;
-                        try {
-                            value = worksheet.getRange(cellRef)?.getValue();
-                        } catch (e) {
-                            console.error("[SheetWidget] Error getting cell value:", e);
-                        }
                         const fWorkbook = univerRef.current.getActiveWorkbook();
                         const snapshot = fWorkbook.save();
 
                         // Grab the fully evaluated/saved snapshot for this specific sheet
-                        const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
-                        if (targetSheetObj && targetSheetObj.cellData) {
-                            useSheetStore.getState().setSheet(name, targetSheetObj.cellData);
+
+                        setTimeout(() => {
+                            const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
+                            if (targetSheetObj && targetSheetObj.cellData) {
+                                useSheetStore.getState().setSheet(name, targetSheetObj.cellData);
+                            }
+                        }, 500)
+                    });
+                }
+
+                // ── Global Formula Listener ──────────────────────────────────────────
+                let formulaSubscription: any = null;
+                const formulaEngine = univerAPI.getFormula();
+                if (formulaEngine && typeof formulaEngine.calculationResultApplied === 'function') {
+                    formulaSubscription = formulaEngine.calculationResultApplied((result: any) => {
+                        console.log("[SheetWidget] Formula calculation applied:", result);
+                        const fWorkbook = univerAPI.getActiveWorkbook();
+                        if (!fWorkbook) return;
+                        const snapshot = fWorkbook.save();
+                        // Update the store with the fully evaluated snapshot
+                        for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
+                            if (sheetObj?.name && sheetObj?.cellData) {
+                                useSheetStore.getState().setSheet(sheetObj.name, sheetObj.cellData);
+                            }
                         }
                     });
                 }
 
-                return { disposable, editSubscription };
+                return { disposable, editSubscription, formulaSubscription };
 
             } catch (err) {
                 console.error("[SheetWidget] Failed to initialize univer:", err);
@@ -275,8 +256,22 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     if (res.disposable && typeof res.disposable.dispose === 'function') {
                         res.disposable.dispose();
                     }
+                    if (res.formulaSubscription && typeof res.formulaSubscription.dispose === 'function') {
+                        res.formulaSubscription.dispose();
+                    }
                 }
                 if (univerRef.current) {
+                    // ── Persist workbook to database on close ─────────────────
+                    const fWorkbook = univerRef.current.getActiveWorkbook();
+                    if (fWorkbook && onSaveRef.current) {
+                        try {
+                            const snapshot = fWorkbook.save();
+                            console.log("[SheetWidget] Saving workbook snapshot on close.");
+                            onSaveRef.current(snapshot);
+                        } catch (err) {
+                            console.error("[SheetWidget] Failed to save workbook snapshot:", err);
+                        }
+                    }
                     univerRef.current.dispose();
                     univerRef.current = null;
                 }
@@ -305,8 +300,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 updatesByProduct.get(parsed.product)!.set(parsed.label, cleanValue);
             }
         }
-
-        console.log("updates by products", updatesByProduct);
 
         if (updatesByProduct.size === 0) return;
 
@@ -356,7 +349,13 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             }
 
             if (updatedAnyCell) {
-                // Propagate the ENTIRE updated sheet to the store (so dependents receive all recalculated formulas)
+                // Manually trigger calculation for the workbook to ensure inactive sheets calculate too
+                const formulaEngine = univerAPI.getFormula && univerAPI.getFormula();
+                if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
+                    formulaEngine.executeCalculation();
+                }
+
+                // Propagate the ENTIRE updated sheet to the store (synchronous initial, formulaResultApplied handles async)
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 const snapshot = fWorkbook.save();
                 const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === sheetName) as any;
@@ -442,6 +441,14 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             if (!success) {
                 throw new Error("Failed to insert sheet into workbook");
             }
+
+            // Allow Univer to finish adding the sheet and hydrating the UI
+            // before we ask for values over WebSocket (which writes cells).
+            setTimeout(() => {
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
+                }
+            }, 500);
 
             setModalOpen(false);
         } catch (err: any) {

@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@gsc-tech/eagle-widget-library": path.resolve(__dirname, "../../packages/eagle-widget-library/src/index.ts")
-    }
+    },
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime']
   }
 })

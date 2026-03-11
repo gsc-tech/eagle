@@ -77,6 +77,38 @@ function genSheetId(): string {
 }
 
 /**
+ * Return only the style (`s`) field from a template cell object.
+ * This avoids copying stale `v` (cached value), `t` (type), `f` (formula),
+ * or `si` (shared-formula ID) into newly built cells — all of which cause
+ * Univer to skip formula recalculation on load.
+ */
+function styleOnly(templateCell: Record<string, any> | undefined): Record<string, any> {
+    if (!templateCell) return {};
+    const result: Record<string, any> = {};
+    if (templateCell.s !== undefined) result.s = templateCell.s;
+    return result;
+}
+
+/**
+ * Build a formula cell that Univer will always recalculate on load.
+ *
+ * Key rules:
+ *  - `f`  must be set (the formula string).
+ *  - `v`  must be ABSENT — if present with a stale value, Univer treats it as
+ *         the pre-computed result and skips recalculation (the intermittent bug).
+ *  - `si` must be ABSENT — stale shared-formula IDs from template copies break
+ *         the formula dependency graph.
+ *  - `t`  should match the expected result type: 2 = number, 1 = string.
+ */
+function formulaCell(
+    style: Record<string, any>,
+    formula: string,
+    resultType: 1 | 2 = 2
+): Record<string, any> {
+    return { ...style, f: formula, t: resultType };
+}
+
+/**
  * Build a spread label from two consecutive contracts.
  * e.g. "Jan26-Feb26"
  */
@@ -141,9 +173,9 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
     const numSpreads = contracts.length - 1; // number of spread rows
     const numContracts = contracts.length;
 
-    // We'll use the spread row template from the template (row index 3, which is "3" in cellData)
+    // We'll use the spread row template from the template (row index 3, which is "3" in cellData).
+    // We only extract styles from it — never copy v/f/si which would confuse Univer's formula engine.
     const spreadRowTemplate = JSON.parse(JSON.stringify(templateSheet.cellData["3"] ?? {}));
-    const contractRowTemplate = JSON.parse(JSON.stringify(templateSheet.cellData["3"] ?? {}));
 
     for (let i = 0; i < numSpreads; i++) {
         const sheetRowIdx = 3 + i; // rows 3, 4, 5, ...
@@ -160,133 +192,92 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
         // In the template this was =(+W3 - W4)/100 for row 3
         const wRow = sheetRowIdx + 1; // 1-indexed for formulas
         const wRowNext = wRow + 1;
-        row["1"] = {
-            ...(spreadRowTemplate["1"] ?? {}),
-            v: " ",
-            t: 1,
-            f: `=(+W${wRow} - W${wRowNext})/100`,
-        };
+        // ↓ No `v` — Univer must compute the formula fresh (fixes intermittent calculation bug)
+        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=(+W${wRow} - W${wRowNext})/100`, 2);
 
         // Col 2 (C): count sum = SUM(D{row}:O{row})  — first data row has no formula in template
         if (i === 0) {
-            // first spread row has no count formula in the template
-            row["2"] = { ...(spreadRowTemplate["2"] ?? {}), v: " ", t: 1 };
+            // first spread row: plain blank (no formula needed)
+            row["2"] = { ...styleOnly(spreadRowTemplate["2"]), v: 0, t: 2 };
         } else {
-            row["2"] = {
-                ...(spreadRowTemplate["2"] ?? {}),
-                v: 0,
-                t: 2,
-                f: `=SUM(D${wRow}:O${wRow})`,
-            };
+            row["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
         }
 
         // Cols 3-14 (D-O): strategy legs — blank
         for (let c = 3; c <= 14; c++) {
-            row[String(c)] = { ...(spreadRowTemplate[String(c)] ?? {}), v: " ", t: 1 };
+            row[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), v: 0, t: 2 };
         }
 
         // Col 15 (P): outright settle diff = T{row} - S{row}
-        row["15"] = {
-            ...(spreadRowTemplate["15"] ?? {}),
-            v: "#N/A",
-            t: 1,
-            f: `=T${wRow} - S${wRow}`,
-        };
+        row["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=T${wRow} - S${wRow}`, 2);
 
         // Col 16 (Q): contract label = RIGHT(A{row}, 5)
-        row["16"] = {
-            ...(spreadRowTemplate["16"] ?? {}),
-            v: contracts[i].label,
-            t: 1,
-            f: `=RIGHT(A${wRow}, 5)`,
-        };
+        // This is a text formula — result type is string (1)
+        row["16"] = formulaCell(styleOnly(spreadRowTemplate["16"]), `=RIGHT(A${wRow}, 5)`, 1);
 
-        // Col 17 (R): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}"
+        // Col 17 (R): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
         row["17"] = {
-            ...(spreadRowTemplate["17"] ?? {}),
+            ...styleOnly(spreadRowTemplate["17"]),
             v: `F.${product}.${contracts[i].month.toUpperCase()}${contracts[i].year}`,
             t: 1,
         };
 
         // Col 18 (S): outright count = $C{row+1} - $C{row}   (next minus current)
         const cRowNext = wRow + 1;
-        row["18"] = {
-            ...(spreadRowTemplate["18"] ?? {}),
-            v: 0,
-            t: 2,
-            f: `=$C${cRowNext} -$C${wRow}`,
-        };
+        row["18"] = formulaCell(styleOnly(spreadRowTemplate["18"]), `=$C${cRowNext} -$C${wRow}`, 2);
 
-        // Col 19 (T): NetPos — blank
-        row["19"] = { ...(spreadRowTemplate["19"] ?? {}), v: "#N/A", t: 1 };
+        // Col 19 (T): NetPos — blank (written by WebSocket)
+        row["19"] = { ...styleOnly(spreadRowTemplate["19"]), v: 0, t: 2 };
 
         // Col 20 (U): blank
-        row["20"] = { ...(spreadRowTemplate["20"] ?? {}), v: 0, t: 2 };
+        row["20"] = { ...styleOnly(spreadRowTemplate["20"]), v: 0, t: 2 };
 
-        // Col 21 (V): settle diff = T{row} - S{row}
-        row["21"] = {
-            ...(spreadRowTemplate["21"] ?? {}),
-            v: "#N/A",
-            t: 1,
-        };
+        // Col 21 (V): settle diff — blank placeholder (no formula in builder)
+        row["21"] = { ...styleOnly(spreadRowTemplate["21"]), v: 0, t: 2 };
 
         // Col 22 (W): blank
-        row["22"] = { ...(spreadRowTemplate["22"] ?? {}), v: " ", t: 1 };
+        row["22"] = { ...styleOnly(spreadRowTemplate["22"]), v: 0, t: 2 };
 
         // Col 23 (X): blank
-        row["23"] = { ...(spreadRowTemplate["23"] ?? {}), v: "#N/A", t: 1 };
+        row["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
 
         // Col 24 (Y): hidden spread diff B formula
-        const bRow = wRow;
-        const bRowNext = wRowNext;
-        row["24"] = { f: `=+B${bRow} - B${bRowNext}` };
+        row["24"] = formulaCell({}, `=+B${wRow} - B${wRowNext}`, 2);
 
         cellData[String(sheetRowIdx)] = row;
     }
 
-    // Last spread row for the last contract (outright only — no spread partner)
-    // We still add a row for the last contract's outright info at row 3+numSpreads
+    // Last row: the final contract (outright info only — no spread partner for it)
     if (numContracts > 0) {
         const lastContractSheetIdx = 3 + numSpreads;
         const wRow = lastContractSheetIdx + 1;
         const lastRow: Record<string, any> = {};
 
-        lastRow["0"] = { ...(spreadRowTemplate["0"] ?? {}), v: " ", t: 1 };
-        lastRow["1"] = { ...(spreadRowTemplate["1"] ?? {}), v: " ", t: 1 };
-        lastRow["2"] = {
-            ...(spreadRowTemplate["2"] ?? {}),
-            v: 0,
-            t: 2,
-            f: `=SUM(D${wRow}:O${wRow})`,
-        };
+        lastRow["0"] = { ...styleOnly(spreadRowTemplate["0"]), v: " ", t: 1 };
+        lastRow["1"] = { ...styleOnly(spreadRowTemplate["1"]), v: 0, t: 2 };
+        // Col 2 (C): count sum formula — no stale v
+        lastRow["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
 
         for (let c = 3; c <= 14; c++) {
-            lastRow[String(c)] = { ...(spreadRowTemplate[String(c)] ?? {}), v: " ", t: 1 };
+            lastRow[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), v: 0, t: 2 };
         }
 
-        lastRow["15"] = {
-            ...(spreadRowTemplate["15"] ?? {}),
-            v: "#N/A",
-            t: 1,
-            f: `=T${wRow} - S${wRow}`,
-        };
-        lastRow["16"] = {
-            ...(spreadRowTemplate["16"] ?? {}),
-            v: contracts[numContracts - 1].label,
-            t: 1,
-            f: `=RIGHT(A${wRow}, 5)`,
-        };
+        // Col 15 (P): outright settle diff — no stale v
+        lastRow["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=T${wRow} - S${wRow}`, 2);
+        // Col 16 (Q): contract month label — text formula, no stale v
+        lastRow["16"] = formulaCell(styleOnly(spreadRowTemplate["16"]), `=RIGHT(A${wRow}, 5)`, 1);
         lastRow["17"] = {
-            ...(spreadRowTemplate["17"] ?? {}),
+            ...styleOnly(spreadRowTemplate["17"]),
             v: `F.${product}.${contracts[numContracts - 1].month.toUpperCase()}${contracts[numContracts - 1].year}`,
             t: 1,
         };
-        lastRow["18"] = { ...(spreadRowTemplate["18"] ?? {}), v: 0, t: 2, f: `=$C${wRow + 1} -$C${wRow}` };
-        lastRow["19"] = { ...(spreadRowTemplate["19"] ?? {}), v: "#N/A", t: 1 };
-        lastRow["20"] = { ...(spreadRowTemplate["20"] ?? {}), v: 0, t: 2 };
-        lastRow["21"] = { ...(spreadRowTemplate["21"] ?? {}), v: "#N/A", t: 1 };
-        lastRow["22"] = { ...(spreadRowTemplate["22"] ?? {}), v: " ", t: 1 };
-        lastRow["23"] = { ...(spreadRowTemplate["23"] ?? {}), v: "#N/A", t: 1 };
+        // Col 18 (S): outright count formula — no stale v
+        lastRow["18"] = formulaCell(styleOnly(spreadRowTemplate["18"]), `=$C${wRow + 1} -$C${wRow}`, 2);
+        lastRow["19"] = { ...styleOnly(spreadRowTemplate["19"]), v: 0, t: 2 };
+        lastRow["20"] = { ...styleOnly(spreadRowTemplate["20"]), v: 0, t: 2 };
+        lastRow["21"] = { ...styleOnly(spreadRowTemplate["21"]), v: 0, t: 2 };
+        lastRow["22"] = { ...styleOnly(spreadRowTemplate["22"]), v: 0, t: 2 };
+        lastRow["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
 
         cellData[String(lastContractSheetIdx)] = lastRow;
     }

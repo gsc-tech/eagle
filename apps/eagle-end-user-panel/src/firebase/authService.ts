@@ -1,20 +1,15 @@
-import { auth } from './config';
-import { signInWithEmailAndPassword, onAuthStateChanged } from '@firebase/auth';
+import { auth } from "./config";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 
 export async function login(email: string, password: string) {
     try {
         await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-        throw new Error("Incorrect Password or Email");
+    } catch {
+        throw new Error("Incorrect password or email.");
     }
 }
 
-export function getUser() {
-    return auth.currentUser;
-}
-
-
-export async function getToken() {
+export async function getToken(): Promise<string> {
     const user = auth.currentUser;
 
     if (user) {
@@ -22,20 +17,17 @@ export async function getToken() {
     }
 
     return new Promise((resolve, reject) => {
-        const unsub = onAuthStateChanged(auth, async (user) => {
+        const unsub = onAuthStateChanged(auth, async (u) => {
             unsub();
-
-            if (!user) {
+            if (!u) {
                 reject(new Error("User not signed in"));
                 return;
             }
-
-            resolve(await user.getIdToken(true));
+            resolve(await u.getIdToken(true));
         });
     });
 }
 
-
 export function signOut() {
-    auth.signOut()
+    auth.signOut();
 }

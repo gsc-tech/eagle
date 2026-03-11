@@ -15,8 +15,8 @@
         },
         "scrollTop": 0,
         "scrollLeft": 0,
-        "defaultColumnWidth": 88,
-        "defaultRowHeight": 24,
+        "defaultColumnWidth": 54,
+        "defaultRowHeight": 18,
         "mergeData": [
             {
                 "startRow": 0,

@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAzzuMbRLcPmxDNiYJEGw47lQ9tNNvszCI",
@@ -7,8 +7,8 @@ const firebaseConfig = {
     projectId: "eagle-e263b",
     storageBucket: "eagle-e263b.firebasestorage.app",
     messagingSenderId: "1070621403039",
-    appId: "1:1070621403039:web:e7a7d14bb3da55a9da3faa"
-}
+    appId: "1:1070621403039:web:a954162facd7ea33da3faa",
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

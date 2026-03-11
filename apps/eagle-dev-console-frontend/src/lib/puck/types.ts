@@ -1,4 +1,3 @@
-import type { Config } from "@measured/puck";
 import type { ComponentType } from "react";
 
 
@@ -16,4 +15,3 @@ export interface BackendWidgetConfig {
 }
 
 export type WidgetLibrary = Record<string, WidgetLibraryEntry>;
-export type PuckConfig = Config<any>
