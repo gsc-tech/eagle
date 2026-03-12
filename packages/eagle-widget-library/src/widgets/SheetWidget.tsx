@@ -341,34 +341,29 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             const productUpdates = updatesByProduct.get(baseSheetName);
             if (!productUpdates) continue;
 
-            console.log(`[SheetWidget] Checking sheet ${sheetName} for product ${baseSheetName}. Updates:`, Object.fromEntries(productUpdates));
-
-            // 1. Get all contract names from Column 17 (R) at once for efficiency and reliability
-            // This ensures we see the latest values as the engine sees them.
-            const rowCount = sheet.getRowCount();
-            const contractNamesRange = sheet.getRange(0, 17, rowCount, 1);
-            const contractNames = contractNamesRange?.getValues();
-
-            if (!contractNames) continue;
-
             let updatedAnyCell = false;
 
-            // 2. Iterate through the rows and apply updates
-            for (let i = 0; i < contractNames.length; i++) {
-                const currentContractValue = contractNames[i][0];
-                if (!currentContractValue || typeof currentContractValue !== "string") continue;
-
-                const currentContract = currentContractValue.toUpperCase();
+            // Iterate over the cell data snapshot to find the matching contract row.
+            // Using Column 17 (index "17") for static contract name matching.
+            for (const [rowIdxStr, rowObj] of Object.entries(cellData)) {
+                if (!rowObj || typeof rowObj !== 'object') continue;
                 
-                for (const [labelVal, newVal] of productUpdates.entries()) {
-                    const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
+                const cellR = (rowObj as any)["17"]; // Column R (Static Contract Name)
+                if (cellR && cellR.v && typeof cellR.v === "string") {
+                    const currentContract = String(cellR.v).toUpperCase();
                     
-                    if (currentContract === expectedContract) {
-                        const rowNum = i + 1; // 1-indexed
-                        console.log(`[SheetWidget] -> Updating Row ${rowNum} for ${currentContract} to ${newVal}`);
+                    for (const [labelVal, newVal] of productUpdates.entries()) {
+                        const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
                         
-                        sheet.getRange(i, 19).setValue(newVal); // Column T
-                        updatedAnyCell = true;
+                        if (currentContract === expectedContract) {
+                            const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
+                            console.log(`[SheetWidget] Updating ${sheetName} Row ${rowNum} for ${currentContract} to ${newVal}`);
+                            
+                            // Update Column T (T is index 19)
+                            // Using string-based range lookup for maximum compatibility
+                            sheet.getRange(`T${rowNum}`)?.setValue(newVal);
+                            updatedAnyCell = true;
+                        }
                     }
                 }
             }
