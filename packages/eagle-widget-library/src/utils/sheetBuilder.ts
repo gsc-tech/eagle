@@ -301,3 +301,170 @@ export async function buildProductSheet(
     const sheetId = Object.keys(sheetSnapshot)[0];
     return { sheetId, sheetSnapshot, contracts };
 }
+
+// ─── Snapshot sanitizer ────────────────────────────────────────────────────────
+
+/**
+ * Strip stale cached values from formula cells in a persisted Univer workbook
+ * snapshot so that Univer recomputes every formula fresh on the next load.
+ *
+ * Background
+ * ──────────
+ * When you call `fWorkbook.save()` Univer serialises each formula cell with:
+ *   { f: "=...", v: <last computed result>, si: <shared-formula-id> }
+ *
+ * On the next `createWorkbook(snapshot)` call Univer's formula engine sees `v`
+ * already present and treats the cell as "already evaluated" — it therefore
+ * skips recalculation.  After a WebSocket `setValue()` the downstream formula
+ * cells never update because the engine still considers them solved.
+ *
+ * Fix: before passing a persisted snapshot back to `createWorkbook`, walk every
+ * cell in every sheet and, for any cell that has a formula (`f`), delete the
+ * cached `v` and `si` fields.  Univer will then treat them as unevaluated and
+ * will run a full recalculation pass, restoring the expected behaviour.
+ *
+ * @param snapshot - The raw object returned by `fWorkbook.save()`.
+ * @returns A deep-cloned, sanitised copy of the snapshot (original untouched).
+ */
+export function sanitizeWorkbookSnapshot(
+    snapshot: Record<string, any>
+): Record<string, any> {
+    // Deep-clone so we never mutate the caller's object
+    const clean: Record<string, any> = JSON.parse(JSON.stringify(snapshot));
+
+    const sheetsMap: Record<string, any> = clean.sheets ?? {};
+    for (const sheetObj of Object.values(sheetsMap) as any[]) {
+        const cellData: Record<string, any> = sheetObj?.cellData ?? {};
+        for (const rowObj of Object.values(cellData) as any[]) {
+            if (!rowObj) continue;
+            for (const cell of Object.values(rowObj) as any[]) {
+                if (cell && typeof cell === "object" && cell.f) {
+                    // Cell has a formula → remove the stale cached result
+                    delete cell.v;
+                    delete cell.si; // stale shared-formula ID breaks dependency graph
+                }
+            }
+        }
+    }
+
+    return clean;
+}
+
+// ─── Atomic Reconstruction Workaround ──────────────────────────────────────────
+
+/**
+ * The "Atomic Reconstruction" workaround.
+ * Instead of loading a buggy persisted snapshot (which has frozen formulas),
+ * we build a FRESH skeleton for the required products and "patch" the old
+ * values back into it.
+/**
+ * The "Atomic Reconstruction" workaround.
+ * Instead of loading a buggy persisted snapshot (which has frozen formulas),
+ * we build a FRESH skeleton for the required products and "patch" the old
+ * values back into it.
+ *
+ * This ensures the formulas are brand new (linked correctly) while the user's
+ * data is preserved.
+ */
+export async function reconstructWorkbookFromSnapshot(
+    snapshot: Record<string, any>
+): Promise<Record<string, any>> {
+    console.log("[sheetBuilder] Starting atomic reconstruction of workbook...");
+
+    const sheetsMap: Record<string, any> = snapshot.sheets ?? {};
+    const sheetEntries = Object.values(sheetsMap);
+
+    if (sheetEntries.length === 0) return snapshot;
+
+    const rebuiltSheets: Record<string, any> = {};
+    const sheetOrder: string[] = [];
+
+    for (const oldSheet of sheetEntries) {
+        const name = oldSheet.name || "";
+        if (!name) continue;
+
+        let baseProduct = name.replace(/\(\d+\)$/, "").toUpperCase();
+        
+        // Fallback: If name is generic (like "Universheet"), try to find product from a row
+        if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
+            const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
+            const sampleContract = firstRow?.["17"]?.v;
+            if (sampleContract && typeof sampleContract === "string") {
+                const parts = sampleContract.split('.');
+                if (parts.length >= 2) baseProduct = parts[1].toUpperCase();
+            }
+        }
+
+        console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
+
+        if (baseProduct === "UNIVERSHEET") {
+             console.warn(`[sheetBuilder] Could not determine product for sheet ${name}, using original.`);
+             rebuiltSheets[oldSheet.id] = oldSheet;
+             sheetOrder.push(oldSheet.id);
+             continue;
+        }
+
+        try {
+            // Build a fresh skeleton for this product
+            const { sheetSnapshot } = await buildProductSheet(baseProduct);
+            const newId = Object.keys(sheetSnapshot)[0];
+            const newSheet = sheetSnapshot[newId];
+
+            // Ensure the new sheet has the same name as the old one (to preserve layout)
+            newSheet.name = name;
+
+            // 2. Transfer data from oldSheet to newSheet
+            // We match rows using Column 17 (Static contract name)
+            const oldCellData = oldSheet.cellData || {};
+            const newCellData = newSheet.cellData || {};
+
+            // Map old rows by contract name
+            const oldRowsByContract = new Map<string, any>();
+            for (const rowObj of Object.values(oldCellData) as any[]) {
+                const contractName = rowObj?.["17"]?.v;
+                if (contractName) oldRowsByContract.set(contractName, rowObj);
+            }
+
+            // Patch dynamic columns in the new skeleton
+            for (const newRowObj of Object.values(newCellData) as any[]) {
+                const contractName = newRowObj?.["17"]?.v;
+                const oldRowObj = oldRowsByContract.get(contractName);
+
+                if (oldRowObj) {
+                    // Columns to preserve:
+                    // 3-14: Strategy legs (D-O)
+                    // 19:   NetPos (T)
+                    // 22:   Settle helper (W)
+                    const colsToPreserve = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "22"];
+
+                    for (const col of colsToPreserve) {
+                        if (oldRowObj[col]) {
+                            // Preserve the value 'v', but keep the new style 's' from the template
+                            newRowObj[col] = {
+                                ...(newRowObj[col] || {}),
+                                v: oldRowObj[col].v,
+                                t: oldRowObj[col].t
+                            };
+                        }
+                    }
+                }
+            }
+
+            rebuiltSheets[newId] = newSheet;
+            sheetOrder.push(newId);
+        } catch (err) {
+            console.error(`[sheetBuilder] Failed to rebuild skeleton for ${name}, falling back to original.`, err);
+            rebuiltSheets[oldSheet.id] = oldSheet;
+            sheetOrder.push(oldSheet.id);
+        }
+    }
+
+    // Return the reconstructed workbook structure with a FRESH workbook ID
+    // to force Univer to treat this as a brand new instance.
+    return {
+        ...snapshot,
+        id: `workbook-${Date.now()}`,
+        sheets: rebuiltSheets,
+        sheetOrder: sheetOrder
+    };
+}

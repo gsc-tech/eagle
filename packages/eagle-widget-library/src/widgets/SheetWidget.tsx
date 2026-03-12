@@ -12,7 +12,7 @@ import { createUniver, defaultTheme, greenTheme, LocaleType, merge } from "@univ
 import "@univerjs/presets/lib/styles/preset-sheets-core.css";
 import sheetsCoreEnUs from "@univerjs/presets/preset-sheets-core/locales/en-US";
 import sheetData from "../../sheetData.json";
-import { buildProductSheet } from "../utils/sheetBuilder";
+import { buildProductSheet, sanitizeWorkbookSnapshot, reconstructWorkbookFromSnapshot } from "../utils/sheetBuilder";
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,7 +123,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 let workbookData: Record<string, any>;
 
                 if (initialWorkbookDataRef.current) {
-                    workbookData = initialWorkbookDataRef.current;
+                    // ── Atomic Reconstruction ──
+                    // Instead of loading the buggy persisted snapshot directly, we rebuild 
+                    // a fresh skeleton from templates and patch the old data back into it.
+                    // This is the "bringing back" workaround to fix frozen formulas.
+                    workbookData = await reconstructWorkbookFromSnapshot(initialWorkbookDataRef.current);
+                    console.log("[SheetWidget] Successfully reconstructed workbook from snapshot");
                 } else {
                     console.log("setting new data")
                     // ── Build default template (RB sheet) ────────────────────
@@ -176,6 +181,17 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 // Give Univer one JS task to finish its internal async setup
                 // (formula-engine warm-up, canvas render) before we accept data.
                 setTimeout(() => {
+                    // If we loaded from a persisted snapshot, force a full recalculation
+                    // pass so all formulas are live before WebSocket data arrives.
+                    // This pairs with the snapshot sanitization above.
+                    if (initialWorkbookDataRef.current) {
+                        const formulaEngine = univerAPI.getFormula?.();
+                        if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
+                            console.log("[SheetWidget] Forcing recalculation on persisted snapshot load.");
+                            formulaEngine.executeCalculation();
+                        }
+                    }
+
                     // Send snapshot request now that Univer is ready
                     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                         wsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
@@ -325,24 +341,33 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             const productUpdates = updatesByProduct.get(baseSheetName);
             if (!productUpdates) continue;
 
-            console.log("product updates", productUpdates);
+            console.log(`[SheetWidget] Checking sheet ${sheetName} for product ${baseSheetName}. Updates:`, Object.fromEntries(productUpdates));
+
+            // 1. Get all contract names from Column 17 (R) at once for efficiency and reliability
+            // This ensures we see the latest values as the engine sees them.
+            const rowCount = sheet.getRowCount();
+            const contractNamesRange = sheet.getRange(0, 17, rowCount, 1);
+            const contractNames = contractNamesRange?.getValues();
+
+            if (!contractNames) continue;
 
             let updatedAnyCell = false;
 
-            // Iterate over the cell data to find the matching contract in Column 16 (Q)
-            for (const rowIdxStr of Object.keys(cellData)) {
-                const rowObj = cellData[rowIdxStr];
-                if (!rowObj) continue;
+            // 2. Iterate through the rows and apply updates
+            for (let i = 0; i < contractNames.length; i++) {
+                const currentContractValue = contractNames[i][0];
+                if (!currentContractValue || typeof currentContractValue !== "string") continue;
 
-                const cellQ = rowObj["16"]; // Column Q holds "Mar26"
-                if (cellQ && cellQ.v && typeof cellQ.v === "string") {
-                    const labelVal = String(cellQ.v).toUpperCase();
-                    if (productUpdates.has(labelVal)) {
-                        const newVal = productUpdates.get(labelVal);
-                        const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
-                        // Update Column T (T is index 19)
-                        sheet.getRange(`T${rowNum}`)?.setValue(newVal);
-
+                const currentContract = currentContractValue.toUpperCase();
+                
+                for (const [labelVal, newVal] of productUpdates.entries()) {
+                    const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
+                    
+                    if (currentContract === expectedContract) {
+                        const rowNum = i + 1; // 1-indexed
+                        console.log(`[SheetWidget] -> Updating Row ${rowNum} for ${currentContract} to ${newVal}`);
+                        
+                        sheet.getRange(i, 19).setValue(newVal); // Column T
                         updatedAnyCell = true;
                     }
                 }
