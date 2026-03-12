@@ -90,6 +90,34 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         initialWorkbookDataRef.current = initialWorkbookData;
     }, [onSave, initialWorkbookData]);
 
+    const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const triggerAutoSave = useCallback(() => {
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            if (univerRef.current && onSaveRef.current) {
+                try {
+                    const fWorkbook = univerRef.current.getActiveWorkbook();
+                    if (fWorkbook) {
+                        console.log("[SheetWidget] Auto-saving workbook snapshot...");
+                        onSaveRef.current(fWorkbook.save());
+                    }
+                } catch (err) {
+                    console.error("[SheetWidget] Failed to auto-save:", err);
+                }
+            }
+        }, 1000);
+    }, []);
+
+    const triggerAutoSaveRef = useRef(triggerAutoSave);
+    useEffect(() => {
+        triggerAutoSaveRef.current = triggerAutoSave;
+    }, [triggerAutoSave]);
+
+    console.log("initialWorkbookData", initialWorkbookData);
+
     // ── Modal state ───────────────────────────────────────────────────────────
     const [modalOpen, setModalOpen] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
@@ -201,7 +229,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 // ── Intercept InsertSheetCommand ──────────────────────────────────────
                 const disposable = univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (event: any) => {
                     const { id } = event;
-                    console.log("event id", id);
                     if (id === InsertSheetCommand.id) {
                         // If WE triggered this programmatically, let it through.
                         if (isProgrammaticInsertRef.current) return;
@@ -224,6 +251,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         const fWorkbook = univerRef.current.getActiveWorkbook();
                         const snapshot = fWorkbook.save();
 
+                        triggerAutoSaveRef.current?.();
+
                         // Grab the fully evaluated/saved snapshot for this specific sheet
 
                         setTimeout(() => {
@@ -243,6 +272,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         console.log("[SheetWidget] Formula calculation applied:", result);
                         const fWorkbook = univerAPI.getActiveWorkbook();
                         if (!fWorkbook) return;
+                        
+                        triggerAutoSaveRef.current?.();
+                        
                         const snapshot = fWorkbook.save();
                         // Update the store with the fully evaluated snapshot
                         for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
@@ -347,18 +379,18 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             // Using Column 17 (index "17") for static contract name matching.
             for (const [rowIdxStr, rowObj] of Object.entries(cellData)) {
                 if (!rowObj || typeof rowObj !== 'object') continue;
-                
+
                 const cellR = (rowObj as any)["17"]; // Column R (Static Contract Name)
                 if (cellR && cellR.v && typeof cellR.v === "string") {
                     const currentContract = String(cellR.v).toUpperCase();
-                    
+
                     for (const [labelVal, newVal] of productUpdates.entries()) {
                         const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
-                        
+
                         if (currentContract === expectedContract) {
                             const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
                             console.log(`[SheetWidget] Updating ${sheetName} Row ${rowNum} for ${currentContract} to ${newVal}`);
-                            
+
                             // Update Column T (T is index 19)
                             // Using string-based range lookup for maximum compatibility
                             sheet.getRange(`T${rowNum}`)?.setValue(newVal);
@@ -384,6 +416,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     useSheetStore.getState().setSheet(sheetName, targetSheetObj.cellData);
                 }
             }
+        }
+
+        if (updatesByProduct.size > 0) {
+            triggerAutoSaveRef.current?.();
         }
     }, []);
 

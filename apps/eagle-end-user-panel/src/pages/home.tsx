@@ -76,6 +76,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     // Workbook snapshots state
     const [workbookSnapshots, setWorkbookSnapshots] = useState<Record<string, Record<string, any>>>({});
+    const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
     // User profile expansion
     const [profileOpen, setProfileOpen] = useState(false);
@@ -128,6 +129,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         setProfileOpen(false);
 
         // Fetch workbook snapshots for this dashboard
+        setIsLoadingSnapshots(true);
         fetchWorkbookSnapshots(dashboard.dashboardID);
     };
 
@@ -145,11 +147,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             });
             if (resp.data) {
                 setWorkbookSnapshots(resp.data);
+            } else {
+                setWorkbookSnapshots({});
             }
         } catch (error) {
             console.error("Error fetching workbook snapshots:", error);
             // Default to empty if not found or errors
             setWorkbookSnapshots({});
+        } finally {
+            setIsLoadingSnapshots(false);
         }
     };
 
@@ -158,20 +164,27 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         try {
             const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
             // Example endpoint: save snapshot for a specific widget
-            const token = await getToken();
-            await axios.post(`${baseURL}/api/dashboards/snapshots/save`,
-                {
+            let token = "";
+            try {
+                token = await getToken();
+            } catch (err) {
+                console.error("Could not get token for snapshot save:", err);
+            }
+
+            // Using fetch with keepalive: true ensures the request completes
+            // even if the user is in the process of closing the browser window.
+            await fetch(`${baseURL}/api/dashboards/snapshots/save`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
                     dashboardId: selected.dashboardID,
                     itemId: widgetId,
                     snapshot: snapshot
-                },
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    }
-                }
-            );
+                }),
+            });
 
             // Update local state immediately
             setWorkbookSnapshots(prev => ({
@@ -398,13 +411,19 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                             {/* Canvas area */}
                             <div className="flex-1 min-h-0 relative overflow-hidden">
                                 {activeTab && (
-                                    <DashboardCanvas
-                                        key={`${selected.dashboardID}-${activeTab.id}`}
-                                        initialLayout={activeTab.layout}
-                                        onLayoutChange={handleLayoutChange}
-                                        workbookSnapshots={workbookSnapshots}
-                                        onSaveWorkbook={handleSaveWorkbook}
-                                    />
+                                    isLoadingSnapshots ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                        </div>
+                                    ) : (
+                                        <DashboardCanvas
+                                            key={`${selected.dashboardID}-${activeTab.id}`}
+                                            initialLayout={activeTab.layout}
+                                            onLayoutChange={handleLayoutChange}
+                                            workbookSnapshots={workbookSnapshots}
+                                            onSaveWorkbook={handleSaveWorkbook}
+                                        />
+                                    )
                                 )}
                             </div>
                         </>

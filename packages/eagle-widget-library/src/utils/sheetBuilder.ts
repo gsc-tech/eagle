@@ -195,13 +195,9 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
         // ↓ No `v` — Univer must compute the formula fresh (fixes intermittent calculation bug)
         row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=(+W${wRow} - W${wRowNext})/100`, 2);
 
-        // Col 2 (C): count sum = SUM(D{row}:O{row})  — first data row has no formula in template
-        if (i === 0) {
-            // first spread row: plain blank (no formula needed)
-            row["2"] = { ...styleOnly(spreadRowTemplate["2"]), v: 0, t: 2 };
-        } else {
-            row["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
-        }
+        // Col 2 (C): count sum = SUM(D{row}:O{row})
+
+        row["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
 
         // Cols 3-14 (D-O): strategy legs — blank
         for (let c = 3; c <= 14; c++) {
@@ -218,7 +214,7 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
         // Col 17 (R): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
         row["17"] = {
             ...styleOnly(spreadRowTemplate["17"]),
-            v: `F.${product}.${contracts[i].month.toUpperCase()}${contracts[i].year}`,
+            v: `F.${product}.${contracts[i + 1].month.toUpperCase()}${contracts[i + 1].year}`,
             t: 1,
         };
 
@@ -247,40 +243,6 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
         cellData[String(sheetRowIdx)] = row;
     }
 
-    // Last row: the final contract (outright info only — no spread partner for it)
-    if (numContracts > 0) {
-        const lastContractSheetIdx = 3 + numSpreads;
-        const wRow = lastContractSheetIdx + 1;
-        const lastRow: Record<string, any> = {};
-
-        lastRow["0"] = { ...styleOnly(spreadRowTemplate["0"]), v: " ", t: 1 };
-        lastRow["1"] = { ...styleOnly(spreadRowTemplate["1"]), v: 0, t: 2 };
-        // Col 2 (C): count sum formula — no stale v
-        lastRow["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
-
-        for (let c = 3; c <= 14; c++) {
-            lastRow[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), v: 0, t: 2 };
-        }
-
-        // Col 15 (P): outright settle diff — no stale v
-        lastRow["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=T${wRow} - S${wRow}`, 2);
-        // Col 16 (Q): contract month label — text formula, no stale v
-        lastRow["16"] = formulaCell(styleOnly(spreadRowTemplate["16"]), `=RIGHT(A${wRow}, 5)`, 1);
-        lastRow["17"] = {
-            ...styleOnly(spreadRowTemplate["17"]),
-            v: `F.${product}.${contracts[numContracts - 1].month.toUpperCase()}${contracts[numContracts - 1].year}`,
-            t: 1,
-        };
-        // Col 18 (S): outright count formula — no stale v
-        lastRow["18"] = formulaCell(styleOnly(spreadRowTemplate["18"]), `=$C${wRow + 1} -$C${wRow}`, 2);
-        lastRow["19"] = { ...styleOnly(spreadRowTemplate["19"]), v: 0, t: 2 };
-        lastRow["20"] = { ...styleOnly(spreadRowTemplate["20"]), v: 0, t: 2 };
-        lastRow["21"] = { ...styleOnly(spreadRowTemplate["21"]), v: 0, t: 2 };
-        lastRow["22"] = { ...styleOnly(spreadRowTemplate["22"]), v: 0, t: 2 };
-        lastRow["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
-
-        cellData[String(lastContractSheetIdx)] = lastRow;
-    }
 
     // Commit cell data back to the sheet
     templateSheet.cellData = cellData;
@@ -384,7 +346,7 @@ export async function reconstructWorkbookFromSnapshot(
         if (!name) continue;
 
         let baseProduct = name.replace(/\(\d+\)$/, "").toUpperCase();
-        
+
         // Fallback: If name is generic (like "Universheet"), try to find product from a row
         if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
             const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
@@ -398,10 +360,10 @@ export async function reconstructWorkbookFromSnapshot(
         console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
 
         if (baseProduct === "UNIVERSHEET") {
-             console.warn(`[sheetBuilder] Could not determine product for sheet ${name}, using original.`);
-             rebuiltSheets[oldSheet.id] = oldSheet;
-             sheetOrder.push(oldSheet.id);
-             continue;
+            console.warn(`[sheetBuilder] Could not determine product for sheet ${name}, using original.`);
+            rebuiltSheets[oldSheet.id] = oldSheet;
+            sheetOrder.push(oldSheet.id);
+            continue;
         }
 
         try {
