@@ -8,11 +8,73 @@ import { InsertSheetModal } from "../components/InsertSheetModal";
 import { useSheetStore } from "../store/sheetStore";
 import { CalculationMode, UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import { InsertSheetCommand } from "@univerjs/preset-sheets-core";
-import { createUniver, defaultTheme, greenTheme, LocaleType, merge } from "@univerjs/presets";
+import { createUniver, defaultTheme, greenTheme, LocaleType, merge, mergeLocales } from "@univerjs/presets";
 import "@univerjs/presets/lib/styles/preset-sheets-core.css";
-import sheetsCoreEnUs from "@univerjs/presets/preset-sheets-core/locales/en-US";
-import sheetData from "../../sheetData.json";
-import { buildProductSheet, sanitizeWorkbookSnapshot, reconstructWorkbookFromSnapshot } from "../utils/sheetBuilder";
+import '@univerjs/preset-sheets-conditional-formatting/lib/index.css'
+import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US'
+import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
+import UniverPresetSheetsConditionalFormattingEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US'
+import { buildProductSheet, sanitizeWorkbookSnapshot, reconstructWorkbookFromSnapshot, getWorkbookSkeleton } from "../utils/sheetBuilder";
+
+
+// ─── Conditional Formatting Helper ──────────────────────────────────────────
+
+/**
+ * Apply legacy position highlighting: 
+ * Blue for longs (+) and Orange for shorts (-) in columns C-N.
+ */
+function applyDefaultConditionalFormatting(fWorksheet: any) {
+    if (!fWorksheet) return;
+
+    try {
+        console.log(`[SheetWidget] Applying conditional formatting to ${fWorksheet.getSheetName()}...`);
+
+        // Strategy legs: Columns C to N (index 2 to 13)
+        // Data usually starts from Row 4 (index 3). 
+        // We use the worksheet's actual row count to avoid "out of bounds" errors.
+
+        const fRange = fWorksheet.getRange(3, 2, 996, 12);
+        const rangeDetails = fRange.getRange();
+
+        // 1. Rule for Positive (Longs) - Blue Theme
+        const rulePos = fWorksheet.newConditionalFormattingRule()
+            .whenNumberGreaterThan(0)
+            .setRanges([rangeDetails])
+            .setBackground('#1976D2')
+            .setFontColor('rgb(224, 242, 254)')
+            .setItalic(false)
+            .setBold(true)
+            .build();
+
+        // 2. Rule for Negative (Shorts) - Orange Theme
+        const ruleNeg = fWorksheet.newConditionalFormattingRule()
+            .whenNumberLessThan(0)
+            .setRanges([rangeDetails])
+            .setBackground('#F57C00')
+            .setFontColor('rgb(255, 247, 237)')
+            .setItalic(false)
+            .setBold(true)
+            .build();
+
+        fWorksheet.addConditionalFormattingRule(rulePos);
+        fWorksheet.addConditionalFormattingRule(ruleNeg);
+
+        // 3. Rule for Mismatch: Column O (14) vs Column S (18)
+        // Highlighting Column O when it doesn't match Column S
+        const mismatchRange = fWorksheet.getRange(3, 14, 996, 1);
+        const ruleMismatch = fWorksheet.newConditionalFormattingRule()
+            .whenFormulaSatisfied("=$O4<>$S4") // Using relative row indices
+            .setRanges([mismatchRange.getRange()])
+            .setBackground('#FFEB3B') // Vivid yellow
+            .setFontColor('#B71C1C') // Deep red
+            .setBold(true)
+            .build();
+
+        fWorksheet.addConditionalFormattingRule(ruleMismatch);
+    } catch (err) {
+        console.error("[SheetWidget] Failed to apply conditional formatting:", err);
+    }
+}
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,6 +143,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const univerRef = useRef<any>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    console.log("darkMode is ", darkMode);
 
     // Keep latest prop values accessible inside async/cleanup closures
     const onSaveRef = useRef(onSave);
@@ -164,11 +228,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     sheetSnapshot[sheetId].name = "RB";
 
                     workbookData = {
-                        ...(sheetData as any),
-                        id: "workbook-01",
+                        ...getWorkbookSkeleton(),
                         sheets: sheetSnapshot,
                         sheetOrder: [sheetId],
-                        name: "Universheet",
                     };
                 }
 
@@ -177,9 +239,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 const { univerAPI } = createUniver({
                     locale: LocaleType.EN_US,
                     locales: {
-                        [LocaleType.EN_US]: merge({}, sheetsCoreEnUs),
+                        [LocaleType.EN_US]: mergeLocales(UniverPresetSheetsCoreEnUS, UniverPresetSheetsConditionalFormattingEnUS),
                     },
-                    theme: darkMode ? greenTheme : defaultTheme,
+                    theme: defaultTheme,
                     presets: [
                         UniverSheetsCorePreset({
                             container: container!,
@@ -188,6 +250,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                                 initialFormulaComputing: CalculationMode.FORCED,
                             }
                         }),
+                        UniverSheetsConditionalFormattingPreset(),
                     ],
                 });
 
@@ -197,12 +260,16 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 // Sync ALL sheets from the loaded workbook into the store
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 if (fWorkbook) {
-                    const snapshot = fWorkbook.save();
-                    for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
-                        if (sheetObj?.name && sheetObj?.cellData) {
-                            useSheetStore.getState().setSheet(sheetObj.name, sheetObj.cellData);
+                    const sheets = fWorkbook.getSheets();
+                    sheets.forEach((s: any) => {
+                        // Apply conditional formatting to each sheet
+                        applyDefaultConditionalFormatting(s);
+
+                        const snapshot = s.getSheet().getSnapshot();
+                        if (snapshot?.name && snapshot?.cellData) {
+                            useSheetStore.getState().setSheet(snapshot.name, snapshot.cellData);
                         }
-                    }
+                    });
                 }
 
 
@@ -272,9 +339,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         console.log("[SheetWidget] Formula calculation applied:", result);
                         const fWorkbook = univerAPI.getActiveWorkbook();
                         if (!fWorkbook) return;
-                        
+
                         triggerAutoSaveRef.current?.();
-                        
+
                         const snapshot = fWorkbook.save();
                         // Update the store with the fully evaluated snapshot
                         for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
@@ -480,23 +547,15 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             const { sheetId, sheetSnapshot } = await buildProductSheet(product);
 
             // 2. Get the workbook and insert the new sheet
-            const workbook = univerRef.current.getActiveWorkbook();
-            if (!workbook) throw new Error("No active workbook found");
-
-            // Use Univer's addSheet API to add the sheet from a snapshot
-            // The workbook exposes createSheet or we can use the command layer.
             const univerAPI = univerRef.current;
+            const newSheet = await insertSheetIntoWorkbook(univerAPI, product, sheetId, sheetSnapshot, isProgrammaticInsertRef);
 
-            // Merge the new sheet snapshot into the workbook snapshot and reload,
-            // or use the Univer API to insert a sheet programmatically.
-            //
-            // Strategy: use the univerAPI to execute an InsertSheet command with
-            // the pre-built snapshot data.  If the Univer version supports it,
-            // we can pass the sheet config directly.
-            const success = await insertSheetIntoWorkbook(univerAPI, product, sheetId, sheetSnapshot, isProgrammaticInsertRef);
-            if (!success) {
+            if (!newSheet) {
                 throw new Error("Failed to insert sheet into workbook");
             }
+
+            // apply conditional formatting to the newly created sheet
+            applyDefaultConditionalFormatting(newSheet);
 
             // Allow Univer to finish adding the sheet and hydrating the UI
             // before we ask for values over WebSocket (which writes cells).
@@ -556,13 +615,13 @@ async function insertSheetIntoWorkbook(
     sheetId: string,
     sheetSnapshot: Record<string, any>,
     isProgrammaticInsertRef: React.MutableRefObject<boolean>
-): Promise<boolean> {
+): Promise<any> {
     try {
         const sheetData = sheetSnapshot[sheetId];
         if (!sheetData) return false;
 
         const workbook = univerAPI.getActiveWorkbook();
-        if (!workbook) return false;
+        if (!workbook) return null;
 
         // Create a new blank sheet with the product name
         // Univer's createSheet returns the new FWorksheet
@@ -603,14 +662,14 @@ async function insertSheetIntoWorkbook(
 
         if (!newSheet) {
             console.error("[SheetWidget] workbook.create returned null/undefined");
-            return false;
+            return null;
         }
 
         console.log(`[SheetWidget] Successfully inserted sheet "${finalName}" using fWorkbook.create API`);
-        return true;
+        return newSheet;
     } catch (err) {
         console.error("[SheetWidget] insertSheetIntoWorkbook error:", err);
-        return false;
+        return null;
     }
 }
 

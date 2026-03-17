@@ -2772,14 +2772,14 @@
             }
         },
         "STYLE_POS": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "'Courier New', monospace",
             "fs": 10,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(30, 64, 175)"
+                "rgb": "rgb(6, 95, 70)"
             },
             "bg": {
-                "rgb": "rgb(239, 246, 255)"
+                "rgb": "rgb(236, 253, 245)"
             },
             "ht": 2,
             "vt": 2,
@@ -2788,38 +2788,38 @@
                 "l": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "t": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 }
             }
         },
         "STYLE_NEG": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "'Courier New', monospace",
             "fs": 10,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(154, 52, 18)"
+                "rgb": "rgb(153, 27, 27)"
             },
             "bg": {
-                "rgb": "rgb(255, 247, 237)"
+                "rgb": "rgb(254, 242, 242)"
             },
             "ht": 2,
             "vt": 2,
@@ -2828,38 +2828,38 @@
                 "l": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "t": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 }
             }
         },
         "STYLE_MISMATCH_POP": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "'Courier New', monospace",
             "fs": 11,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(17, 24, 39)"
+                "rgb": "rgb(255, 255, 255)"
             },
             "bg": {
-                "rgb": "rgb(253, 224, 71)"
+                "rgb": "rgb(31, 41, 55)"
             },
             "ht": 2,
             "vt": 2,
@@ -2892,14 +2892,14 @@
             }
         },
         "STYLE_HEADER": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "'Courier New', monospace",
             "fs": 10,
             "bl": 1,
             "cl": {
                 "rgb": "rgb(255, 255, 255)"
             },
             "bg": {
-                "rgb": "rgb(71, 85, 105)"
+                "rgb": "rgb(17, 24, 39)"
             },
             "ht": 2,
             "vt": 2,
@@ -2908,13 +2908,13 @@
                 "b": {
                     "s": 2,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 }
             }
         },
         "STYLE_BODY": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "'Courier New', monospace",
             "fs": 10,
             "cl": {
                 "rgb": "rgb(17, 24, 39)"
@@ -2929,13 +2929,13 @@
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(55, 65, 81)"
                     }
                 }
             }

@@ -128,23 +128,35 @@ function spreadLabel(a: ContractInfo, b: ContractInfo): string {
  *
  * Layout from the template (0-indexed columns):
  *  Col 0  (A) – Spread label  (e.g. "Jan26-Feb26")
- *  Col 1  (B) – Settle spread formula
- *  Col 2  (C) – Count (=SUM(D:O) for the row)
- *  Col 3-14 (D-O) – Strategy legs (blank by default)
- *  Col 15 (P) – Outright settle diff  formula (=T-S for same row)
- *  Col 16 (Q) – Contract month label (=RIGHT(A,5) formula)
- *  Col 17 (R) – Contract name  (e.g. "F.CL.JAN26")
- *  Col 18 (S) – Count outright formula (=$Cn+1 - $Cn)
- *  Col 19 (T) – NetPos (blank)
- *  Col 20 (U) – blank
- *  Col 21 (V) – settle diff col (=T-S) outright
- *  Col 22-23  – blanks
- *  Col 24 (Y) – hidden spread B diff formula
+ *  Col 1  (B) – Count (=SUM(C:N) for the row)
+ *  Col 2-13 (C-N) – Strategy legs (blank by default)
+ *  Col 14 (O) – Outright settle diff formula (=S-R for same row)
+ *  Col 15 (P) – Contract month label (=RIGHT(A,5) formula)
+ *  Col 16 (Q) – Contract name  (e.g. "F.CL.JAN26")
+ *  Col 17 (R) – Count outright formula (=$Bn+1 - $Bn)
+ *  Col 18 (S) – NetPos (blank)
  */
+
+/**
+ * Returns a minimal workbook skeleton with global styles and resources
+ * from the consolidated template.
+ */
+export function getWorkbookSkeleton(): Record<string, any> {
+    const template: any = sheetTemplate;
+    return {
+        styles: template.styles ?? {},
+        resources: template.resources ?? [],
+        id: "workbook-01",
+        appVersion: "0.15.5",
+        locale: "enUS",
+        name: "Universheet",
+    };
+}
 export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): Record<string, any> {
-    // Deep-clone the template
-    const templateKey = Object.keys(sheetTemplate)[0];
-    const templateSheet: any = JSON.parse(JSON.stringify((sheetTemplate as any)[templateKey]));
+    // Access the sheets from the consolidated template
+    const templateSheets = (sheetTemplate as any).sheets ?? sheetTemplate;
+    const templateKey = Object.keys(templateSheets)[0];
+    const templateSheet: any = JSON.parse(JSON.stringify(templateSheets[templateKey]));
 
     // Generate a new unique ID for this sheet
     const newId = genSheetId();
@@ -179,6 +191,7 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
 
     for (let i = 0; i < numSpreads; i++) {
         const sheetRowIdx = 3 + i; // rows 3, 4, 5, ...
+        const wRow = sheetRowIdx + 1; // 1-indexed for formulas
         const row: Record<string, any> = {};
 
         // Col 0 (A): spread label
@@ -188,57 +201,34 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
             t: 1,
         };
 
-        // Col 1 (B): settle spread = (W{row} - W{row+1}) / 100
-        // In the template this was =(+W3 - W4)/100 for row 3
-        const wRow = sheetRowIdx + 1; // 1-indexed for formulas
-        const wRowNext = wRow + 1;
-        // ↓ No `v` — Univer must compute the formula fresh (fixes intermittent calculation bug)
-        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=(+W${wRow} - W${wRowNext})/100`, 2);
+        // Col 1 (B): count sum = SUM(C{row}:N{row})
+        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=SUM(C${wRow}:N${wRow})`, 2);
 
-        // Col 2 (C): count sum = SUM(D{row}:O{row})
-
-        row["2"] = formulaCell(styleOnly(spreadRowTemplate["2"]), `=SUM(D${wRow}:O${wRow})`, 2);
-
-        // Cols 3-14 (D-O): strategy legs — blank
-        for (let c = 3; c <= 14; c++) {
-            row[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), v: 0, t: 2 };
+        // Cols 2-13 (C-N): strategy legs — blank
+        for (let c = 2; c <= 13; c++) {
+            row[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), t: 2 };
         }
 
-        // Col 15 (P): outright settle diff = T{row} - S{row}
-        row["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=T${wRow} - S${wRow}`, 2);
+        // Col 14 (O): outright settle diff = S{row} - R{row}
+        row["14"] = formulaCell(styleOnly(spreadRowTemplate["14"]), `=S${wRow} - R${wRow}`, 2);
 
-        // Col 16 (Q): contract label = RIGHT(A{row}, 5)
+        // Col 15 (P): contract label = RIGHT(A{row}, 5)
         // This is a text formula — result type is string (1)
-        row["16"] = formulaCell(styleOnly(spreadRowTemplate["16"]), `=RIGHT(A${wRow}, 5)`, 1);
+        row["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=RIGHT(A${wRow}, 5)`, 1);
 
-        // Col 17 (R): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
-        row["17"] = {
-            ...styleOnly(spreadRowTemplate["17"]),
+        // Col 16 (Q): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
+        row["16"] = {
+            ...styleOnly(spreadRowTemplate["16"]),
             v: `F.${product}.${contracts[i + 1].month.toUpperCase()}${contracts[i + 1].year}`,
             t: 1,
         };
 
-        // Col 18 (S): outright count = $C{row+1} - $C{row}   (next minus current)
+        // Col 17 (R): outright count = $B${row+1} - $B${row}   (next minus current)
         const cRowNext = wRow + 1;
-        row["18"] = formulaCell(styleOnly(spreadRowTemplate["18"]), `=$C${cRowNext} -$C${wRow}`, 2);
+        row["17"] = formulaCell(styleOnly(spreadRowTemplate["17"]), `=$B${cRowNext} -$B${wRow}`, 2);
 
-        // Col 19 (T): NetPos — blank (written by WebSocket)
-        row["19"] = { ...styleOnly(spreadRowTemplate["19"]), v: 0, t: 2 };
-
-        // Col 20 (U): blank
-        row["20"] = { ...styleOnly(spreadRowTemplate["20"]), v: 0, t: 2 };
-
-        // Col 21 (V): settle diff — blank placeholder (no formula in builder)
-        row["21"] = { ...styleOnly(spreadRowTemplate["21"]), v: 0, t: 2 };
-
-        // Col 22 (W): blank
-        row["22"] = { ...styleOnly(spreadRowTemplate["22"]), v: 0, t: 2 };
-
-        // Col 23 (X): blank
-        row["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
-
-        // Col 24 (Y): hidden spread diff B formula
-        row["24"] = formulaCell({}, `=+B${wRow} - B${wRowNext}`, 2);
+        // Col 18 (S): NetPos — blank (written by WebSocket)
+        row["18"] = { ...styleOnly(spreadRowTemplate["18"]), v: 0, t: 2 };
 
         cellData[String(sheetRowIdx)] = row;
     }
@@ -350,7 +340,7 @@ export async function reconstructWorkbookFromSnapshot(
         // Fallback: If name is generic (like "Universheet"), try to find product from a row
         if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
             const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
-            const sampleContract = firstRow?.["17"]?.v;
+            const sampleContract = firstRow?.["16"]?.v;
             if (sampleContract && typeof sampleContract === "string") {
                 const parts = sampleContract.split('.');
                 if (parts.length >= 2) baseProduct = parts[1].toUpperCase();
@@ -383,21 +373,20 @@ export async function reconstructWorkbookFromSnapshot(
             // Map old rows by contract name
             const oldRowsByContract = new Map<string, any>();
             for (const rowObj of Object.values(oldCellData) as any[]) {
-                const contractName = rowObj?.["17"]?.v;
+                const contractName = rowObj?.["16"]?.v;
                 if (contractName) oldRowsByContract.set(contractName, rowObj);
             }
 
             // Patch dynamic columns in the new skeleton
             for (const newRowObj of Object.values(newCellData) as any[]) {
-                const contractName = newRowObj?.["17"]?.v;
+                const contractName = newRowObj?.["16"]?.v;
                 const oldRowObj = oldRowsByContract.get(contractName);
 
                 if (oldRowObj) {
                     // Columns to preserve:
-                    // 3-14: Strategy legs (D-O)
-                    // 19:   NetPos (T)
-                    // 22:   Settle helper (W)
-                    const colsToPreserve = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "19", "22"];
+                    // 2-13: Strategy legs (C-N)
+                    // 18:   NetPos (S)
+                    const colsToPreserve = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "18"];
 
                     for (const col of colsToPreserve) {
                         if (oldRowObj[col]) {
@@ -422,11 +411,14 @@ export async function reconstructWorkbookFromSnapshot(
     }
 
     // Return the reconstructed workbook structure with a FRESH workbook ID
-    // to force Univer to treat this as a brand new instance.
+    // and the LATEST styles from the template.
+    const skeleton = getWorkbookSkeleton();
     return {
         ...snapshot,
         id: `workbook-${Date.now()}`,
         sheets: rebuiltSheets,
-        sheetOrder: sheetOrder
+        sheetOrder: sheetOrder,
+        styles: skeleton.styles,
+        resources: skeleton.resources
     };
 }
