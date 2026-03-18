@@ -91,8 +91,14 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         const fetchDashboards = async () => {
             try {
                 const baseURL =
-                    import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
-                const resp = await axios.get(`${baseURL}/dashboards/end-user`);
+                    import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
+                const token = await getToken();
+                const resp = await axios.get(`${baseURL}/dashboards/end-user`, {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
                 const data = resp.data;
                 const filteredData = data.filter(
                     (d: Dashboard) => d.publishedLayout?.tabs
@@ -135,11 +141,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     const fetchWorkbookSnapshots = async (dashboardId: string) => {
         try {
-            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
+            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
             // Example endpoint: fetch all snapshots for a dashboard
             // Adjust endpoint path as needed based on your backend API
             const token = await getToken();
-            const resp = await axios.get(`${baseURL}/api/dashboards/snapshots/${dashboardId}`, {
+            const resp = await axios.get(`${baseURL}/dashboards/snapshots/${dashboardId}`, {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
