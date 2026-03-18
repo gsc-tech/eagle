@@ -80,7 +80,7 @@ function writeDataToSheet(univerAPI, targetColKey, dataArray) {
     }
 }
 // ─── Component ────────────────────────────────────────────────────────────────
-export const SheetWidget = ({ title = "Positions Sheet", darkMode = false, sheetName = "Positions", wsUrl = "ws://192.168.0.25:8000/ws", wsColumnMapping = {} }) => {
+export const SheetWidget = ({ title = "Positions Sheet", darkMode = false, sheetName = "Positions", wsUrl = "ws://localhost:8000/ws", wsColumnMapping = {} }) => {
     const containerRef = useRef(null);
     const univerRef = useRef(null);
     const wsRef = useRef(null);
@@ -105,7 +105,6 @@ export const SheetWidget = ({ title = "Positions Sheet", darkMode = false, sheet
         const workbook = univerAPI.createWorkbook({ name: "MyWorkbook" });
         const activeSheet = workbook.getActiveSheet();
         activeSheet.setName(sheetName);
-        console.log("sheet snapshot at creation", activeSheet.getSheet().getSnapshot());
         univerRef.current = univerAPI;
         let editSubscription = null;
         if (univerAPI.Event && univerAPI.Event.SheetEditEnded) {
@@ -120,7 +119,9 @@ export const SheetWidget = ({ title = "Positions Sheet", darkMode = false, sheet
                 catch (e) {
                     console.error("[SheetWidget] Error getting cell value:", e);
                 }
-                console.log("sheet name in callback function", sheetName);
+                const fWorkbook = univerRef.current.getActiveWorkbook();
+                const snapshot = fWorkbook.save();
+                console.log(snapshot);
                 useSheetStore.getState().updateCell(sheetName, row, column, value);
             });
         }

@@ -38,6 +38,7 @@ interface SheetState {
     // Actions
     updateCell: (sheetId: string, row: number, col: number, value: any) => void;
     updateCells: (sheetId: string, updates: { row: number; col: number; value: any }[]) => void;
+    setSheet: (sheetId: string, data: any) => void;
     subscribe: (sheetId: string, widgetId: string, range: RangeConfig, callback: DependentWidgetCallback) => void;
     unsubscribe: (sheetId: string, widgetId: string) => void;
 
@@ -49,7 +50,18 @@ const DEBOUNCE_MS = 5 * 1000; // 5 seconds
 
 export function extractRangeData(sheet: SheetData, range: RangeConfig): any[][] {
     const result: any[][] = [];
-    for (let r = range.startRow; r <= range.endRow; r++) {
+
+    // Always extract row 0 (headers) for the specified columns
+    const headerRow: any[] = [];
+    for (let c = range.startCol; c <= range.endCol; c++) {
+        headerRow.push(sheet[0]?.[c]?.v ?? null);
+    }
+    result.push(headerRow);
+
+    // Then extract the requested range rows, skipping row 0 if it was included in the range
+    const actualStartRow = Math.max(1, range.startRow);
+
+    for (let r = actualStartRow; r <= range.endRow; r++) {
         const rowData: any[] = [];
         for (let c = range.startCol; c <= range.endCol; c++) {
             rowData.push(sheet[r]?.[c]?.v ?? null);
@@ -65,6 +77,7 @@ export const useSheetStore = create<SheetState>((set, get) => ({
     subscriptions: {},
 
     updateCell: (sheetId, row, col, value) => {
+        console.log("sending update", sheetId, row, col, value);
         get().updateCells(sheetId, [{ row, col, value }]);
     },
 
@@ -87,6 +100,26 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         });
 
         // Handle debouncing for notifying dependents
+        const state = get();
+        if (state.updateTimeouts[sheetId]) {
+            clearTimeout(state.updateTimeouts[sheetId]);
+        }
+
+        const timeout = setTimeout(() => {
+            get()._notifyDependents(sheetId);
+        }, DEBOUNCE_MS);
+
+        set((state) => ({
+            updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
+        }));
+    },
+
+    setSheet: (sheetId, data) => {
+        console.log("setting full sheet data for", sheetId);
+        set((state) => ({
+            sheets: { ...state.sheets, [sheetId]: data }
+        }));
+
         const state = get();
         if (state.updateTimeouts[sheetId]) {
             clearTimeout(state.updateTimeouts[sheetId]);
