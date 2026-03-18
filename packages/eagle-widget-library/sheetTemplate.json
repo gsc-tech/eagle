@@ -2772,14 +2772,14 @@
             }
         },
         "STYLE_POS": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "Inter, sans-serif",
             "fs": 10,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(30, 64, 175)"
+                "rgb": "rgb(12, 74, 110)"
             },
             "bg": {
-                "rgb": "rgb(239, 246, 255)"
+                "rgb": "rgb(224, 242, 254)"
             },
             "ht": 2,
             "vt": 2,
@@ -2788,31 +2788,31 @@
                 "l": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "t": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 }
             }
         },
         "STYLE_NEG": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "Inter, sans-serif",
             "fs": 10,
             "bl": 1,
             "cl": {
@@ -2828,38 +2828,38 @@
                 "l": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "t": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 }
             }
         },
         "STYLE_MISMATCH_POP": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "Inter, sans-serif",
             "fs": 11,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(17, 24, 39)"
+                "rgb": "rgb(255, 255, 255)"
             },
             "bg": {
-                "rgb": "rgb(253, 224, 71)"
+                "rgb": "rgb(8, 145, 178)"
             },
             "ht": 2,
             "vt": 2,
@@ -2892,14 +2892,14 @@
             }
         },
         "STYLE_HEADER": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "Inter, sans-serif",
             "fs": 10,
             "bl": 1,
             "cl": {
-                "rgb": "rgb(255, 255, 255)"
+                "rgb": "rgb(12, 74, 110)"
             },
             "bg": {
-                "rgb": "rgb(71, 85, 105)"
+                "rgb": "rgb(240, 249, 255)"
             },
             "ht": 2,
             "vt": 2,
@@ -2908,13 +2908,13 @@
                 "b": {
                     "s": 2,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 }
             }
         },
         "STYLE_BODY": {
-            "ff": "Inter, system-ui, sans-serif",
+            "ff": "Inter, sans-serif",
             "fs": 10,
             "cl": {
                 "rgb": "rgb(17, 24, 39)"
@@ -2929,13 +2929,13 @@
                 "r": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 },
                 "b": {
                     "s": 1,
                     "cl": {
-                        "rgb": "rgb(203, 213, 225)"
+                        "rgb": "rgb(186, 230, 253)"
                     }
                 }
             }
