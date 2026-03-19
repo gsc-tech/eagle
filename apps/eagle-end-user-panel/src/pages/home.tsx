@@ -35,6 +35,8 @@ import type { LayoutItem } from "@/components/dashboard-renderer/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getToken } from "@/firebase/authService";
+import { auth } from "@/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
 
 export type Tab = {
     id: string;
@@ -81,10 +83,31 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     // User profile expansion
     const [profileOpen, setProfileOpen] = useState(false);
 
-    // Hardcoded user info (matches login credentials)
-    const displayName = "John Doe";
-    const email = "user@gmail.com";
-    const initials = "JD";
+    // Dynamic user info from Firebase
+    const [displayName, setDisplayName] = useState("User");
+    const [email, setEmail] = useState("");
+    const [initials, setInitials] = useState("U");
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                const name = user.displayName || user.email?.split('@')[0] || "User";
+                setDisplayName(name);
+                setEmail(user.email || "");
+                
+                // Get initials (up to 2 letters)
+                const nameParts = name.trim().split(" ");
+                if (nameParts.length > 1 && nameParts[0].length > 0 && nameParts[nameParts.length - 1].length > 0) {
+                    setInitials((nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase());
+                } else if (name.length > 0) {
+                    setInitials(name.substring(0, 2).toUpperCase());
+                } else {
+                    setInitials("U");
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     // Fetch dashboards on mount
     useEffect(() => {

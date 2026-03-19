@@ -164,6 +164,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const marexWsRef = useRef<WebSocket | null>(null);
     const excelReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const marexReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const parameterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     console.log("darkMode is ", darkMode);
 
@@ -222,11 +223,24 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         };
     });
 
-    const handleParametersChange = (values: ParameterValues) => {
-        setExcelAccountId(values["Excel Account Id"]);
-        setMarexAccountId(values["Marex Account Id"]);
-        console.log("[SheetWidget] Parameters changed:", values);
-    };
+    const handleParametersChange = useCallback((values: ParameterValues) => {
+        if (parameterTimeoutRef.current) {
+            clearTimeout(parameterTimeoutRef.current);
+        }
+        parameterTimeoutRef.current = setTimeout(() => {
+            setExcelAccountId(values["Excel Account Id"]);
+            setMarexAccountId(values["Marex Account Id"]);
+            console.log("[SheetWidget] Parameters changed:", values);
+        }, 1000);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (parameterTimeoutRef.current) {
+                clearTimeout(parameterTimeoutRef.current);
+            }
+        };
+    }, []);
 
 
 
