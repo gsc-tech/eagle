@@ -60,7 +60,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         fWorksheet.addConditionalFormattingRule(rulePos);
         fWorksheet.addConditionalFormattingRule(ruleNeg);
 
-        // 3. Rule for Mismatch: Column T (19) vs Column X (23) -> Excel Outright vs Excel NetPos
         const mismatchRangeExcel = fWorksheet.getRange(3, 19, 146, 1);
         const ruleMismatchExcel = fWorksheet.newConditionalFormattingRule()
             .whenNumberNotEqualTo(0)
@@ -70,7 +69,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
             .setBold(true)
             .build();
 
-        // 4. Rule for Mismatch: Column U (20) vs Column Y (24) -> Marex Outright vs Marex NetPos
         const mismatchRangeMarex = fWorksheet.getRange(3, 20, 146, 1);
         const ruleMismatchMarex = fWorksheet.newConditionalFormattingRule()
             .whenNumberNotEqualTo(0)
@@ -169,9 +167,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const marexWsRef = useRef<WebSocket | null>(null);
     const excelReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const marexReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const parameterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    console.log("darkMode is ", darkMode);
 
     // Keep latest prop values accessible inside async/cleanup closures
     const onSaveRef = useRef(onSave);
@@ -209,8 +205,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         triggerAutoSaveRef.current = triggerAutoSave;
     }, [triggerAutoSave]);
 
-    console.log("initialWorkbookData", initialWorkbookData);
-
     // ── Modal state ───────────────────────────────────────────────────────────
     const [modalOpen, setModalOpen] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
@@ -231,22 +225,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     });
 
     const handleParametersChange = useCallback((values: ParameterValues) => {
-        if (parameterTimeoutRef.current) {
-            clearTimeout(parameterTimeoutRef.current);
-        }
-        parameterTimeoutRef.current = setTimeout(() => {
-            setExcelAccountId(values["Excel Account Id"]);
-            setMarexAccountId(values["Marex Account Id"]);
-            console.log("[SheetWidget] Parameters changed:", values);
-        }, 1000);
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            if (parameterTimeoutRef.current) {
-                clearTimeout(parameterTimeoutRef.current);
-            }
-        };
+        setExcelAccountId(values["Excel Account Id"]);
+        setMarexAccountId(values["Marex Account Id"]);
+        currentParamsRef.current = values;
+        console.log("[SheetWidget] Parameters changed:", values);
     }, []);
 
 
@@ -257,6 +239,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         if (!container || univerRef.current) return;
 
         let isCancelled = false;
+        let createdUniverAPI: any = null;
 
         async function initUniver() {
             try {
@@ -304,6 +287,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
                 univerAPI.createWorkbook(workbookData);
                 univerRef.current = univerAPI;
+                createdUniverAPI = univerAPI;
 
                 // Sync ALL sheets from the loaded workbook into the store
                 const fWorkbook = univerAPI.getActiveWorkbook();
@@ -333,17 +317,24 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 // ── Intercept InsertSheetCommand ──────────────────────────────────────
                 const disposable = univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (event: any) => {
                     const { id } = event;
-                    if (id === InsertSheetCommand.id) {
-                        // If WE triggered this programmatically, let it through.
+                    // Intercept both the object ID and the literal string for robustness
+                    if (id === InsertSheetCommand.id || id === 'sheet.command.insert-sheet') {
+                        // If WE triggered this programmatically (via modal confirmation), let it through.
                         if (isProgrammaticInsertRef.current) return;
 
-                        // Otherwise cancel the native dialog and open our custom modal.
+                        // Otherwise cancel the native blank sheet creation.
+                        // Setting cancel = true must happen synchronously here.
                         event.cancel = true;
-                        openModalRef.current();
+
+                        // Open our custom modal using a timeout.
+                        // This pushes the React state update to the next task tick, allowing 
+                        // Univer to finish its cancellation check before a React re-render seizing the thread.
+                        setTimeout(() => {
+                            openModalRef.current();
+                        }, 0);
+                        
                         return;
                     }
-
-                    // For all other commands, do nothing (they execute normally).
                 });
 
                 let editSubscription: any = null;
@@ -412,9 +403,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         res.formulaSubscription.dispose();
                     }
                 }
-                if (univerRef.current) {
+                
+                // CRITICAL: Only dispose of the instance WE created in THIS effect execution.
+                // This prevents a stale cleanup from an old mount destroying a new mount's instance.
+                if (createdUniverAPI) {
                     // ── Persist workbook to database on close ─────────────────
-                    const fWorkbook = univerRef.current.getActiveWorkbook();
+                    const fWorkbook = createdUniverAPI.getActiveWorkbook();
                     if (fWorkbook && onSaveRef.current) {
                         try {
                             const snapshot = fWorkbook.save();
@@ -425,8 +419,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                             console.error("[SheetWidget] Failed to save workbook snapshot:", err);
                         }
                     }
-                    univerRef.current.dispose();
-                    univerRef.current = null;
+                    createdUniverAPI.dispose();
+                    if (univerRef.current === createdUniverAPI) {
+                        univerRef.current = null;
+                    }
                 }
             });
         };
