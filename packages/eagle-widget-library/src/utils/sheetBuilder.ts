@@ -201,34 +201,38 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
             t: 1,
         };
 
-        // Col 1 (B): count sum = SUM(C{row}:N{row})
-        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=SUM(C${wRow}:N${wRow})`, 2);
+        // Col 1 (B): count sum = SUM(C{row}:S{row})
+        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=SUM(C${wRow}:S${wRow})`, 2);
 
-        // Cols 2-13 (C-N): strategy legs — blank
-        for (let c = 2; c <= 13; c++) {
+        // Cols 2-18 (C-S): strategy legs — blank
+        for (let c = 2; c <= 18; c++) {
             row[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), t: 2 };
         }
 
-        // Col 14 (O): outright settle diff = S{row} - R{row}
-        row["14"] = formulaCell(styleOnly(spreadRowTemplate["14"]), `=S${wRow} - R${wRow}`, 2);
+        // Col 19 (T): Outright Excel
+        row["19"] = formulaCell(styleOnly(spreadRowTemplate["19"]), `=X${wRow}-W${wRow}`, 2);
 
-        // Col 15 (P): contract label = RIGHT(A{row}, 5)
-        // This is a text formula — result type is string (1)
-        row["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=RIGHT(A${wRow}, 5)`, 1);
+        // Col 20 (U): Outright Marex
+        row["20"] = formulaCell(styleOnly(spreadRowTemplate["20"]), `=Y${wRow}-W${wRow}`, 2);
 
-        // Col 16 (Q): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
-        row["16"] = {
-            ...styleOnly(spreadRowTemplate["16"]),
+        // Col 21 (V): contract label formula
+        row["21"] = formulaCell(styleOnly(spreadRowTemplate["21"]), `=RIGHT(A${wRow}, 5)`, 1);
+
+        // Col 25 (Z): Hidden static full contract name for precise WebSocket matching
+        row["25"] = {
             v: `F.${product}.${contracts[i + 1].month.toUpperCase()}${contracts[i + 1].year}`,
             t: 1,
         };
 
-        // Col 17 (R): outright count = $B${row+1} - $B${row}   (next minus current)
+        // Col 22 (W): outright count = $B${row+1} - $B${row}   (next minus current)
         const cRowNext = wRow + 1;
-        row["17"] = formulaCell(styleOnly(spreadRowTemplate["17"]), `=$B${cRowNext} -$B${wRow}`, 2);
+        row["22"] = formulaCell(styleOnly(spreadRowTemplate["22"]), `=$B${cRowNext} -$B${wRow}`, 2);
 
-        // Col 18 (S): NetPos — blank (written by WebSocket)
-        row["18"] = { ...styleOnly(spreadRowTemplate["18"]), v: 0, t: 2 };
+        // Col 23 (X): NetPos Excel
+        row["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
+
+        // Col 24 (Y): NetPos Marex (written by WebSocket)
+        row["24"] = { ...styleOnly(spreadRowTemplate["24"]), v: 0, t: 2 };
 
         cellData[String(sheetRowIdx)] = row;
     }
@@ -237,6 +241,7 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
     // Commit cell data back to the sheet
     templateSheet.cellData = cellData;
     templateSheet.rowCount = Math.max(999, 3 + numContracts + 10);
+    templateSheet.columnCount = 26;
 
     return { [newId]: templateSheet };
 }
@@ -340,7 +345,7 @@ export async function reconstructWorkbookFromSnapshot(
         // Fallback: If name is generic (like "Universheet"), try to find product from a row
         if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
             const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
-            const sampleContract = firstRow?.["16"]?.v;
+            const sampleContract = firstRow?.["24"]?.v;
             if (sampleContract && typeof sampleContract === "string") {
                 const parts = sampleContract.split('.');
                 if (parts.length >= 2) baseProduct = parts[1].toUpperCase();
@@ -373,20 +378,22 @@ export async function reconstructWorkbookFromSnapshot(
             // Map old rows by contract name
             const oldRowsByContract = new Map<string, any>();
             for (const rowObj of Object.values(oldCellData) as any[]) {
-                const contractName = rowObj?.["16"]?.v;
+                const contractName = rowObj?.["24"]?.v;
                 if (contractName) oldRowsByContract.set(contractName, rowObj);
             }
 
             // Patch dynamic columns in the new skeleton
             for (const newRowObj of Object.values(newCellData) as any[]) {
-                const contractName = newRowObj?.["16"]?.v;
+                const contractName = newRowObj?.["24"]?.v;
                 const oldRowObj = oldRowsByContract.get(contractName);
 
                 if (oldRowObj) {
                     // Columns to preserve:
-                    // 2-13: Strategy legs (C-N)
-                    // 18:   NetPos (S)
-                    const colsToPreserve = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "18"];
+                    // 2-18: Strategy legs (C-S)
+                    // 19: Outright (T)
+                    // 22-23: NetPos (W-X)
+                    // 24: Hidden contract name (Y)
+                    const colsToPreserve = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "22", "23", "24"];
 
                     for (const col of colsToPreserve) {
                         if (oldRowObj[col]) {

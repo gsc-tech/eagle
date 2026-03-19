@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactDOM from "react-dom";
-import type { BaseWidgetProps } from "../types";
+import type { BaseWidgetProps, ParameterValues } from "../types";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { InsertSheetModal } from "../components/InsertSheetModal";
 import { useSheetStore } from "../store/sheetStore";
+import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { CalculationMode, UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import { InsertSheetCommand } from "@univerjs/preset-sheets-core";
 import { createUniver, defaultTheme, greenTheme, LocaleType, merge, mergeLocales } from "@univerjs/presets";
@@ -33,14 +34,14 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         // Data usually starts from Row 4 (index 3). 
         // We use the worksheet's actual row count to avoid "out of bounds" errors.
 
-        const fRange = fWorksheet.getRange(3, 2, 996, 12);
+        const fRange = fWorksheet.getRange(3, 2, 996, 17);
         const rangeDetails = fRange.getRange();
 
         // 1. Rule for Positive (Longs) - Blue Theme
         const rulePos = fWorksheet.newConditionalFormattingRule()
             .whenNumberGreaterThan(0)
             .setRanges([rangeDetails])
-            .setBackground('#1976D2')
+            .setBackground('#002060')
             .setFontColor('rgb(224, 242, 254)')
             .setItalic(false)
             .setBold(true)
@@ -50,7 +51,7 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         const ruleNeg = fWorksheet.newConditionalFormattingRule()
             .whenNumberLessThan(0)
             .setRanges([rangeDetails])
-            .setBackground('#F57C00')
+            .setBackground('#be5014')
             .setFontColor('rgb(255, 247, 237)')
             .setItalic(false)
             .setBold(true)
@@ -59,18 +60,28 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         fWorksheet.addConditionalFormattingRule(rulePos);
         fWorksheet.addConditionalFormattingRule(ruleNeg);
 
-        // 3. Rule for Mismatch: Column O (14) vs Column S (18)
-        // Highlighting Column O when it doesn't match Column S
-        const mismatchRange = fWorksheet.getRange(3, 14, 996, 1);
-        const ruleMismatch = fWorksheet.newConditionalFormattingRule()
-            .whenFormulaSatisfied("=$O4<>$S4") // Using relative row indices
-            .setRanges([mismatchRange.getRange()])
-            .setBackground('#FFEB3B') // Vivid yellow
-            .setFontColor('#B71C1C') // Deep red
+        // 3. Rule for Mismatch: Column T (19) vs Column X (23) -> Excel Outright vs Excel NetPos
+        const mismatchRangeExcel = fWorksheet.getRange(3, 19, 996, 1);
+        const ruleMismatchExcel = fWorksheet.newConditionalFormattingRule()
+            .whenFormulaSatisfied("=$T4<>$X4")
+            .setRanges([mismatchRangeExcel.getRange()])
+            .setBackground('#e8e8e8')
+            .setFontColor('#0e2841')
             .setBold(true)
             .build();
 
-        fWorksheet.addConditionalFormattingRule(ruleMismatch);
+        // 4. Rule for Mismatch: Column U (20) vs Column Y (24) -> Marex Outright vs Marex NetPos
+        const mismatchRangeMarex = fWorksheet.getRange(3, 20, 996, 1);
+        const ruleMismatchMarex = fWorksheet.newConditionalFormattingRule()
+            .whenFormulaSatisfied("=$U4<>$Y4")
+            .setRanges([mismatchRangeMarex.getRange()])
+            .setBackground('#e8e8e8')
+            .setFontColor('#0e2841')
+            .setBold(true)
+            .build();
+
+        fWorksheet.addConditionalFormattingRule(ruleMismatchExcel);
+        fWorksheet.addConditionalFormattingRule(ruleMismatchMarex);
     } catch (err) {
         console.error("[SheetWidget] Failed to apply conditional formatting:", err);
     }
@@ -80,7 +91,9 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SheetWidgetProps extends BaseWidgetProps {
-    wsUrl?: string;
+    getFirebaseToken?: () => Promise<string>;
+    marexWsUrl?: string;
+    excelWsUrl?: string;
     /**
      * A previously saved Univer workbook snapshot (returned by `fWorkbook.save()`).
      * When provided the widget skips the default template build and loads this data directly.
@@ -135,14 +148,22 @@ function parseSymbol(symbol: string): { product: string; label: string } | null 
 export const SheetWidget: React.FC<SheetWidgetProps> = ({
     title = "Positions Sheet",
     darkMode = false,
-    wsUrl = "ws://localhost:8000/ws",
+    marexWsUrl = "ws://localhost:8000/ws",
+    excelWsUrl = "ws://localhost:8000/ws",
+    parameters,
+    getFirebaseToken,
     initialWorkbookData,
     onSave,
 }) => {
+
+    const [excelAccountId, setExcelAccountId] = useState<string>("");
+    const [marexAccountId, setMarexAccountId] = useState<string>("");
     const containerRef = useRef<HTMLDivElement>(null);
     const univerRef = useRef<any>(null);
-    const wsRef = useRef<WebSocket | null>(null);
-    const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const excelWsRef = useRef<WebSocket | null>(null);
+    const marexWsRef = useRef<WebSocket | null>(null);
+    const excelReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const marexReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     console.log("darkMode is ", darkMode);
 
@@ -200,6 +221,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             setModalOpen(true);
         };
     });
+
+    const handleParametersChange = (values: ParameterValues) => {
+        setExcelAccountId(values["Excel Account Id"]);
+        setMarexAccountId(values["Marex Account Id"]);
+        console.log("[SheetWidget] Parameters changed:", values);
+    };
 
 
 
@@ -276,20 +303,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 // Give Univer one JS task to finish its internal async setup
                 // (formula-engine warm-up, canvas render) before we accept data.
                 setTimeout(() => {
-                    // If we loaded from a persisted snapshot, force a full recalculation
-                    // pass so all formulas are live before WebSocket data arrives.
-                    // This pairs with the snapshot sanitization above.
-                    if (initialWorkbookDataRef.current) {
-                        const formulaEngine = univerAPI.getFormula?.();
-                        if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
-                            console.log("[SheetWidget] Forcing recalculation on persisted snapshot load.");
-                            formulaEngine.executeCalculation();
-                        }
-                    }
-
                     // Send snapshot request now that Univer is ready
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                        wsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
+                    if (excelWsRef.current && excelWsRef.current.readyState === WebSocket.OPEN) {
+                        excelWsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
                     }
                 }, 500);
 
@@ -396,15 +412,20 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
     // ── WebSocket ────────────────────────────────────────────────────────────
 
-    const handleWsData = useCallback((data: Record<string, any>) => {
+    const handleWsData = useCallback((dataArray: Record<string, any>[], expectedAccountId: string, targetColIndex: number) => {
         const univerAPI = univerRef.current;
         if (!univerAPI) return;
         const workbook = univerAPI.getActiveWorkbook();
         if (!workbook) return;
 
+        const accountItem = dataArray.find(d => String(d.accountId) === String(expectedAccountId));
+        if (!accountItem || !accountItem.data) return;
+
+        const actualData = accountItem.data;
+
         // Map WS values to structured updates by product -> label -> value
         const updatesByProduct = new Map<string, Map<string, any>>();
-        for (const [symbol, value] of Object.entries(data)) {
+        for (const [symbol, value] of Object.entries(actualData)) {
             const parsed = parseSymbol(symbol);
             if (parsed) {
                 if (!updatesByProduct.has(parsed.product)) {
@@ -443,11 +464,11 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             let updatedAnyCell = false;
 
             // Iterate over the cell data snapshot to find the matching contract row.
-            // Using Column 17 (index "17") for static contract name matching.
+            // Using Column 25 (index "25") for static contract name matching.
             for (const [rowIdxStr, rowObj] of Object.entries(cellData)) {
                 if (!rowObj || typeof rowObj !== 'object') continue;
 
-                const cellR = (rowObj as any)["17"]; // Column R (Static Contract Name)
+                const cellR = (rowObj as any)["25"]; // Column Z (Static Contract Name)
                 if (cellR && cellR.v && typeof cellR.v === "string") {
                     const currentContract = String(cellR.v).toUpperCase();
 
@@ -458,9 +479,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                             const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
                             console.log(`[SheetWidget] Updating ${sheetName} Row ${rowNum} for ${currentContract} to ${newVal}`);
 
-                            // Update Column T (T is index 19)
-                            // Using string-based range lookup for maximum compatibility
-                            sheet.getRange(`T${rowNum}`)?.setValue(newVal);
+                            // Update dynamic target column
+                            const letter = colLetter(targetColIndex);
+                            sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
                             updatedAnyCell = true;
                         }
                     }
@@ -490,50 +511,106 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         }
     }, []);
 
+    // ── WebSocket Excel ────────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!wsUrl) return;
+        if (!excelWsUrl || !excelAccountId) return;
 
         function connect() {
-            const ws = new WebSocket(wsUrl!);
-            wsRef.current = ws;
+            const ws = new WebSocket(excelWsUrl!);
+            excelWsRef.current = ws;
 
             ws.onopen = () => {
-                console.log("[SheetWidget] WS connected:", wsUrl);
+                console.log("[SheetWidget] Excel WS connected:", excelWsUrl);
             };
 
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
-                    if (msg.data && typeof msg.data === "object") {
-                        console.log("[SheetWidget] WS data:", msg.data);
-                        handleWsData(msg.data);
+                    if (msg.data && Array.isArray(msg.data)) {
+                        console.log("[SheetWidget] Excel WS data:", msg.data);
+                        handleWsData(msg.data, excelAccountId, 23); // NetPos Excel is X (23)
                     }
                 } catch (err) {
-                    console.error("[SheetWidget] WS message error:", err);
+                    console.error("[SheetWidget] Excel WS message error:", err);
                 }
             };
 
             ws.onclose = () => {
-                console.log("[SheetWidget] WS closed. Reconnecting in 3s...");
-                reconnectRef.current = setTimeout(connect, 3000);
+                console.log("[SheetWidget] Excel WS closed. Reconnecting in 3s...");
+                excelReconnectRef.current = setTimeout(connect, 3000);
             };
 
             ws.onerror = (err: Event) => {
-                console.error("[SheetWidget] WS error. Check connection.");
+                console.error("[SheetWidget] Excel WS error. Check connection.");
             };
         }
 
         connect();
 
         return () => {
-            if (reconnectRef.current) clearTimeout(reconnectRef.current);
-            if (wsRef.current) {
-                wsRef.current.onclose = null; // Prevent reconnect loop on unmount
-                wsRef.current.close();
+            if (excelReconnectRef.current) clearTimeout(excelReconnectRef.current);
+            if (excelWsRef.current) {
+                excelWsRef.current.onclose = null; // Prevent reconnect loop on unmount
+                excelWsRef.current.close();
             }
         };
-    }, [wsUrl, handleWsData]);
+    }, [excelWsUrl, excelAccountId, handleWsData]);
 
+
+    // ── WebSocket Marex ────────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!marexWsUrl || !marexAccountId) return;
+
+        function connect() {
+            const ws = new WebSocket(marexWsUrl!);
+            marexWsRef.current = ws;
+
+            ws.onopen = async () => {
+                console.log("[SheetWidget] Marex WS connected:", marexWsUrl);
+                try {
+                    const token = getFirebaseToken ? await getFirebaseToken() : "";
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            token,
+                            account_id: marexAccountId
+                        }));
+                    }
+                } catch (err) {
+                    console.error("[SheetWidget] Failed to get firebase token", err);
+                }
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.data && Array.isArray(msg.data)) {
+                        handleWsData(msg.data, marexAccountId, 24); // NetPos Marex is Y (24)
+                    }
+                } catch (err) {
+                    console.error("[SheetWidget] Marex WS message error:", err);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log("[SheetWidget] Marex WS closed. Reconnecting in 3s...");
+                marexReconnectRef.current = setTimeout(connect, 3000);
+            };
+
+            ws.onerror = (err: Event) => {
+                console.error("[SheetWidget] Marex WS error. Check connection.");
+            };
+        }
+
+        connect();
+
+        return () => {
+            if (marexReconnectRef.current) clearTimeout(marexReconnectRef.current);
+            if (marexWsRef.current) {
+                marexWsRef.current.onclose = null;
+                marexWsRef.current.close();
+            }
+        };
+    }, [marexWsUrl, marexAccountId, getFirebaseToken, handleWsData]);
     // ── Modal handlers ────────────────────────────────────────────────────────
 
     const handleModalConfirm = useCallback(async (product: string) => {
@@ -560,8 +637,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             // Allow Univer to finish adding the sheet and hydrating the UI
             // before we ask for values over WebSocket (which writes cells).
             setTimeout(() => {
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
+                if (excelWsRef.current && excelWsRef.current.readyState === WebSocket.OPEN) {
+                    excelWsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
                 }
             }, 500);
 
@@ -582,7 +659,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <WidgetContainer title={title} darkMode={darkMode}>
+        <WidgetContainer
+            title={title}
+            darkMode={darkMode}
+            parameters={parameters}
+            onParametersChange={handleParametersChange}
+        >
             <div ref={containerRef} className="h-full w-full" />
 
             {/* Render modal in a portal so it's above everything */}

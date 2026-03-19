@@ -21,7 +21,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
     onGroupedParametersChange,
 }) => {
     const hasTitleOrParams = title || (parameters && parameters.length > 0 && onParametersChange);
-    
+    console.log("parameters in widget container is ", parameters);
     return (
         <div
             className={`w-full h-full border overflow-hidden flex flex-col shadow-premium transition-all duration-300 hover:shadow-premium-hover ${darkMode
