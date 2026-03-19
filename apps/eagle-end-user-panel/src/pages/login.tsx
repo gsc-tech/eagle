@@ -1,4 +1,4 @@
-import { login } from "@/firebase/authService";
+import { login, signInWithMicrosoft } from "@/firebase/authService";
 import { useState } from "react";
 
 interface LoginPageProps {
@@ -21,6 +21,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             onLogin();
         } catch (error) {
             setError("Incorrect email or password. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleMicrosoftLogin = async () => {
+        setError(null);
+        setLoading(true);
+        try {
+            await signInWithMicrosoft();
+            onLogin();
+        } catch (err: any) {
+            setError(err.message || "Failed to sign in with Microsoft. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -161,6 +174,52 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                             )}
                         </button>
                     </form>
+
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-border/60" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-card px-2 text-muted-foreground font-medium">
+                                Or continue with
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleMicrosoftLogin}
+                        disabled={loading}
+                        className="w-full h-10 px-4 rounded-lg bg-background border border-border/80 text-foreground text-sm font-medium hover:bg-accent/50 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <svg
+                            className="w-5 h-5"
+                            viewBox="0 0 23 23"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                fill="#f3f3f3"
+                                d="M0 0h11v11H0z"
+                            />
+                            <path
+                                fill="#f3f3f3"
+                                d="M12 0h11v11H12z"
+                            />
+                            <path
+                                fill="#f3f3f3"
+                                d="M0 12h11v23H0z"
+                            />
+                            <path
+                                fill="#f3f3f3"
+                                d="M12 12h11v11H12z"
+                            />
+                            {/* Color version of the logo */}
+                            <path fill="#f25022" d="M1 1h10v10H1z" />
+                            <path fill="#7fba00" d="M12 1h10v10H12z" />
+                            <path fill="#00a4ef" d="M1 12h10v10H1z" />
+                            <path fill="#ffb900" d="M12 12h10v10H12z" />
+                        </svg>
+                        <span>Microsoft</span>
+                    </button>
                 </div>
 
                 <p className="text-center text-xs text-muted-foreground mt-6">
