@@ -179,7 +179,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
             // Using fetch with keepalive: true ensures the request completes
             // even if the user is in the process of closing the browser window.
-            await fetch(`${baseURL}/api/dashboards/snapshots/save`, {
+            await fetch(`${baseURL}/dashboards/snapshots/save`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

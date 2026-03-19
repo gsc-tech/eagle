@@ -583,6 +583,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
+                    console.log("msg", msg);
                     if (msg.data && Array.isArray(msg.data)) {
                         handleWsData(msg.data, marexAccountId, 24); // NetPos Marex is Y (24)
                     }
