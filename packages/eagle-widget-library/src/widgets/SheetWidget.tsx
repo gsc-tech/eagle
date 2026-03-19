@@ -34,7 +34,7 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         // Data usually starts from Row 4 (index 3). 
         // We use the worksheet's actual row count to avoid "out of bounds" errors.
 
-        const fRange = fWorksheet.getRange(3, 2, 996, 17);
+        const fRange = fWorksheet.getRange(3, 2, 146, 17);
         const rangeDetails = fRange.getRange();
 
         // 1. Rule for Positive (Longs) - Blue Theme
@@ -61,9 +61,9 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
         fWorksheet.addConditionalFormattingRule(ruleNeg);
 
         // 3. Rule for Mismatch: Column T (19) vs Column X (23) -> Excel Outright vs Excel NetPos
-        const mismatchRangeExcel = fWorksheet.getRange(3, 19, 996, 1);
+        const mismatchRangeExcel = fWorksheet.getRange(3, 19, 146, 1);
         const ruleMismatchExcel = fWorksheet.newConditionalFormattingRule()
-            .whenFormulaSatisfied("=$T4<>$X4")
+            .whenNumberNotEqualTo(0)
             .setRanges([mismatchRangeExcel.getRange()])
             .setBackground('#e8e8e8')
             .setFontColor('#0e2841')
@@ -71,9 +71,9 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
             .build();
 
         // 4. Rule for Mismatch: Column U (20) vs Column Y (24) -> Marex Outright vs Marex NetPos
-        const mismatchRangeMarex = fWorksheet.getRange(3, 20, 996, 1);
+        const mismatchRangeMarex = fWorksheet.getRange(3, 20, 146, 1);
         const ruleMismatchMarex = fWorksheet.newConditionalFormattingRule()
-            .whenFormulaSatisfied("=$U4<>$Y4")
+            .whenNumberNotEqualTo(0)
             .setRanges([mismatchRangeMarex.getRange()])
             .setBackground('#e8e8e8')
             .setFontColor('#0e2841')
@@ -99,11 +99,12 @@ export interface SheetWidgetProps extends BaseWidgetProps {
      * When provided the widget skips the default template build and loads this data directly.
      */
     initialWorkbookData?: Record<string, any>;
+    initialParameterValues?: Record<string, string>;
     /**
      * Called with the full workbook snapshot when the widget unmounts (i.e. the window is closed).
      * Use this to persist the workbook state to your database.
      */
-    onSave?: (workbookSnapshot: Record<string, any>) => void;
+    onSave?: (workbookSnapshot: Record<string, any>, parameters?: any[]) => void;
 }
 
 
@@ -153,11 +154,15 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     parameters,
     getFirebaseToken,
     initialWorkbookData,
+    initialParameterValues,
     onSave,
 }) => {
-
-    const [excelAccountId, setExcelAccountId] = useState<string>("");
-    const [marexAccountId, setMarexAccountId] = useState<string>("");
+    const [excelAccountId, setExcelAccountId] = useState<string>(
+        initialParameterValues?.["Excel Account Id"] || ""
+    );
+    const [marexAccountId, setMarexAccountId] = useState<string>(
+        initialParameterValues?.["Marex Account Id"] || ""
+    );
     const containerRef = useRef<HTMLDivElement>(null);
     const univerRef = useRef<any>(null);
     const excelWsRef = useRef<WebSocket | null>(null);
@@ -177,6 +182,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     }, [onSave, initialWorkbookData]);
 
     const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const currentParamsRef = useRef<ParameterValues>(initialParameterValues || {});
 
     const triggerAutoSave = useCallback(() => {
         if (autoSaveTimeoutRef.current) {
@@ -188,7 +194,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     const fWorkbook = univerRef.current.getActiveWorkbook();
                     if (fWorkbook) {
                         console.log("[SheetWidget] Auto-saving workbook snapshot...");
-                        onSaveRef.current(fWorkbook.save());
+                        const paramsArray = Object.entries(currentParamsRef.current).map(([k, v]) => ({ [k]: String(v) }));
+                        onSaveRef.current(fWorkbook.save(), paramsArray);
                     }
                 } catch (err) {
                     console.error("[SheetWidget] Failed to auto-save:", err);
@@ -412,7 +419,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         try {
                             const snapshot = fWorkbook.save();
                             console.log("[SheetWidget] Saving workbook snapshot on close.");
-                            onSaveRef.current(snapshot);
+                            const paramsArray = Object.entries(currentParamsRef.current).map(([k, v]) => ({ [k]: String(v) }));
+                            onSaveRef.current(snapshot, paramsArray);
                         } catch (err) {
                             console.error("[SheetWidget] Failed to save workbook snapshot:", err);
                         }
@@ -491,8 +499,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
                         if (currentContract === expectedContract) {
                             const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
-                            console.log(`[SheetWidget] Updating ${sheetName} Row ${rowNum} for ${currentContract} to ${newVal}`);
-
                             // Update dynamic target column
                             const letter = colLetter(targetColIndex);
                             sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
@@ -541,7 +547,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 try {
                     const msg = JSON.parse(event.data);
                     if (msg.data && Array.isArray(msg.data)) {
-                        console.log("[SheetWidget] Excel WS data:", msg.data);
                         handleWsData(msg.data, excelAccountId, 23); // NetPos Excel is X (23)
                     }
                 } catch (err) {
@@ -678,6 +683,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             title={title}
             darkMode={darkMode}
             parameters={parameters}
+            initialParameterValues={initialParameterValues}
             onParametersChange={handleParametersChange}
         >
             <div ref={containerRef} className="h-full w-full" />

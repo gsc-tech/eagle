@@ -9,6 +9,7 @@ interface WidgetContainerProps {
     onParametersChange?: (values: ParameterValues) => void;
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
+    initialParameterValues?: Record<string, string>;
 }
 
 export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boolean }> = ({
@@ -19,6 +20,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialParameterValues,
 }) => {
     const hasTitleOrParams = title || (parameters && parameters.length > 0 && onParametersChange);
     console.log("parameters in widget container is ", parameters);
@@ -44,6 +46,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                 darkMode={darkMode}
                                 groupedParametersValues={groupedParametersValues}
                                 onGroupedParametersChange={onGroupedParametersChange}
+                                initialParameterValues={initialParameterValues}
                             />
                         )}
                     </div>

@@ -9,7 +9,7 @@ interface WidgetRendererProps {
     /** Pre-loaded Univer workbook snapshot for SheetWidget (from your database). */
     initialWorkbookData?: Record<string, any>;
     /** Called when a SheetWidget unmounts so you can persist the snapshot to your database. */
-    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>) => void;
+    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
 }
 
 export default function WidgetRenderer({
@@ -104,11 +104,14 @@ export default function WidgetRenderer({
                 onGroupedParametersChange={handleGroupedParametersChange}
                 // SheetWidget-specific: load saved snapshot and persist on close
                 {...(widget.componentName === "SheetWidget" && {
-                    initialWorkbookData,
+                    initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
+                    initialParameterValues: initialWorkbookData?.parameters
+                        ? initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {})
+                        : {},
                     getFirebaseToken,
                     onSave: onSaveWorkbook
-                        ? (snapshot: Record<string, any>) =>
-                            onSaveWorkbook(layoutItem.i, snapshot)
+                        ? (snapshot: Record<string, any>, parameters?: any[]) =>
+                            onSaveWorkbook(layoutItem.i, snapshot, parameters)
                         : undefined,
                 })}
             />

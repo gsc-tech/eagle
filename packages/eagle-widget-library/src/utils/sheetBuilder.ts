@@ -42,11 +42,38 @@ export interface ContractInfo {
     label: string;
 }
 
+interface CacheEntry {
+    promise: Promise<ContractInfo[]>;
+    timestamp: number;
+}
+
+const contractsCache: Record<string, CacheEntry> = {};
+const CACHE_TTL_MS = 18 * 60 * 60 * 1000; // 18 hours
+
 /**
  * Fetch active contracts for a product from the internal API.
  * Returns an ordered list of contract objects.
  */
 export async function fetchContracts(product: string): Promise<ContractInfo[]> {
+    const now = Date.now();
+    const cached = contractsCache[product];
+
+    if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
+        return cached.promise;
+    }
+
+    const promise = _fetchContracts(product).catch(err => {
+        if (contractsCache[product]?.promise === promise) {
+            delete contractsCache[product];
+        }
+        throw err;
+    });
+
+    contractsCache[product] = { promise, timestamp: now };
+    return promise;
+}
+
+async function _fetchContracts(product: string): Promise<ContractInfo[]> {
     const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
     const res = await fetch(url);
     if (!res.ok) {
@@ -240,7 +267,7 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
 
     // Commit cell data back to the sheet
     templateSheet.cellData = cellData;
-    templateSheet.rowCount = Math.max(999, 3 + numContracts + 10);
+    templateSheet.rowCount = Math.max(150, 3 + numContracts + 10);
     templateSheet.columnCount = 26;
 
     return { [newId]: templateSheet };
@@ -329,12 +356,35 @@ export async function reconstructWorkbookFromSnapshot(
     console.log("[sheetBuilder] Starting atomic reconstruction of workbook...");
 
     const sheetsMap: Record<string, any> = snapshot.sheets ?? {};
-    const sheetEntries = Object.values(sheetsMap);
+    const originalSheetOrder: string[] = snapshot.sheetOrder ?? Object.keys(sheetsMap);
+    const sheetEntries = originalSheetOrder.map(id => sheetsMap[id]).filter(Boolean);
 
     if (sheetEntries.length === 0) return snapshot;
 
     const rebuiltSheets: Record<string, any> = {};
     const sheetOrder: string[] = [];
+
+    // Helper to identify contract name and layout structure
+    function getLayoutInfo(rowObj: any): { contractName: string; layout: "NEW" | "OLD" } | null {
+        if (!rowObj || typeof rowObj !== 'object') return null;
+
+        // Current layout (Static Name at 25)
+        const v25 = rowObj["25"]?.v;
+        if (typeof v25 === 'string' && v25.startsWith('F.')) {
+            return { contractName: v25, layout: "NEW" };
+        }
+        // Intermediate layout (Static Name at 24)
+        const v24 = rowObj["24"]?.v;
+        if (typeof v24 === 'string' && v24.startsWith('F.')) {
+            return { contractName: v24, layout: "NEW" };
+        }
+        // Old layout (Static Name at 16)
+        const v16 = rowObj["16"]?.v;
+        if (typeof v16 === 'string' && v16.startsWith('F.')) {
+            return { contractName: v16, layout: "OLD" };
+        }
+        return null;
+    }
 
     for (const oldSheet of sheetEntries) {
         const name = oldSheet.name || "";
@@ -345,9 +395,9 @@ export async function reconstructWorkbookFromSnapshot(
         // Fallback: If name is generic (like "Universheet"), try to find product from a row
         if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
             const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
-            const sampleContract = firstRow?.["24"]?.v;
-            if (sampleContract && typeof sampleContract === "string") {
-                const parts = sampleContract.split('.');
+            const layoutInfo = getLayoutInfo(firstRow);
+            if (layoutInfo) {
+                const parts = layoutInfo.contractName.split('.');
                 if (parts.length >= 2) baseProduct = parts[1].toUpperCase();
             }
         }
@@ -371,38 +421,58 @@ export async function reconstructWorkbookFromSnapshot(
             newSheet.name = name;
 
             // 2. Transfer data from oldSheet to newSheet
-            // We match rows using Column 17 (Static contract name)
             const oldCellData = oldSheet.cellData || {};
             const newCellData = newSheet.cellData || {};
 
             // Map old rows by contract name
-            const oldRowsByContract = new Map<string, any>();
+            const oldRowsByContract = new Map<string, { rowObj: any; layout: "NEW" | "OLD" }>();
             for (const rowObj of Object.values(oldCellData) as any[]) {
-                const contractName = rowObj?.["24"]?.v;
-                if (contractName) oldRowsByContract.set(contractName, rowObj);
+                const layoutInfo = getLayoutInfo(rowObj);
+                if (layoutInfo && layoutInfo.contractName) {
+                    oldRowsByContract.set(layoutInfo.contractName, { rowObj, layout: layoutInfo.layout });
+                }
             }
 
             // Patch dynamic columns in the new skeleton
             for (const newRowObj of Object.values(newCellData) as any[]) {
-                const contractName = newRowObj?.["24"]?.v;
-                const oldRowObj = oldRowsByContract.get(contractName);
+                const newLayoutInfo = getLayoutInfo(newRowObj);
+                if (!newLayoutInfo) continue;
 
-                if (oldRowObj) {
-                    // Columns to preserve:
-                    // 2-18: Strategy legs (C-S)
-                    // 19: Outright (T)
-                    // 22-23: NetPos (W-X)
-                    // 24: Hidden contract name (Y)
-                    const colsToPreserve = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "22", "23", "24"];
+                const oldData = oldRowsByContract.get(newLayoutInfo.contractName);
+                if (oldData) {
+                    const { rowObj: oldRowObj, layout: oldLayout } = oldData;
 
-                    for (const col of colsToPreserve) {
-                        if (oldRowObj[col]) {
-                            // Preserve the value 'v', but keep the new style 's' from the template
-                            newRowObj[col] = {
-                                ...(newRowObj[col] || {}),
-                                v: oldRowObj[col].v,
-                                t: oldRowObj[col].t
-                            };
+                    // Depending on the old layout, map strategy legs correctly
+                    // New layout has legs on C-S (2-18). Old layout had C-N (2-13).
+                    const maxLeg = oldLayout === "OLD" ? 13 : 18;
+
+                    for (let col = 2; col <= maxLeg; col++) {
+                        const colStr = String(col);
+                        if (oldRowObj[colStr] && oldRowObj[colStr].v !== undefined) {
+                             newRowObj[colStr] = {
+                                 ...(newRowObj[colStr] || {}),
+                                 v: oldRowObj[colStr].v,
+                                 t: oldRowObj[colStr].t
+                             };
+                        }
+                    }
+
+                    // For NetPos, in OLD layout it was 18. In NEW layout it is 23 (Excel) and 24 (Marex).
+                    // We only preserve NetPos if it's from NEW layout (to avoid mixing up columns).
+                    if (oldLayout === "NEW") {
+                        if (oldRowObj["23"] && oldRowObj["23"].v !== undefined) {
+                             newRowObj["23"] = {
+                                 ...(newRowObj["23"] || {}),
+                                 v: oldRowObj["23"].v,
+                                 t: oldRowObj["23"].t
+                             };
+                        }
+                        if (oldRowObj["24"] && oldRowObj["24"].v !== undefined) {
+                             newRowObj["24"] = {
+                                 ...(newRowObj["24"] || {}),
+                                 v: oldRowObj["24"].v,
+                                 t: oldRowObj["24"].t
+                             };
                         }
                     }
                 }
@@ -410,6 +480,7 @@ export async function reconstructWorkbookFromSnapshot(
 
             rebuiltSheets[newId] = newSheet;
             sheetOrder.push(newId);
+            console.log(`[sheetBuilder] Rebuilt skeleton for ${name}`);
         } catch (err) {
             console.error(`[sheetBuilder] Failed to rebuild skeleton for ${name}, falling back to original.`, err);
             rebuiltSheets[oldSheet.id] = oldSheet;

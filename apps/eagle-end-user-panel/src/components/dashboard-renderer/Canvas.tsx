@@ -15,7 +15,7 @@ interface DashboardCanvasProps {
     /** Map of widgetId -> saved Univer workbook snapshot (from database). */
     workbookSnapshots?: Record<string, Record<string, any>>;
     /** Called when a SheetWidget is closed so you can persist it to the database. */
-    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>) => void;
+    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
 }
 
 export default function DashboardCanvas({

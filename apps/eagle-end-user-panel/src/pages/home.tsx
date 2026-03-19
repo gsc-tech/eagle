@@ -77,7 +77,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
     // Workbook snapshots state
-    const [workbookSnapshots, setWorkbookSnapshots] = useState<Record<string, Record<string, any>>>({});
+    const [workbookSnapshots, setWorkbookSnapshots] = useState<Record<string, any>>({});
     const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
     // User profile expansion
@@ -188,7 +188,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         }
     };
 
-    const handleSaveWorkbook = async (widgetId: string, snapshot: Record<string, any>) => {
+    const handleSaveWorkbook = async (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => {
         if (!selected) return;
         try {
             const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
@@ -211,14 +211,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 body: JSON.stringify({
                     dashboardId: selected.dashboardID,
                     itemId: widgetId,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    parameters: parameters || [],
                 }),
             });
 
             // Update local state immediately
             setWorkbookSnapshots(prev => ({
                 ...prev,
-                [widgetId]: snapshot
+                [widgetId]: { snapshot, parameters: parameters || [] }
             }));
         } catch (error) {
             console.error("Error saving workbook snapshot:", error);
