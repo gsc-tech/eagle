@@ -42,58 +42,67 @@ export interface ContractInfo {
     label: string;
 }
 
-interface CacheEntry {
-    promise: Promise<ContractInfo[]>;
-    timestamp: number;
-}
-
-const contractsCache: Record<string, CacheEntry> = {};
-const CACHE_TTL_MS = 18 * 60 * 60 * 1000; // 18 hours
+// In-memory cache to deduplicate concurrent requests for the same product
+const contractsCache: Partial<Record<string, Promise<ContractInfo[]>>> = {};
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
  * Fetch active contracts for a product from the internal API.
- * Returns an ordered list of contract objects.
+ * Uses sessionStorage for persistence across tab refreshes and in-memory 
+ * deduplication for concurrent calls.
  */
 export async function fetchContracts(product: string): Promise<ContractInfo[]> {
-    const now = Date.now();
-    const cached = contractsCache[product];
+    // 1. Return in-memory promise if already fetching or fetched in this execution
+    if (contractsCache[product]) return contractsCache[product];
 
-    if (cached && (now - cached.timestamp < CACHE_TTL_MS)) {
-        return cached.promise;
-    }
-
-    const promise = _fetchContracts(product).catch(err => {
-        if (contractsCache[product]?.promise === promise) {
-            delete contractsCache[product];
+    const promise = (async () => {
+        // 2. Try to recover from Session Storage (survives tab refresh)
+        try {
+            const cachedStr = sessionStorage.getItem(`sheet_contracts_${product}`);
+            if (cachedStr) {
+                const cached = JSON.parse(cachedStr);
+                if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+                    console.log("[sheetBuilder] Returning session-cached contracts for:", product);
+                    return cached.data as ContractInfo[];
+                }
+            }
+        } catch (e) {
+            /* ignore storage errors */
         }
-        throw err;
-    });
 
-    contractsCache[product] = { promise, timestamp: now };
+        // 3. Perform fresh individual fetch
+        console.log("[sheetBuilder] Fetching fresh contracts for:", product);
+        const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error(`API error ${res.status}: ${res.statusText}`);
+        }
+        const json = await res.json();
+
+        // The API returns { "CL": ["CLG26", "CLH26", ...] }
+        const contractCodes: string[] = json[product] ?? Object.values(json)[0] ?? [];
+        const data = contractCodes.map((code): ContractInfo => {
+            const monthCode = code.charAt(product.length);
+            const year = code.slice(product.length + 1);
+            const month = MONTH_CODE_TO_NAME[monthCode] ?? monthCode;
+            return { code, month, year, label: `${month}${year}` };
+        });
+
+        // 4. Save to Session Storage for future refreshes
+        try {
+            sessionStorage.setItem(`sheet_contracts_${product}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        } catch (e) {
+            /* ignore storage errors */
+        }
+
+        return data;
+    })();
+
+    contractsCache[product] = promise;
     return promise;
-}
-
-async function _fetchContracts(product: string): Promise<ContractInfo[]> {
-    const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`API error ${res.status}: ${res.statusText}`);
-    }
-    const json = await res.json();
-
-    // The API returns { "CL": ["CLG26", "CLH26", ...] }
-    const contractCodes: string[] = json[product] ?? Object.values(json)[0] ?? [];
-    if (!Array.isArray(contractCodes) || contractCodes.length === 0) {
-        throw new Error(`No active contracts found for product "${product}"`);
-    }
-
-    return contractCodes.map((code): ContractInfo => {
-        // code example: "CLG26"  →  product+monthCode+year
-        const monthCode = code.charAt(product.length);
-        const year = code.slice(product.length + 1);
-        const month = MONTH_CODE_TO_NAME[monthCode] ?? monthCode;
-        return { code, month, year, label: `${month}${year}` };
-    });
 }
 
 // ─── Sheet snapshot builder ────────────────────────────────────────────────────
@@ -386,9 +395,10 @@ export async function reconstructWorkbookFromSnapshot(
         return null;
     }
 
-    for (const oldSheet of sheetEntries) {
+    // Rebuild sheets in parallel
+    const rebuiltResults = await Promise.all(sheetEntries.map(async (oldSheet) => {
         const name = oldSheet.name || "";
-        if (!name) continue;
+        if (!name) return null;
 
         let baseProduct = name.replace(/\(\d+\)$/, "").toUpperCase();
 
@@ -402,18 +412,22 @@ export async function reconstructWorkbookFromSnapshot(
             }
         }
 
-        console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
-
         if (baseProduct === "UNIVERSHEET") {
             console.warn(`[sheetBuilder] Could not determine product for sheet ${name}, using original.`);
-            rebuiltSheets[oldSheet.id] = oldSheet;
-            sheetOrder.push(oldSheet.id);
-            continue;
+            return { id: oldSheet.id, sheet: oldSheet };
         }
 
         try {
-            // Build a fresh skeleton for this product
-            const { sheetSnapshot } = await buildProductSheet(baseProduct);
+            console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
+            
+            // INDIVIDUAL FETCH (PARALLELIZED)
+            const contracts = await fetchContracts(baseProduct);
+            if (!contracts || contracts.length === 0) {
+                 console.warn(`[sheetBuilder] No active contracts found for ${baseProduct}, using original for ${name}`);
+                 return { id: oldSheet.id, sheet: oldSheet };
+            }
+
+            const sheetSnapshot = buildSheetSnapshot(baseProduct, contracts);
             const newId = Object.keys(sheetSnapshot)[0];
             const newSheet = sheetSnapshot[newId];
 
@@ -449,11 +463,11 @@ export async function reconstructWorkbookFromSnapshot(
                     for (let col = 2; col <= maxLeg; col++) {
                         const colStr = String(col);
                         if (oldRowObj[colStr] && oldRowObj[colStr].v !== undefined) {
-                             newRowObj[colStr] = {
-                                 ...(newRowObj[colStr] || {}),
-                                 v: oldRowObj[colStr].v,
-                                 t: oldRowObj[colStr].t
-                             };
+                            newRowObj[colStr] = {
+                                ...(newRowObj[colStr] || {}),
+                                v: oldRowObj[colStr].v,
+                                t: oldRowObj[colStr].t
+                            };
                         }
                     }
 
@@ -461,30 +475,35 @@ export async function reconstructWorkbookFromSnapshot(
                     // We only preserve NetPos if it's from NEW layout (to avoid mixing up columns).
                     if (oldLayout === "NEW") {
                         if (oldRowObj["23"] && oldRowObj["23"].v !== undefined) {
-                             newRowObj["23"] = {
-                                 ...(newRowObj["23"] || {}),
-                                 v: oldRowObj["23"].v,
-                                 t: oldRowObj["23"].t
-                             };
+                            newRowObj["23"] = {
+                                ...(newRowObj["23"] || {}),
+                                v: oldRowObj["23"].v,
+                                t: oldRowObj["23"].t
+                            };
                         }
                         if (oldRowObj["24"] && oldRowObj["24"].v !== undefined) {
-                             newRowObj["24"] = {
-                                 ...(newRowObj["24"] || {}),
-                                 v: oldRowObj["24"].v,
-                                 t: oldRowObj["24"].t
-                             };
+                            newRowObj["24"] = {
+                                ...(newRowObj["24"] || {}),
+                                v: oldRowObj["24"].v,
+                                t: oldRowObj["24"].t
+                            };
                         }
                     }
                 }
             }
 
-            rebuiltSheets[newId] = newSheet;
-            sheetOrder.push(newId);
             console.log(`[sheetBuilder] Rebuilt skeleton for ${name}`);
+            return { id: newId, sheet: newSheet };
         } catch (err) {
             console.error(`[sheetBuilder] Failed to rebuild skeleton for ${name}, falling back to original.`, err);
-            rebuiltSheets[oldSheet.id] = oldSheet;
-            sheetOrder.push(oldSheet.id);
+            return { id: oldSheet.id, sheet: oldSheet };
+        }
+    }));
+
+    for (const res of rebuiltResults) {
+        if (res) {
+            rebuiltSheets[res.id] = res.sheet;
+            sheetOrder.push(res.id);
         }
     }
 

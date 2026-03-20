@@ -289,21 +289,34 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 univerRef.current = univerAPI;
                 createdUniverAPI = univerAPI;
 
-                // Sync ALL sheets from the loaded workbook into the store
+                // Sync ALL sheets from the loaded workbook into the store in one batch
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 if (fWorkbook) {
                     const sheets = fWorkbook.getSheets();
-                    sheets.forEach((s: any) => {
-                        // Apply conditional formatting to each sheet
-                        applyDefaultConditionalFormatting(s);
+                    const sheetsDataToBatch: Record<string, any> = {};
+                    const activeSheet = fWorkbook.getActiveSheet();
 
+                    // Apply conditional formatting to the active sheet IMMEDIATELY for responsiveness
+                    if (activeSheet) {
+                        applyDefaultConditionalFormatting(activeSheet);
+                    }
+
+                    sheets.forEach((s: any, index: number) => {
                         const snapshot = s.getSheet().getSnapshot();
                         if (snapshot?.name && snapshot?.cellData) {
-                            useSheetStore.getState().setSheet(snapshot.name, snapshot.cellData);
+                            sheetsDataToBatch[snapshot.name] = snapshot.cellData;
+                        }
+
+                        // Apply conditional formatting to other sheets with a slight delay to avoid freezing UI
+                        if (s !== activeSheet) {
+                            setTimeout(() => applyDefaultConditionalFormatting(s), (index + 1) * 200);
                         }
                     });
-                }
 
+                    if (Object.keys(sheetsDataToBatch).length > 0) {
+                        useSheetStore.getState().setSheets(sheetsDataToBatch);
+                    }
+                }
 
                 // Give Univer one JS task to finish its internal async setup
                 // (formula-engine warm-up, canvas render) before we accept data.
