@@ -16,7 +16,7 @@ import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
 import UniverPresetSheetsConditionalFormattingEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US'
 import { buildProductSheet, sanitizeWorkbookSnapshot, reconstructWorkbookFromSnapshot, getWorkbookSkeleton } from "../utils/sheetBuilder";
-
+import { toast } from 'react-toastify';
 
 // ─── Conditional Formatting Helper ──────────────────────────────────────────
 
@@ -169,6 +169,27 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const excelReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const marexReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // ── WS Connection State ───────────────────────────────────────────────────
+    const [excelStatus, setExcelStatus] = useState<"connected" | "connecting" | "error" | "failed">("connecting");
+    const [marexStatus, setMarexStatus] = useState<"connected" | "connecting" | "error" | "failed">("connecting");
+    const excelAttemptRef = useRef(0);
+    const marexAttemptRef = useRef(0);
+    
+    // Connect triggers for interactive UI refresh
+    const [excelConnectTrigger, setExcelConnectTrigger] = useState(0);
+    const [marexConnectTrigger, setMarexConnectTrigger] = useState(0);
+
+    const handleExcelRefresh = useCallback(() => {
+        excelAttemptRef.current = 0;
+        setExcelStatus("connecting");
+        setExcelConnectTrigger(prev => prev + 1);
+    }, []);
+
+    const handleMarexRefresh = useCallback(() => {
+        marexAttemptRef.current = 0;
+        setMarexStatus("connecting");
+        setMarexConnectTrigger(prev => prev + 1);
+    }, []);
 
     // Keep latest prop values accessible inside async/cleanup closures
     const onSaveRef = useRef(onSave);
@@ -577,6 +598,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         if (!excelWsUrl || !excelAccountId) return;
 
         function connect() {
+            setExcelStatus("connecting");
             const ws = new WebSocket(excelWsUrl!);
             excelWsRef.current = ws;
 
@@ -587,7 +609,17 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
+                    
+                    if (msg.type === "error" && msg.message) {
+                        setExcelStatus("error");
+                        toast.error(`Excel: ${msg.message}`, { toastId: "excel_ws_error", autoClose: 3000 });
+                    }
+
                     if (msg.data && Array.isArray(msg.data)) {
+                        setExcelStatus("connected");
+                        toast.dismiss("excel_ws_reconnect");
+                        toast.dismiss("excel_ws_error");
+                        excelAttemptRef.current = 0; // Reset only when real data flows
                         handleWsData(msg.data, excelAccountId, 23); // NetPos Excel is X (23)
                     }
                 } catch (err) {
@@ -596,12 +628,35 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             };
 
             ws.onclose = () => {
-                console.log("[SheetWidget] Excel WS closed. Reconnecting in 3s...");
-                excelReconnectRef.current = setTimeout(connect, 3000);
+                excelAttemptRef.current += 1;
+                const attempt = excelAttemptRef.current;
+                
+                if (attempt >= 5) {
+                    console.log(`[SheetWidget] Excel WS closed. Reached 30s cap. Stopped connecting.`);
+                    setExcelStatus("failed");
+                    // Update existing toast or create new one
+                    if (toast.isActive("excel_ws_reconnect")) {
+                        toast.update("excel_ws_reconnect", { type: "error", render: "Excel: Connection failed. Please hit ↻ Refresh in the widget.", autoClose: 3000 });
+                    } else {
+                        toast.error("Excel: Connection failed. Please hit ↻ Refresh in the widget.", { toastId: "excel_ws_reconnect", autoClose: 3000 });
+                    }
+                } else {
+                    setExcelStatus("error");
+                    const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+                    console.log(`[SheetWidget] Excel WS closed. Reconnecting in ${delay}ms... (Attempt ${attempt})`);
+                    const msg = `Excel: Connection lost. Reconnecting in ${delay/1000}s... (Attempt ${attempt}/4)`;
+                    if (toast.isActive("excel_ws_reconnect")) {
+                        toast.update("excel_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
+                    } else {
+                        toast.warning(msg, { toastId: "excel_ws_reconnect", autoClose: 3000 });
+                    }
+                    excelReconnectRef.current = setTimeout(connect, delay);
+                }
             };
 
             ws.onerror = (err: Event) => {
                 console.error("[SheetWidget] Excel WS error. Check connection.");
+                setExcelStatus("error");
             };
         }
 
@@ -614,7 +669,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 excelWsRef.current.close();
             }
         };
-    }, [excelWsUrl, excelAccountId, handleWsData]);
+    }, [excelWsUrl, excelAccountId, handleWsData, excelConnectTrigger]);
 
 
     // ── WebSocket Marex ────────────────────────────────────────────────────────────
@@ -622,6 +677,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         if (!marexWsUrl || !marexAccountId) return;
 
         function connect() {
+            setMarexStatus("connecting");
             const ws = new WebSocket(marexWsUrl!);
             marexWsRef.current = ws;
 
@@ -643,8 +699,17 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
-                    console.log("msg", msg);
+
+                    if (msg.type === "error" && msg.message) {
+                        setMarexStatus("error");
+                        toast.error(`Risk: ${msg.message}`, { toastId: "marex_ws_error", autoClose: 3000 });
+                    }
+
                     if (msg.data && Array.isArray(msg.data)) {
+                        setMarexStatus("connected");
+                        toast.dismiss("marex_ws_reconnect");
+                        toast.dismiss("marex_ws_error");
+                        marexAttemptRef.current = 0; // Reset only when real data flows
                         handleWsData(msg.data, marexAccountId, 24); // NetPos Marex is Y (24)
                     }
                 } catch (err) {
@@ -653,12 +718,34 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             };
 
             ws.onclose = () => {
-                console.log("[SheetWidget] Marex WS closed. Reconnecting in 3s...");
-                marexReconnectRef.current = setTimeout(connect, 3000);
+                marexAttemptRef.current += 1;
+                const attempt = marexAttemptRef.current;
+                
+                if (attempt >= 5) {
+                    console.log(`[SheetWidget] Marex WS closed. Reached 30s cap. Stopped connecting.`);
+                    setMarexStatus("failed");
+                    if (toast.isActive("marex_ws_reconnect")) {
+                        toast.update("marex_ws_reconnect", { type: "error", render: "Risk: Connection failed. Please hit ↻ Refresh in the widget.", autoClose: 3000 });
+                    } else {
+                        toast.error("Risk: Connection failed. Please hit ↻ Refresh in the widget.", { toastId: "marex_ws_reconnect", autoClose: 3000 });
+                    }
+                } else {
+                    setMarexStatus("error");
+                    const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+                    console.log(`[SheetWidget] Marex WS closed. Reconnecting in ${delay}ms... (Attempt ${attempt})`);
+                    const msg = `Risk: Connection lost. Reconnecting in ${delay/1000}s... (Attempt ${attempt}/4)`;
+                    if (toast.isActive("marex_ws_reconnect")) {
+                        toast.update("marex_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
+                    } else {
+                        toast.warning(msg, { toastId: "marex_ws_reconnect", autoClose: 3000 });
+                    }
+                    marexReconnectRef.current = setTimeout(connect, delay);
+                }
             };
 
             ws.onerror = (err: Event) => {
                 console.error("[SheetWidget] Marex WS error. Check connection.");
+                setMarexStatus("error");
             };
         }
 
@@ -667,11 +754,11 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         return () => {
             if (marexReconnectRef.current) clearTimeout(marexReconnectRef.current);
             if (marexWsRef.current) {
-                marexWsRef.current.onclose = null;
+                marexWsRef.current.onclose = null; // Prevent reconnect loop on unmount
                 marexWsRef.current.close();
             }
         };
-    }, [marexWsUrl, marexAccountId, getFirebaseToken, handleWsData]);
+    }, [marexWsUrl, marexAccountId, getFirebaseToken, handleWsData, marexConnectTrigger]);
     // ── Modal handlers ────────────────────────────────────────────────────────
 
     const handleModalConfirm = useCallback(async (product: string) => {
@@ -719,6 +806,68 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     }, [modalLoading]);
 
     // ── Render ───────────────────────────────────────────────────────────────
+
+    const dotStyle = (status: string): React.CSSProperties => ({
+        width: '8px',
+        height: '8px',
+        borderRadius: '50%',
+        display: 'inline-block',
+        flexShrink: 0,
+        backgroundColor: status === 'connected' ? '#22c55e' : status === 'error' ? '#ef4444' : '#eab308',
+    });
+
+    const pillStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+        border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+        borderRadius: '6px',
+        padding: '4px 10px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    };
+
+    const labelStyle: React.CSSProperties = {
+        fontWeight: 700,
+        fontSize: '10px',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        color: darkMode ? '#d1d5db' : '#374151',
+        pointerEvents: 'none',
+    };
+
+    const dividerStyle: React.CSSProperties = {
+        width: '1px',
+        height: '14px',
+        backgroundColor: darkMode ? '#4b5563' : '#d1d5db',
+    };
+
+    const StatusIndicator = () => (
+        <div style={pillStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title={`Excel Connector: ${excelStatus}`}>
+                {excelStatus === 'failed' ? (
+                    <button onClick={handleExcelRefresh} style={{ color: '#3b82f6', fontSize: '10px', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>⟳ Excel</button>
+                ) : (
+                    <>
+                        <div style={dotStyle(excelStatus)} />
+                        <span style={labelStyle}>Excel</span>
+                    </>
+                )}
+            </div>
+            <div style={dividerStyle} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title={`Risk Server: ${marexStatus}`}>
+                {marexStatus === 'failed' ? (
+                    <button onClick={handleMarexRefresh} style={{ color: '#3b82f6', fontSize: '10px', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>⟳ Risk</button>
+                ) : (
+                    <>
+                        <div style={dotStyle(marexStatus)} />
+                        <span style={labelStyle}>Risk</span>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <WidgetContainer
             title={title}
@@ -726,6 +875,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             parameters={parameters}
             initialParameterValues={initialParameterValues}
             onParametersChange={handleParametersChange}
+            headerRight={<StatusIndicator />}
         >
             <div ref={containerRef} className="h-full w-full univer-scroll-lock-container" />
 

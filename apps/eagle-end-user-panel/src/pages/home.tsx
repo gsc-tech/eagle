@@ -405,16 +405,19 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     {selected ? (
                         <>
                             {/* Dashboard header */}
-                            <header className="h-auto flex-shrink-0 bg-background border-b border-border/50 flex items-start px-6 py-4 z-20 gap-3">
-                                <SidebarTrigger className="mt-0.5 shrink-0" />
-                                <div>
-                                    <h1 className="text-xl font-bold tracking-tight text-foreground">
-                                        {selected.name}
-                                    </h1>
-                                    <p className="text-sm text-muted-foreground mt-0.5">
-                                        Drag and resize widgets to customize your view
-                                    </p>
+                            <header className="h-auto flex-shrink-0 bg-background border-b border-border/50 flex items-center justify-between px-6 py-4 z-20 gap-3 relative">
+                                <div className="flex items-start gap-3">
+                                    <SidebarTrigger className="mt-0.5 shrink-0" />
+                                    <div>
+                                        <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                            {selected.name}
+                                        </h1>
+                                        <p className="text-sm text-muted-foreground mt-0.5">
+                                            Drag and resize widgets to customize your view
+                                        </p>
+                                    </div>
                                 </div>
+                                <div id="dashboard-toast-container" className="flex-1 flex justify-end"></div>
                             </header>
 
                             {/* Tab bar */}

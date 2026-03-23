@@ -1,6 +1,8 @@
 import { useState } from "react";
 import DashboardPage from "@/pages/home";
 import LoginPage from "@/pages/login";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import "./index.css";
 
 // Apply saved theme on startup
@@ -23,8 +25,18 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <>
+        <ToastContainer position="top-right" theme="light" />
+        <LoginPage onLogin={handleLogin} />
+      </>
+    );
   }
 
-  return <DashboardPage onLogout={handleLogout} />;
+  return (
+    <>
+      <ToastContainer position="top-right" />
+      <DashboardPage onLogout={handleLogout} />
+    </>
+  );
 }
