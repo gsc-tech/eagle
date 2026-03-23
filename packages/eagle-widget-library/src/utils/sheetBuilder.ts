@@ -182,7 +182,7 @@ export function getWorkbookSkeleton(): Record<string, any> {
     return {
         styles: template.styles ?? {},
         resources: template.resources ?? [],
-        id: "workbook-01",
+        id: `workbook-${Math.random().toString(36).slice(2, 9)}`,
         appVersion: "0.15.5",
         locale: "enUS",
         name: "Universheet",
@@ -419,12 +419,12 @@ export async function reconstructWorkbookFromSnapshot(
 
         try {
             console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
-            
+
             // INDIVIDUAL FETCH (PARALLELIZED)
             const contracts = await fetchContracts(baseProduct);
             if (!contracts || contracts.length === 0) {
-                 console.warn(`[sheetBuilder] No active contracts found for ${baseProduct}, using original for ${name}`);
-                 return { id: oldSheet.id, sheet: oldSheet };
+                console.warn(`[sheetBuilder] No active contracts found for ${baseProduct}, using original for ${name}`);
+                return { id: oldSheet.id, sheet: oldSheet };
             }
 
             const sheetSnapshot = buildSheetSnapshot(baseProduct, contracts);
@@ -512,7 +512,7 @@ export async function reconstructWorkbookFromSnapshot(
     const skeleton = getWorkbookSkeleton();
     return {
         ...snapshot,
-        id: `workbook-${Date.now()}`,
+        id: `workbook-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
         sheets: rebuiltSheets,
         sheetOrder: sheetOrder,
         styles: skeleton.styles,

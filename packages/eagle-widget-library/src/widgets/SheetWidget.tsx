@@ -145,6 +145,7 @@ function parseSymbol(symbol: string): { product: string; label: string } | null 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SheetWidget: React.FC<SheetWidgetProps> = ({
+    id,
     title = "Positions Sheet",
     darkMode = false,
     marexWsUrl = "ws://localhost:8000/ws",
@@ -233,6 +234,31 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
 
 
+    // ── Global Focus Patch ───────────────────────────────────────────────────
+    // Prevent ANY element inside Univer from causing a browser scroll-into-view
+    // when it receives focus. Univer's internal logic carelessly calls .focus()
+    // without { preventScroll: true } in multiple places (including inside
+    // SlideTabItem.focus for the tab bar). This causes the dashboard to jump
+    // violently upward when clicking the "+" button or other tab elements.
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        // Only patch once per window context
+        const patchedFlag = '__univerFocusPatched';
+        if (!(HTMLElement.prototype as any)[patchedFlag]) {
+            const originalFocus = HTMLElement.prototype.focus;
+            HTMLElement.prototype.focus = function (options?: FocusOptions) {
+                // If the element requesting focus is inside our designated container
+                if (this && typeof this.closest === 'function' && this.closest('.univer-scroll-lock-container')) {
+                    return originalFocus.call(this, { ...options, preventScroll: true });
+                }
+                return originalFocus.call(this, options);
+            };
+            (HTMLElement.prototype as any)[patchedFlag] = true;
+        }
+    }, []);
+
     // ── Univer init ──────────────────────────────────────────────────────────
     useEffect(() => {
         const container = containerRef.current;
@@ -304,7 +330,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     sheets.forEach((s: any, index: number) => {
                         const snapshot = s.getSheet().getSnapshot();
                         if (snapshot?.name && snapshot?.cellData) {
-                            sheetsDataToBatch[snapshot.name] = snapshot.cellData;
+                            const storeKey = id ? `${id}_${snapshot.name}` : snapshot.name;
+                            sheetsDataToBatch[storeKey] = snapshot.cellData;
                         }
 
                         // Apply conditional formatting to other sheets with a slight delay to avoid freezing UI
@@ -332,6 +359,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     const { id } = event;
                     // Intercept both the object ID and the literal string for robustness
                     if (id === InsertSheetCommand.id || id === 'sheet.command.insert-sheet') {
+                        console.log("insert sheet command triggered");
                         // If WE triggered this programmatically (via modal confirmation), let it through.
                         if (isProgrammaticInsertRef.current) return;
 
@@ -345,7 +373,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         setTimeout(() => {
                             openModalRef.current();
                         }, 0);
-                        
+
                         return;
                     }
                 });
@@ -366,7 +394,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         setTimeout(() => {
                             const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
                             if (targetSheetObj && targetSheetObj.cellData) {
-                                useSheetStore.getState().setSheet(name, targetSheetObj.cellData);
+                                const storeKey = id ? `${id}_${name}` : name;
+                                useSheetStore.getState().setSheet(storeKey, targetSheetObj.cellData);
                             }
                         }, 500)
                     });
@@ -387,7 +416,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         // Update the store with the fully evaluated snapshot
                         for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
                             if (sheetObj?.name && sheetObj?.cellData) {
-                                useSheetStore.getState().setSheet(sheetObj.name, sheetObj.cellData);
+                                const storeKey = id ? `${id}_${sheetObj.name}` : sheetObj.name;
+                                useSheetStore.getState().setSheet(storeKey, sheetObj.cellData);
                             }
                         }
                     });
@@ -416,7 +446,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         res.formulaSubscription.dispose();
                     }
                 }
-                
+
+
                 // CRITICAL: Only dispose of the instance WE created in THIS effect execution.
                 // This prevents a stale cleanup from an old mount destroying a new mount's instance.
                 if (createdUniverAPI) {
@@ -530,7 +561,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === sheetName) as any;
 
                 if (targetSheetObj && targetSheetObj.cellData) {
-                    useSheetStore.getState().setSheet(sheetName, targetSheetObj.cellData);
+                    const storeKey = id ? `${id}_${sheetName}` : sheetName;
+                    useSheetStore.getState().setSheet(storeKey, targetSheetObj.cellData);
                 }
             }
         }
@@ -538,7 +570,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         if (updatesByProduct.size > 0) {
             triggerAutoSaveRef.current?.();
         }
-    }, []);
+    }, [id]);
 
     // ── WebSocket Excel ────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -695,7 +727,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             initialParameterValues={initialParameterValues}
             onParametersChange={handleParametersChange}
         >
-            <div ref={containerRef} className="h-full w-full" />
+            <div ref={containerRef} className="h-full w-full univer-scroll-lock-container" />
 
             {/* Render modal in a portal so it's above everything */}
             {modalOpen &&

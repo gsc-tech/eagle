@@ -98,6 +98,7 @@ export default function WidgetRenderer({
         <div className="h-full w-full overflow-hidden flex flex-col">
             <WidgetComponent
                 {...(widget.defaultProps || {})}
+                id={layoutItem.i}
                 title={widget.name}
                 darkMode={theme === "dark"}
                 groupedParametersValues={groupedParametersValues}

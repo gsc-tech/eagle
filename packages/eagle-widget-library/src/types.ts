@@ -16,6 +16,7 @@ export interface ParameterValues {
 }
 
 export interface BaseWidgetProps {
+    id?: string;
     apiUrl?: string;
     title?: string;
     parameters?: ParameterDefinition[];
