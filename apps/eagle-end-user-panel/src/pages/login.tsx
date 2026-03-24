@@ -1,5 +1,7 @@
 import { login, signInWithMicrosoft } from "@/firebase/authService";
 import { useState } from "react";
+import eagleLogo from "@/assets/eagle-2.png";
+import eagleDarkLogo from "@/assets/eagle-2-dark.png";
 
 interface LoginPageProps {
     onLogin: () => void;
@@ -58,19 +60,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <div className="bg-card border border-border/60 rounded-2xl shadow-2xl shadow-black/20 p-8">
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
-                        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/30">
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                className="w-6 h-6 text-primary-foreground"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-                                <path d="M13 13l6 6" />
-                            </svg>
+                        <div className="w-20 h-20 flex items-center justify-center mb-4">
+                            <img 
+                                src={eagleLogo} 
+                                alt="Eagle Logo" 
+                                className="w-full h-full object-contain dark:hidden"
+                            />
+                            <img 
+                                src={eagleDarkLogo} 
+                                alt="Eagle Logo" 
+                                className="w-full h-full object-contain hidden dark:block"
+                            />
                         </div>
                         <h1 className="text-2xl font-bold text-foreground">
                             Project Eagle

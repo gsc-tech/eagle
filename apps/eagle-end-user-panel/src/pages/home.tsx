@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
+import eagleLogo from "@/assets/eagle-2.png";
+import eagleDarkLogo from "@/assets/eagle-2-dark.png";
 import {
     BarChart2,
     TrendingUp,
@@ -253,19 +255,17 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     <SidebarHeader className="border-b border-sidebar-border">
                         <div className="flex items-center gap-3 px-1 py-3">
                             {/* Eagle logo mark */}
-                            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    className="w-5 h-5 text-primary-foreground"
-                                    stroke="currentColor"
-                                    strokeWidth="2.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                >
-                                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-                                    <path d="M13 13l6 6" />
-                                </svg>
+                            <div className="w-12 h-12 shrink-0 flex items-center justify-center overflow-hidden">
+                                <img 
+                                    src={eagleLogo} 
+                                    alt="Eagle Logo" 
+                                    className="w-full h-full object-contain dark:hidden"
+                                />
+                                <img 
+                                    src={eagleDarkLogo} 
+                                    alt="Eagle Logo" 
+                                    className="w-full h-full object-contain hidden dark:block"
+                                />
                             </div>
                             <span className="font-bold text-base tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
                                 Project Eagle
