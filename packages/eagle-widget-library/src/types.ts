@@ -16,6 +16,7 @@ export interface ParameterValues {
 }
 
 export interface BaseWidgetProps {
+    id?: string;
     apiUrl?: string;
     title?: string;
     parameters?: ParameterDefinition[];
@@ -23,6 +24,7 @@ export interface BaseWidgetProps {
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     sheetDependency?: SheetDependencyConfig;
+    initialParameterValues?: Record<string, string>;
 }
 
 export interface DataMappingConfig {

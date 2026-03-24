@@ -39,6 +39,7 @@ interface SheetState {
     updateCell: (sheetId: string, row: number, col: number, value: any) => void;
     updateCells: (sheetId: string, updates: { row: number; col: number; value: any }[]) => void;
     setSheet: (sheetId: string, data: any) => void;
+    setSheets: (sheetsData: Record<string, any>) => void;
     subscribe: (sheetId: string, widgetId: string, range: RangeConfig, callback: DependentWidgetCallback) => void;
     unsubscribe: (sheetId: string, widgetId: string) => void;
 
@@ -112,6 +113,28 @@ export const useSheetStore = create<SheetState>((set, get) => ({
         set((state) => ({
             updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
         }));
+    },
+
+    setSheets: (sheetsData) => {
+        console.log("setting multiple sheets data");
+        set((state) => ({
+            sheets: { ...state.sheets, ...sheetsData }
+        }));
+
+        const state = get();
+        Object.keys(sheetsData).forEach(sheetId => {
+            if (state.updateTimeouts[sheetId]) {
+                clearTimeout(state.updateTimeouts[sheetId]);
+            }
+
+            const timeout = setTimeout(() => {
+                get()._notifyDependents(sheetId);
+            }, DEBOUNCE_MS);
+
+            set((state) => ({
+                updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
+            }));
+        });
     },
 
     setSheet: (sheetId, data) => {

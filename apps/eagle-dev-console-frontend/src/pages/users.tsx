@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { api } from "../utils/apiClient";
-import { Users as UsersIcon, UserPlus, UsersRound, Trash2, Settings, Mail, Shield } from "lucide-react";
+import { Users as UsersIcon, UsersRound, Trash2, Settings, Mail, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 type User = {
@@ -34,9 +34,6 @@ type UserGroup = {
 export default function Users() {
     // User state
     const [users, setUsers] = useState<User[]>([]);
-    const [username, setUsername] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
 
     // User group state
     const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
@@ -44,16 +41,11 @@ export default function Users() {
     const [groupDescription, setGroupDescription] = useState("");
 
     // Dialog states
-    const [addUserOpen, setAddUserOpen] = useState(false);
     const [addGroupOpen, setAddGroupOpen] = useState(false);
-    const [editUserOpen, setEditUserOpen] = useState(false);
     const [editGroupOpen, setEditGroupOpen] = useState(false);
 
     // Edit states
-    const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editingGroup, setEditingGroup] = useState<UserGroup | null>(null);
-    const [editUsername, setEditUsername] = useState("");
-    const [editEmail, setEditEmail] = useState("");
     const [editGroupName, setEditGroupName] = useState("");
     const [editGroupDescription, setEditGroupDescription] = useState("");
 
@@ -71,11 +63,10 @@ export default function Users() {
         try {
             const response = await api.get("/users");
             const usersData = response.data || [];
-            console.log("UserData:", usersData)
+            console.log(usersData);
 
             // Normalize user data and fetch groups
             const normalizedUsers = await Promise.all(usersData.map(async (u: any) => {
-                // EXHAUSTIVE check for UUID fields
                 const databaseId = u.user_id || u.u_id || u.userId || u.id || u.ID || "";
                 const userId = String(databaseId).trim();
                 const username = String(u.user_name || u.username || u.Name || u.Username || "Unknown User");
@@ -116,7 +107,6 @@ export default function Users() {
             const response = await api.get("/usergroups");
             const data = response.data || [];
 
-            // Normalize group data to handle specific backend field names (ug_id, ug_name)
             const normalizedGroups = data.map((g: any) => ({
                 groupId: String(g.ug_id || g.groupId || g.id || g.ID || (typeof g === 'string' ? g : "")),
                 name: String(g.ug_name || g.name || g.Name || g.GroupName || (typeof g === 'string' ? g : "Unnamed Group")),
@@ -133,34 +123,6 @@ export default function Users() {
         fetchUsers();
         fetchUserGroups();
     }, []);
-
-    // Add new user
-    const handleAddUser = async () => {
-        if (!username || !email || !password) {
-            alert("Please fill in all required fields");
-            return;
-        }
-
-        try {
-            const response = await api.post("/users", {
-                username,
-                email,
-                password,
-            });
-
-            if (response.status === 201) {
-                alert("User added successfully");
-                fetchUsers();
-                setUsername("");
-                setEmail("");
-                setPassword("");
-                setAddUserOpen(false);
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Unable to add user. Please try again.");
-        }
-    };
 
     // Add new user group
     const handleAddUserGroup = async () => {
@@ -185,33 +147,6 @@ export default function Users() {
         } catch (error) {
             console.error(error);
             alert("Unable to add user group. Please try again.");
-        }
-    };
-
-    // Edit user
-    const handleOpenEditUser = async (user: User) => {
-        setEditingUser(user);
-        setEditUsername(user.username);
-        setEditEmail(user.email);
-        setEditUserOpen(true);
-    };
-
-    const handleUpdateUser = async () => {
-        if (!editingUser) return;
-
-        try {
-            await api.put(`/users/${editingUser.userId}`, {
-                username: editUsername,
-                email: editEmail,
-            });
-
-            alert("User updated successfully");
-            fetchUsers();
-            setEditUserOpen(false);
-            setEditingUser(null);
-        } catch (error) {
-            console.error(error);
-            alert("Unable to update user. Please try again.");
         }
     };
 
@@ -244,22 +179,6 @@ export default function Users() {
         }
     };
 
-    // Delete user
-    const handleDeleteUser = async (userId: string) => {
-        if (!confirm("Are you sure you want to delete this user?")) return;
-
-        try {
-            const response = await api.delete(`/users/${userId}`);
-            if (response.status === 200) {
-                alert("User deleted successfully");
-                fetchUsers();
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Unable to delete user. Please try again.");
-        }
-    };
-
     // Delete user group
     const handleDeleteGroup = async (groupId: string) => {
         if (!confirm("Are you sure you want to delete this user group?")) return;
@@ -283,9 +202,7 @@ export default function Users() {
         try {
             const response = await api.get(`/usergroups/${group.groupId}/users`);
             const membersData = response.data || [];
-            console.log("MembersData:", membersData)
 
-            // Normalize member data to ensure they have userId
             const normalizedMembers = membersData.map((m: any) => {
                 const databaseId = m.user_id || m.u_id || m.userId || m.id || m.ID || "";
                 return {
@@ -300,7 +217,6 @@ export default function Users() {
             setSelectedUsersForGroup([]);
         } catch (error) {
             console.error("Error fetching group members", error);
-            // Don't alert here to avoid UX friction, just set to empty if it fails
             setGroupMembers([]);
             setSelectedUsersForGroup([]);
         }
@@ -309,15 +225,12 @@ export default function Users() {
     const handleAddUsersToGroup = async () => {
         if (!managingGroup || selectedUsersForGroup.length === 0) return;
 
-        // Final safety check: filter out any empty strings
         const validUserIds = selectedUsersForGroup.filter(id => id.trim() !== "");
 
         if (validUserIds.length === 0) {
             alert("No valid users selected.");
             return;
         }
-
-        console.log("Sending Payload:", { endUserIds: validUserIds });
 
         try {
             await api.post(`/usergroups/${managingGroup.groupId}/users`, {
@@ -327,7 +240,6 @@ export default function Users() {
             const response = await api.get(`/usergroups/${managingGroup.groupId}/users`);
             const refreshedMembers = response.data || [];
 
-            // Re-normalize refreshed members
             const normalizedRefreshed = refreshedMembers.map((m: any) => ({
                 ...m,
                 userId: String(m.user_id || m.u_id || m.userId || m.id || m.ID || ""),
@@ -344,6 +256,33 @@ export default function Users() {
         }
     };
 
+    const handleRemoveUserFromGroup = async (userId: string) => {
+        if (!managingGroup) return;
+        if (!confirm("Are you sure you want to remove this user from the group?")) return;
+
+        try {
+            await api.delete(`/usergroups/${managingGroup.groupId}/${userId}`);
+            alert("User removed from group successfully");
+            
+            // Refresh local member list
+            const response = await api.get(`/usergroups/${managingGroup.groupId}/users`);
+            const refreshedMembers = response.data || [];
+            const normalizedRefreshed = refreshedMembers.map((m: any) => ({
+                ...m,
+                userId: String(m.user_id || m.u_id || m.userId || m.id || m.ID || ""),
+                username: String(m.user_name || m.username || m.Name || m.Username || ""),
+                email: String(m.email || m.Email || "")
+            }));
+            setGroupMembers(normalizedRefreshed);
+            
+            // Refresh global users list to update badges
+            fetchUsers();
+        } catch (error) {
+            console.error("Error removing user from group", error);
+            alert("Unable to remove user from group.");
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
             <div className="max-w-7xl mx-auto p-8">
@@ -354,7 +293,7 @@ export default function Users() {
                             User Management
                         </h1>
                         <p className="text-muted-foreground text-base">
-                            Manage users and user groups for your application.
+                            Manage user groups and view users for your application.
                         </p>
                     </div>
                 </div>
@@ -395,136 +334,53 @@ export default function Users() {
 
                 {/* Users Tab */}
                 {activeTab === "users" && (
-                    <div>
-                        <div className="flex justify-end mb-6">
-                            <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
-                                <DialogTrigger asChild>
-                                    <Button className="rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all">
-                                        <UserPlus className="w-4 h-4 mr-2" />
-                                        Add User
-                                    </Button>
-                                </DialogTrigger>
-
-                                <DialogContent className="sm:max-w-[500px]">
-                                    <DialogHeader>
-                                        <DialogTitle>Add New User</DialogTitle>
-                                        <DialogDescription>
-                                            Create a new user account and assign user groups.
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="grid gap-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="username">Username *</Label>
-                                            <Input
-                                                id="username"
-                                                placeholder="e.g. john_doe"
-                                                value={username}
-                                                onChange={(e) => setUsername(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="email">Email *</Label>
-                                            <Input
-                                                id="email"
-                                                type="email"
-                                                placeholder="user@example.com"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="password">Password *</Label>
-                                            <Input
-                                                id="password"
-                                                type="password"
-                                                placeholder="Enter password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <DialogFooter>
-                                        <DialogClose asChild>
-                                            <Button variant="outline">Cancel</Button>
-                                        </DialogClose>
-                                        <Button onClick={handleAddUser}>Add User</Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-
-                        {/* Users List */}
-                        <div className="grid grid-cols-1 gap-4">
-                            {users.length === 0 ? (
-                                <div className="text-center py-12 bg-card/50 rounded-xl border border-border">
-                                    <UsersIcon className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                                    <p className="text-muted-foreground">No users found. Add your first user to get started.</p>
-                                </div>
-                            ) : (
-                                users.map((user) => (
-                                    <div
-                                        key={user.userId}
-                                        className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-all"
-                                    >
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                                        <UsersIcon className="w-5 h-5 text-primary" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold text-foreground">{user.username}</h3>
-                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                            <Mail className="w-3 h-3" />
-                                                            {user.email}
-                                                        </div>
+                    <div className="grid grid-cols-1 gap-4">
+                        {users.length === 0 ? (
+                            <div className="text-center py-12 bg-card/50 rounded-xl border border-border">
+                                <UsersIcon className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                                <p className="text-muted-foreground">No users found.</p>
+                            </div>
+                        ) : (
+                            users.map((user) => (
+                                <div
+                                    key={user.userId}
+                                    className="bg-card border border-border rounded-xl p-6 hover:shadow-md transition-all"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                                    <UsersIcon className="w-5 h-5 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-foreground">{user.username}</h3>
+                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                        <Mail className="w-3 h-3" />
+                                                        {user.email}
                                                     </div>
                                                 </div>
+                                            </div>
 
-                                                {user.userGroups && user.userGroups.length > 0 && (
-                                                    <div className="mt-3 flex items-center gap-2">
-                                                        <Shield className="w-4 h-4 text-muted-foreground" />
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {user.userGroups.map((groupId) => {
-                                                                const group = userGroups.find(g => g.groupId === groupId);
-                                                                return (
-                                                                    <Badge key={groupId} variant="secondary">
-                                                                        {group?.name || groupId}
-                                                                    </Badge>
-                                                                );
-                                                            })}
-                                                        </div>
+                                            {user.userGroups && user.userGroups.length > 0 && (
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <Shield className="w-4 h-4 text-muted-foreground" />
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {user.userGroups.map((groupId) => {
+                                                            const group = userGroups.find(g => g.groupId === groupId);
+                                                            return (
+                                                                <Badge key={groupId} variant="secondary">
+                                                                    {group?.name || groupId}
+                                                                </Badge>
+                                                            );
+                                                        })}
                                                     </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleOpenEditUser(user)}
-                                                    className="rounded-lg"
-                                                >
-                                                    <Settings className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleDeleteUser(user.userId)}
-                                                    className="rounded-lg text-destructive hover:text-destructive"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
 
@@ -580,7 +436,6 @@ export default function Users() {
                             </Dialog>
                         </div>
 
-                        {/* User Groups List */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {userGroups.length === 0 ? (
                                 <div className="col-span-full text-center py-12 bg-card/50 rounded-xl border border-border">
@@ -647,46 +502,6 @@ export default function Users() {
                     </div>
                 )}
 
-                {/* Edit User Dialog */}
-                <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>Edit User</DialogTitle>
-                            <DialogDescription>
-                                Update user information and group assignments.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="grid gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="edit-username">Username</Label>
-                                <Input
-                                    id="edit-username"
-                                    value={editUsername}
-                                    onChange={(e) => setEditUsername(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="edit-email">Email</Label>
-                                <Input
-                                    id="edit-email"
-                                    type="email"
-                                    value={editEmail}
-                                    onChange={(e) => setEditEmail(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                            </DialogClose>
-                            <Button onClick={handleUpdateUser}>Save Changes</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
                 {/* Edit User Group Dialog */}
                 <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
                     <DialogContent className="sm:max-w-[500px]">
@@ -737,7 +552,6 @@ export default function Users() {
                         </DialogHeader>
 
                         <div className="grid gap-6">
-                            {/* Current Members */}
                             <div className="grid gap-2">
                                 <Label className="text-sm font-bold">Current Members ({groupMembers.length})</Label>
                                 <div className="border border-border rounded-lg overflow-hidden">
@@ -750,6 +564,7 @@ export default function Users() {
                                                     <tr>
                                                         <th className="px-4 py-2 text-left">Username</th>
                                                         <th className="px-4 py-2 text-left">Email</th>
+                                                        <th className="px-4 py-2 text-right w-[60px]">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-border">
@@ -757,6 +572,16 @@ export default function Users() {
                                                         <tr key={member.userId}>
                                                             <td className="px-4 py-2">{member.username}</td>
                                                             <td className="px-4 py-2 text-muted-foreground">{member.email}</td>
+                                                            <td className="px-4 py-2 text-right">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleRemoveUserFromGroup(member.userId)}
+                                                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -766,7 +591,6 @@ export default function Users() {
                                 </div>
                             </div>
 
-                            {/* Add More Users */}
                             <div className="grid gap-2">
                                 <Label className="text-sm font-bold">Add Users</Label>
                                 <div className="flex gap-2">
@@ -800,7 +624,6 @@ export default function Users() {
                                         Add Selected
                                     </Button>
                                 </div>
-                                <p className="text-xs text-muted-foreground">Hold Ctrl (or Cmd) to select multiple users.</p>
                             </div>
                         </div>
 

@@ -2,13 +2,14 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import type { LayoutItem } from "./types";
 import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
+import { getAuth } from "firebase/auth";
 
 interface WidgetRendererProps {
     layoutItem: LayoutItem;
     /** Pre-loaded Univer workbook snapshot for SheetWidget (from your database). */
     initialWorkbookData?: Record<string, any>;
     /** Called when a SheetWidget unmounts so you can persist the snapshot to your database. */
-    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>) => void;
+    onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
 }
 
 export default function WidgetRenderer({
@@ -66,6 +67,18 @@ export default function WidgetRenderer({
         return entry?.component;
     }, [widget.componentName]);
 
+    const getFirebaseToken = useCallback(async () => {
+        try {
+            const auth = getAuth();
+            if (auth?.currentUser) {
+                return await auth.currentUser.getIdToken(true);
+            }
+        } catch (err) {
+            console.error("[WidgetRenderer] Failed to get robust firebase token", err);
+        }
+        return "";
+    }, []);
+
     if (!WidgetComponent) {
         return (
             <div className="h-full w-full bg-destructive/10 border-2 border-destructive/20 rounded-xl flex items-center justify-center p-4 backdrop-blur-sm">
@@ -85,16 +98,21 @@ export default function WidgetRenderer({
         <div className="h-full w-full overflow-hidden flex flex-col">
             <WidgetComponent
                 {...(widget.defaultProps || {})}
+                id={layoutItem.i}
                 title={widget.name}
                 darkMode={theme === "dark"}
                 groupedParametersValues={groupedParametersValues}
                 onGroupedParametersChange={handleGroupedParametersChange}
                 // SheetWidget-specific: load saved snapshot and persist on close
                 {...(widget.componentName === "SheetWidget" && {
-                    initialWorkbookData,
+                    initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
+                    initialParameterValues: initialWorkbookData?.parameters
+                        ? initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {})
+                        : {},
+                    getFirebaseToken,
                     onSave: onSaveWorkbook
-                        ? (snapshot: Record<string, any>) =>
-                            onSaveWorkbook(layoutItem.i, snapshot)
+                        ? (snapshot: Record<string, any>, parameters?: any[]) =>
+                            onSaveWorkbook(layoutItem.i, snapshot, parameters)
                         : undefined,
                 })}
             />

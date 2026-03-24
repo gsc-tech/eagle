@@ -35,6 +35,8 @@ import type { LayoutItem } from "@/components/dashboard-renderer/types";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getToken } from "@/firebase/authService";
+import { auth } from "@/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
 
 export type Tab = {
     id: string;
@@ -75,24 +77,51 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
 
     // Workbook snapshots state
-    const [workbookSnapshots, setWorkbookSnapshots] = useState<Record<string, Record<string, any>>>({});
+    const [workbookSnapshots, setWorkbookSnapshots] = useState<Record<string, any>>({});
     const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
 
     // User profile expansion
     const [profileOpen, setProfileOpen] = useState(false);
 
-    // Hardcoded user info (matches login credentials)
-    const displayName = "John Doe";
-    const email = "user@gmail.com";
-    const initials = "JD";
+    // Dynamic user info from Firebase
+    const [displayName, setDisplayName] = useState("User");
+    const [email, setEmail] = useState("");
+    const [initials, setInitials] = useState("U");
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                const name = user.displayName || user.email?.split('@')[0] || "User";
+                setDisplayName(name);
+                setEmail(user.email || "");
+                
+                // Get initials (up to 2 letters)
+                const nameParts = name.trim().split(" ");
+                if (nameParts.length > 1 && nameParts[0].length > 0 && nameParts[nameParts.length - 1].length > 0) {
+                    setInitials((nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase());
+                } else if (name.length > 0) {
+                    setInitials(name.substring(0, 2).toUpperCase());
+                } else {
+                    setInitials("U");
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     // Fetch dashboards on mount
     useEffect(() => {
         const fetchDashboards = async () => {
             try {
                 const baseURL =
-                    import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
-                const resp = await axios.get(`${baseURL}/dashboards/end-user`);
+                    import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
+                const token = await getToken();
+                const resp = await axios.get(`${baseURL}/dashboards/end-user`, {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
                 const data = resp.data;
                 const filteredData = data.filter(
                     (d: Dashboard) => d.publishedLayout?.tabs
@@ -135,11 +164,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     const fetchWorkbookSnapshots = async (dashboardId: string) => {
         try {
-            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
+            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
             // Example endpoint: fetch all snapshots for a dashboard
             // Adjust endpoint path as needed based on your backend API
             const token = await getToken();
-            const resp = await axios.get(`${baseURL}/api/dashboards/snapshots/${dashboardId}`, {
+            const resp = await axios.get(`${baseURL}/dashboards/snapshots/${dashboardId}`, {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
@@ -159,7 +188,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         }
     };
 
-    const handleSaveWorkbook = async (widgetId: string, snapshot: Record<string, any>) => {
+    const handleSaveWorkbook = async (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => {
         if (!selected) return;
         try {
             const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
@@ -173,7 +202,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
             // Using fetch with keepalive: true ensures the request completes
             // even if the user is in the process of closing the browser window.
-            await fetch(`${baseURL}/api/dashboards/snapshots/save`, {
+            await fetch(`${baseURL}/dashboards/snapshots/save`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -182,14 +211,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 body: JSON.stringify({
                     dashboardId: selected.dashboardID,
                     itemId: widgetId,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    parameters: parameters || [],
                 }),
             });
 
             // Update local state immediately
             setWorkbookSnapshots(prev => ({
                 ...prev,
-                [widgetId]: snapshot
+                [widgetId]: { snapshot, parameters: parameters || [] }
             }));
         } catch (error) {
             console.error("Error saving workbook snapshot:", error);
@@ -375,16 +405,19 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     {selected ? (
                         <>
                             {/* Dashboard header */}
-                            <header className="h-auto flex-shrink-0 bg-background border-b border-border/50 flex items-start px-6 py-4 z-20 gap-3">
-                                <SidebarTrigger className="mt-0.5 shrink-0" />
-                                <div>
-                                    <h1 className="text-xl font-bold tracking-tight text-foreground">
-                                        {selected.name}
-                                    </h1>
-                                    <p className="text-sm text-muted-foreground mt-0.5">
-                                        Drag and resize widgets to customize your view
-                                    </p>
+                            <header className="h-auto flex-shrink-0 bg-background border-b border-border/50 flex items-center justify-between px-6 py-4 z-20 gap-3 relative">
+                                <div className="flex items-start gap-3">
+                                    <SidebarTrigger className="mt-0.5 shrink-0" />
+                                    <div>
+                                        <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                            {selected.name}
+                                        </h1>
+                                        <p className="text-sm text-muted-foreground mt-0.5">
+                                            Drag and resize widgets to customize your view
+                                        </p>
+                                    </div>
                                 </div>
+                                <div id="dashboard-toast-container" className="flex-1 flex justify-end"></div>
                             </header>
 
                             {/* Tab bar */}

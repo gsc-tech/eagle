@@ -8,6 +8,7 @@ interface ParameterFormProps {
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     darkMode?: boolean;
+    initialParameterValues?: Record<string, string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -318,13 +319,18 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialParameterValues,
 }) => {
     const [values, setValues] = useState<ParameterValues>(() => {
         const init: ParameterValues = {};
         parameters.forEach(p => {
-            init[p.name] = (p.groupId && groupedParametersValues?.[p.groupId] !== undefined)
-                ? groupedParametersValues[p.groupId]
-                : (p.defaultValue ?? '');
+            if (initialParameterValues && initialParameterValues[p.name] !== undefined) {
+                init[p.name] = initialParameterValues[p.name];
+            } else if (p.groupId && groupedParametersValues?.[p.groupId] !== undefined) {
+                init[p.name] = groupedParametersValues[p.groupId];
+            } else {
+                init[p.name] = (p.defaultValue ?? '');
+            }
         });
         return init;
     });

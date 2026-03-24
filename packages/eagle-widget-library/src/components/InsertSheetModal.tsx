@@ -25,7 +25,7 @@ export const InsertSheetModal: React.FC<InsertSheetModalProps> = ({
             setProductName("");
             // Focus input after modal opens
             setTimeout(() => {
-                inputRef.current?.focus();
+                inputRef.current?.focus({ preventScroll: true });
             }, 50);
         }
     }, [isOpen]);

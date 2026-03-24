@@ -42,31 +42,67 @@ export interface ContractInfo {
     label: string;
 }
 
+// In-memory cache to deduplicate concurrent requests for the same product
+const contractsCache: Partial<Record<string, Promise<ContractInfo[]>>> = {};
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 /**
  * Fetch active contracts for a product from the internal API.
- * Returns an ordered list of contract objects.
+ * Uses sessionStorage for persistence across tab refreshes and in-memory 
+ * deduplication for concurrent calls.
  */
 export async function fetchContracts(product: string): Promise<ContractInfo[]> {
-    const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`API error ${res.status}: ${res.statusText}`);
-    }
-    const json = await res.json();
+    // 1. Return in-memory promise if already fetching or fetched in this execution
+    if (contractsCache[product]) return contractsCache[product];
 
-    // The API returns { "CL": ["CLG26", "CLH26", ...] }
-    const contractCodes: string[] = json[product] ?? Object.values(json)[0] ?? [];
-    if (!Array.isArray(contractCodes) || contractCodes.length === 0) {
-        throw new Error(`No active contracts found for product "${product}"`);
-    }
+    const promise = (async () => {
+        // 2. Try to recover from Session Storage (survives tab refresh)
+        try {
+            const cachedStr = sessionStorage.getItem(`sheet_contracts_${product}`);
+            if (cachedStr) {
+                const cached = JSON.parse(cachedStr);
+                if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+                    console.log("[sheetBuilder] Returning session-cached contracts for:", product);
+                    return cached.data as ContractInfo[];
+                }
+            }
+        } catch (e) {
+            /* ignore storage errors */
+        }
 
-    return contractCodes.map((code): ContractInfo => {
-        // code example: "CLG26"  →  product+monthCode+year
-        const monthCode = code.charAt(product.length);
-        const year = code.slice(product.length + 1);
-        const month = MONTH_CODE_TO_NAME[monthCode] ?? monthCode;
-        return { code, month, year, label: `${month}${year}` };
-    });
+        // 3. Perform fresh individual fetch
+        console.log("[sheetBuilder] Fetching fresh contracts for:", product);
+        const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+            throw new Error(`API error ${res.status}: ${res.statusText}`);
+        }
+        const json = await res.json();
+
+        // The API returns { "CL": ["CLG26", "CLH26", ...] }
+        const contractCodes: string[] = json[product] ?? Object.values(json)[0] ?? [];
+        const data = contractCodes.map((code): ContractInfo => {
+            const monthCode = code.charAt(product.length);
+            const year = code.slice(product.length + 1);
+            const month = MONTH_CODE_TO_NAME[monthCode] ?? monthCode;
+            return { code, month, year, label: `${month}${year}` };
+        });
+
+        // 4. Save to Session Storage for future refreshes
+        try {
+            sessionStorage.setItem(`sheet_contracts_${product}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        } catch (e) {
+            /* ignore storage errors */
+        }
+
+        return data;
+    })();
+
+    contractsCache[product] = promise;
+    return promise;
 }
 
 // ─── Sheet snapshot builder ────────────────────────────────────────────────────
@@ -146,7 +182,7 @@ export function getWorkbookSkeleton(): Record<string, any> {
     return {
         styles: template.styles ?? {},
         resources: template.resources ?? [],
-        id: "workbook-01",
+        id: `workbook-${Math.random().toString(36).slice(2, 9)}`,
         appVersion: "0.15.5",
         locale: "enUS",
         name: "Universheet",
@@ -201,34 +237,38 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
             t: 1,
         };
 
-        // Col 1 (B): count sum = SUM(C{row}:N{row})
-        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=SUM(C${wRow}:N${wRow})`, 2);
+        // Col 1 (B): count sum = SUM(C{row}:S{row})
+        row["1"] = formulaCell(styleOnly(spreadRowTemplate["1"]), `=SUM(C${wRow}:S${wRow})`, 2);
 
-        // Cols 2-13 (C-N): strategy legs — blank
-        for (let c = 2; c <= 13; c++) {
+        // Cols 2-18 (C-S): strategy legs — blank
+        for (let c = 2; c <= 18; c++) {
             row[String(c)] = { ...styleOnly(spreadRowTemplate[String(c)]), t: 2 };
         }
 
-        // Col 14 (O): outright settle diff = S{row} - R{row}
-        row["14"] = formulaCell(styleOnly(spreadRowTemplate["14"]), `=S${wRow} - R${wRow}`, 2);
+        // Col 19 (T): Outright Excel
+        row["19"] = formulaCell(styleOnly(spreadRowTemplate["19"]), `=X${wRow}-W${wRow}`, 2);
 
-        // Col 15 (P): contract label = RIGHT(A{row}, 5)
-        // This is a text formula — result type is string (1)
-        row["15"] = formulaCell(styleOnly(spreadRowTemplate["15"]), `=RIGHT(A${wRow}, 5)`, 1);
+        // Col 20 (U): Outright Marex
+        row["20"] = formulaCell(styleOnly(spreadRowTemplate["20"]), `=Y${wRow}-W${wRow}`, 2);
 
-        // Col 16 (Q): contract full name — "F.{PRODUCT}.{MONTH}{YEAR}" (static, no formula)
-        row["16"] = {
-            ...styleOnly(spreadRowTemplate["16"]),
+        // Col 21 (V): contract label formula
+        row["21"] = formulaCell(styleOnly(spreadRowTemplate["21"]), `=RIGHT(A${wRow}, 5)`, 1);
+
+        // Col 25 (Z): Hidden static full contract name for precise WebSocket matching
+        row["25"] = {
             v: `F.${product}.${contracts[i + 1].month.toUpperCase()}${contracts[i + 1].year}`,
             t: 1,
         };
 
-        // Col 17 (R): outright count = $B${row+1} - $B${row}   (next minus current)
+        // Col 22 (W): outright count = $B${row+1} - $B${row}   (next minus current)
         const cRowNext = wRow + 1;
-        row["17"] = formulaCell(styleOnly(spreadRowTemplate["17"]), `=$B${cRowNext} -$B${wRow}`, 2);
+        row["22"] = formulaCell(styleOnly(spreadRowTemplate["22"]), `=$B${cRowNext} -$B${wRow}`, 2);
 
-        // Col 18 (S): NetPos — blank (written by WebSocket)
-        row["18"] = { ...styleOnly(spreadRowTemplate["18"]), v: 0, t: 2 };
+        // Col 23 (X): NetPos Excel
+        row["23"] = { ...styleOnly(spreadRowTemplate["23"]), v: 0, t: 2 };
+
+        // Col 24 (Y): NetPos Marex (written by WebSocket)
+        row["24"] = { ...styleOnly(spreadRowTemplate["24"]), v: 0, t: 2 };
 
         cellData[String(sheetRowIdx)] = row;
     }
@@ -236,7 +276,8 @@ export function buildSheetSnapshot(product: string, contracts: ContractInfo[]): 
 
     // Commit cell data back to the sheet
     templateSheet.cellData = cellData;
-    templateSheet.rowCount = Math.max(999, 3 + numContracts + 10);
+    templateSheet.rowCount = Math.max(150, 3 + numContracts + 10);
+    templateSheet.columnCount = 26;
 
     return { [newId]: templateSheet };
 }
@@ -324,41 +365,69 @@ export async function reconstructWorkbookFromSnapshot(
     console.log("[sheetBuilder] Starting atomic reconstruction of workbook...");
 
     const sheetsMap: Record<string, any> = snapshot.sheets ?? {};
-    const sheetEntries = Object.values(sheetsMap);
+    const originalSheetOrder: string[] = snapshot.sheetOrder ?? Object.keys(sheetsMap);
+    const sheetEntries = originalSheetOrder.map(id => sheetsMap[id]).filter(Boolean);
 
     if (sheetEntries.length === 0) return snapshot;
 
     const rebuiltSheets: Record<string, any> = {};
     const sheetOrder: string[] = [];
 
-    for (const oldSheet of sheetEntries) {
+    // Helper to identify contract name and layout structure
+    function getLayoutInfo(rowObj: any): { contractName: string; layout: "NEW" | "OLD" } | null {
+        if (!rowObj || typeof rowObj !== 'object') return null;
+
+        // Current layout (Static Name at 25)
+        const v25 = rowObj["25"]?.v;
+        if (typeof v25 === 'string' && v25.startsWith('F.')) {
+            return { contractName: v25, layout: "NEW" };
+        }
+        // Intermediate layout (Static Name at 24)
+        const v24 = rowObj["24"]?.v;
+        if (typeof v24 === 'string' && v24.startsWith('F.')) {
+            return { contractName: v24, layout: "NEW" };
+        }
+        // Old layout (Static Name at 16)
+        const v16 = rowObj["16"]?.v;
+        if (typeof v16 === 'string' && v16.startsWith('F.')) {
+            return { contractName: v16, layout: "OLD" };
+        }
+        return null;
+    }
+
+    // Rebuild sheets in parallel
+    const rebuiltResults = await Promise.all(sheetEntries.map(async (oldSheet) => {
         const name = oldSheet.name || "";
-        if (!name) continue;
+        if (!name) return null;
 
         let baseProduct = name.replace(/\(\d+\)$/, "").toUpperCase();
 
         // Fallback: If name is generic (like "Universheet"), try to find product from a row
         if (baseProduct === "UNIVERSHEET" || baseProduct.length > 5) {
             const firstRow = Object.values(oldSheet.cellData || {})[3] as any; // Rows 0-2 are headers
-            const sampleContract = firstRow?.["16"]?.v;
-            if (sampleContract && typeof sampleContract === "string") {
-                const parts = sampleContract.split('.');
+            const layoutInfo = getLayoutInfo(firstRow);
+            if (layoutInfo) {
+                const parts = layoutInfo.contractName.split('.');
                 if (parts.length >= 2) baseProduct = parts[1].toUpperCase();
             }
         }
 
-        console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
-
         if (baseProduct === "UNIVERSHEET") {
             console.warn(`[sheetBuilder] Could not determine product for sheet ${name}, using original.`);
-            rebuiltSheets[oldSheet.id] = oldSheet;
-            sheetOrder.push(oldSheet.id);
-            continue;
+            return { id: oldSheet.id, sheet: oldSheet };
         }
 
         try {
-            // Build a fresh skeleton for this product
-            const { sheetSnapshot } = await buildProductSheet(baseProduct);
+            console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
+
+            // INDIVIDUAL FETCH (PARALLELIZED)
+            const contracts = await fetchContracts(baseProduct);
+            if (!contracts || contracts.length === 0) {
+                console.warn(`[sheetBuilder] No active contracts found for ${baseProduct}, using original for ${name}`);
+                return { id: oldSheet.id, sheet: oldSheet };
+            }
+
+            const sheetSnapshot = buildSheetSnapshot(baseProduct, contracts);
             const newId = Object.keys(sheetSnapshot)[0];
             const newSheet = sheetSnapshot[newId];
 
@@ -366,47 +435,75 @@ export async function reconstructWorkbookFromSnapshot(
             newSheet.name = name;
 
             // 2. Transfer data from oldSheet to newSheet
-            // We match rows using Column 17 (Static contract name)
             const oldCellData = oldSheet.cellData || {};
             const newCellData = newSheet.cellData || {};
 
             // Map old rows by contract name
-            const oldRowsByContract = new Map<string, any>();
+            const oldRowsByContract = new Map<string, { rowObj: any; layout: "NEW" | "OLD" }>();
             for (const rowObj of Object.values(oldCellData) as any[]) {
-                const contractName = rowObj?.["16"]?.v;
-                if (contractName) oldRowsByContract.set(contractName, rowObj);
+                const layoutInfo = getLayoutInfo(rowObj);
+                if (layoutInfo && layoutInfo.contractName) {
+                    oldRowsByContract.set(layoutInfo.contractName, { rowObj, layout: layoutInfo.layout });
+                }
             }
 
             // Patch dynamic columns in the new skeleton
             for (const newRowObj of Object.values(newCellData) as any[]) {
-                const contractName = newRowObj?.["16"]?.v;
-                const oldRowObj = oldRowsByContract.get(contractName);
+                const newLayoutInfo = getLayoutInfo(newRowObj);
+                if (!newLayoutInfo) continue;
 
-                if (oldRowObj) {
-                    // Columns to preserve:
-                    // 2-13: Strategy legs (C-N)
-                    // 18:   NetPos (S)
-                    const colsToPreserve = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "18"];
+                const oldData = oldRowsByContract.get(newLayoutInfo.contractName);
+                if (oldData) {
+                    const { rowObj: oldRowObj, layout: oldLayout } = oldData;
 
-                    for (const col of colsToPreserve) {
-                        if (oldRowObj[col]) {
-                            // Preserve the value 'v', but keep the new style 's' from the template
-                            newRowObj[col] = {
-                                ...(newRowObj[col] || {}),
-                                v: oldRowObj[col].v,
-                                t: oldRowObj[col].t
+                    // Depending on the old layout, map strategy legs correctly
+                    // New layout has legs on C-S (2-18). Old layout had C-N (2-13).
+                    const maxLeg = oldLayout === "OLD" ? 13 : 18;
+
+                    for (let col = 2; col <= maxLeg; col++) {
+                        const colStr = String(col);
+                        if (oldRowObj[colStr] && oldRowObj[colStr].v !== undefined) {
+                            newRowObj[colStr] = {
+                                ...(newRowObj[colStr] || {}),
+                                v: oldRowObj[colStr].v,
+                                t: oldRowObj[colStr].t
+                            };
+                        }
+                    }
+
+                    // For NetPos, in OLD layout it was 18. In NEW layout it is 23 (Excel) and 24 (Marex).
+                    // We only preserve NetPos if it's from NEW layout (to avoid mixing up columns).
+                    if (oldLayout === "NEW") {
+                        if (oldRowObj["23"] && oldRowObj["23"].v !== undefined) {
+                            newRowObj["23"] = {
+                                ...(newRowObj["23"] || {}),
+                                v: oldRowObj["23"].v,
+                                t: oldRowObj["23"].t
+                            };
+                        }
+                        if (oldRowObj["24"] && oldRowObj["24"].v !== undefined) {
+                            newRowObj["24"] = {
+                                ...(newRowObj["24"] || {}),
+                                v: oldRowObj["24"].v,
+                                t: oldRowObj["24"].t
                             };
                         }
                     }
                 }
             }
 
-            rebuiltSheets[newId] = newSheet;
-            sheetOrder.push(newId);
+            console.log(`[sheetBuilder] Rebuilt skeleton for ${name}`);
+            return { id: newId, sheet: newSheet };
         } catch (err) {
             console.error(`[sheetBuilder] Failed to rebuild skeleton for ${name}, falling back to original.`, err);
-            rebuiltSheets[oldSheet.id] = oldSheet;
-            sheetOrder.push(oldSheet.id);
+            return { id: oldSheet.id, sheet: oldSheet };
+        }
+    }));
+
+    for (const res of rebuiltResults) {
+        if (res) {
+            rebuiltSheets[res.id] = res.sheet;
+            sheetOrder.push(res.id);
         }
     }
 
@@ -415,7 +512,7 @@ export async function reconstructWorkbookFromSnapshot(
     const skeleton = getWorkbookSkeleton();
     return {
         ...snapshot,
-        id: `workbook-${Date.now()}`,
+        id: `workbook-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
         sheets: rebuiltSheets,
         sheetOrder: sheetOrder,
         styles: skeleton.styles,
