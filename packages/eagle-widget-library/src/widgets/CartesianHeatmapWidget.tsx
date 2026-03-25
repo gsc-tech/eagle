@@ -191,7 +191,7 @@ function processSheetData(data: Record<string, any[]>): ParsedHeatmapData {
         const sNames = sheetsByGroup[groupName];
         if (!sNames || sNames.length === 0) return;
 
-        const mappedData: number[][] = [];
+        const mappedData: (number | string)[][] = [];
 
         sNames.forEach(sheetName => {
             const rowData = data[sheetName];
@@ -218,13 +218,13 @@ function processSheetData(data: Record<string, any[]>): ParsedHeatmapData {
             });
 
             rowVals.forEach((val, xIndex) => {
-                mappedData.push([xIndex, yIndex, val]);
+                mappedData.push([xIndex, yIndex, val === 0 ? '-' : val]);
             });
         });
 
-        const allVals = mappedData.map(d => d[2]);
-        const min = allVals.length > 0 ? Math.min(...allVals) : 0;
-        const max = allVals.length > 0 ? Math.max(...allVals) : 100;
+        const numericVals = mappedData.map(d => d[2]).filter((v): v is number => typeof v === 'number');
+        const min = numericVals.length > 0 ? Math.min(...numericVals) : 0;
+        const max = numericVals.length > 0 ? Math.max(...numericVals) : 100;
 
         visualMapConfig.push({
             show: false,
@@ -332,13 +332,14 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
                     const xIndex = finalXLabels.indexOf(d.$x || d.x || d.category || 'X');
                     const yIndex = finalYLabels.indexOf(d.$y || d.y || d.name || 'Y');
                     const val = d.$value !== undefined ? d.$value : (d.value !== undefined ? d.value : 0);
-                    return [xIndex, yIndex, Number(val)];
+                    const finalVal = Number(val);
+                    return [xIndex, yIndex, finalVal === 0 ? '-' : finalVal];
                 });
             }
 
-            const allVals = mappedData.map((d: any) => d[2]);
-            const min = Math.min(...allVals) || 0;
-            const max = Math.max(...allVals) || 100;
+            const numericVals = mappedData.map((d: any) => d[2]).filter((v: any): v is number => typeof v === 'number');
+            const min = numericVals.length > 0 ? Math.min(...numericVals) : 0;
+            const max = numericVals.length > 0 ? Math.max(...numericVals) : 100;
 
             const groups = heatmapGroups || [{ name: 'Heatmap', rows: finalYLabels.map((_, i) => i), min, max, colors: ['#e0f2fe', '#0369a1'] }];
 
