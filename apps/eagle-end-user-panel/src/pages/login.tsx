@@ -72,7 +72,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                                 className="w-full h-full object-contain hidden dark:block"
                             />
                         </div>
-                        <h1 className="text-2xl font-bold text-foreground">
+                        <h1 
+                            className="text-3xl font-[800] text-foreground"
+                            style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.02em" }}
+                        >
                             Project Eagle
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">

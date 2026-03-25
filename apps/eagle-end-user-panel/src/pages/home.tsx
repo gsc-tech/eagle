@@ -267,7 +267,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     className="w-full h-full object-contain hidden dark:block"
                                 />
                             </div>
-                            <span className="font-bold text-base tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+                            <span 
+                                className="font-bold text-lg tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden"
+                                style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.01em" }}
+                            >
                                 Project Eagle
                             </span>
                         </div>
@@ -409,7 +412,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 <div className="flex items-start gap-3">
                                     <SidebarTrigger className="mt-0.5 shrink-0" />
                                     <div>
-                                        <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                        <h1 
+                                            className="text-2xl font-[800] tracking-tight text-foreground"
+                                            style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.015em" }}
+                                        >
                                             {selected.name}
                                         </h1>
                                         <p className="text-sm text-muted-foreground mt-0.5">
@@ -474,9 +480,12 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-6 transform rotate-6 border border-primary/10">
                                     <BarChart2 className="w-10 h-10 text-primary/40" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-foreground">
-                                    Welcome Back
-                                </h2>
+                                <h2 
+                                className="text-3xl font-[800] text-foreground/40 mb-3 tracking-tight transition-all duration-700"
+                                style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.015em" }}
+                            >
+                                Select a Dashboard
+                            </h2>
                                 <p className="text-muted-foreground max-w-[280px] mx-auto text-sm leading-relaxed">
                                     Select a dashboard from the sidebar to start exploring your
                                     data.
