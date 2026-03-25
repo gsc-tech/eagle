@@ -62,7 +62,6 @@ export async function fetchContracts(product: string): Promise<ContractInfo[]> {
             if (cachedStr) {
                 const cached = JSON.parse(cachedStr);
                 if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-                    console.log("[sheetBuilder] Returning session-cached contracts for:", product);
                     return cached.data as ContractInfo[];
                 }
             }
@@ -71,7 +70,6 @@ export async function fetchContracts(product: string): Promise<ContractInfo[]> {
         }
 
         // 3. Perform fresh individual fetch
-        console.log("[sheetBuilder] Fetching fresh contracts for:", product);
         const url = `${API_BASE}?instruments=${encodeURIComponent(product)}`;
         const res = await fetch(url);
         if (!res.ok) {
@@ -362,7 +360,6 @@ export function sanitizeWorkbookSnapshot(
 export async function reconstructWorkbookFromSnapshot(
     snapshot: Record<string, any>
 ): Promise<Record<string, any>> {
-    console.log("[sheetBuilder] Starting atomic reconstruction of workbook...");
 
     const sheetsMap: Record<string, any> = snapshot.sheets ?? {};
     const originalSheetOrder: string[] = snapshot.sheetOrder ?? Object.keys(sheetsMap);
@@ -418,8 +415,6 @@ export async function reconstructWorkbookFromSnapshot(
         }
 
         try {
-            console.log(`[sheetBuilder] Rebuilding skeleton for product: ${baseProduct} (Name: ${name})`);
-
             // INDIVIDUAL FETCH (PARALLELIZED)
             const contracts = await fetchContracts(baseProduct);
             if (!contracts || contracts.length === 0) {
@@ -491,8 +486,6 @@ export async function reconstructWorkbookFromSnapshot(
                     }
                 }
             }
-
-            console.log(`[sheetBuilder] Rebuilt skeleton for ${name}`);
             return { id: newId, sheet: newSheet };
         } catch (err) {
             console.error(`[sheetBuilder] Failed to rebuild skeleton for ${name}, falling back to original.`, err);

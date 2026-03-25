@@ -36,13 +36,11 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
 
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
-    console.log("currentParams are", currentParams);
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
     });
 
-    console.log(data);
 
     const handleParametersChange = (values: ParameterValues) => {
         setCurrentParams(values);
@@ -123,7 +121,6 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
                     series.data.setAll(data);
                 }
 
-                console.log(series.data);
 
                 // Animate
                 series.appear(1000, 100);

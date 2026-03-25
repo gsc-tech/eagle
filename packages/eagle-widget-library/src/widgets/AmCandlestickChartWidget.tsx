@@ -57,7 +57,6 @@ export const AmCandlestickChartWidget: React.FC<BaseWidgetProps & { darkMode?: b
         let disposed = false;
 
         const initChart = () => {
-            console.log("initChart called");
             if (!data) return;
             const container = containerRef.current;
             if (!container || disposed) return;

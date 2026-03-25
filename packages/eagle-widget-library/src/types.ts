@@ -27,13 +27,6 @@ export interface BaseWidgetProps {
     initialParameterValues?: Record<string, string>;
 }
 
-export interface DataMappingConfig {
-    xAxis?: string;
-    yAxis?: string;
-    series?: string[];
-    [key: string]: any;
-}
-
 export interface NormalizationConfig {
     endpointUrl: string;
     method?: 'POST' | 'GET';
@@ -42,11 +35,11 @@ export interface NormalizationConfig {
 
 export interface SheetDependencyConfig {
     isDependent: boolean;
-    sheetId: string;
-    range: string;
+    workbookId: string;
+    sheetNames?: string[];
+    ranges?: string[];
     parsingStrategy: {
-        useAutoParser: boolean;
-        mapping?: DataMappingConfig;
+        format?: 'grid' | 'records' | 'series';
         normalizationEndpoint?: NormalizationConfig;
     };
 }

@@ -25,7 +25,7 @@ import { PdfViewerWidgetDef } from "./widgets/PdfViewerWidget";
 import { WorldMapWidgetDef } from "./widgets/WorldMapWidget";
 import { WatchListWidgetDef } from "./widgets/WatchListWidget";
 import { SheetWidgetDef } from "./widgets/SheetWidget";
-
+import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
 
 export const widgetLibrary = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -54,4 +54,5 @@ export const widgetLibrary = {
     WorldMapWidget: WorldMapWidgetDef,
     WatchListWidget: WatchListWidgetDef,
     SheetWidget: SheetWidgetDef,
+    CartesianHeatmapWidget: CartesianHeatmapWidgetDef,
 }

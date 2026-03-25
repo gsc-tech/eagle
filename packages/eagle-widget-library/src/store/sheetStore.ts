@@ -17,51 +17,72 @@ export interface RangeConfig {
     endCol: number;
 }
 
-export type DependentWidgetCallback = (data: any[][]) => void;
+export type DependentWidgetCallback = (data: any) => void;
 
-interface SheetSubscription {
+export interface SheetSubscription {
     widgetId: string;
-    range: RangeConfig;
+    sheetNames: string[]; // empty array means all sheets
+    ranges: RangeConfig[]; // empty array means entire sheet
     callback: DependentWidgetCallback;
 }
 
 interface SheetState {
-    // sheetName -> SheetData
-    sheets: Record<string, SheetData>;
+    // workbookId -> sheetName -> SheetData
+    workbooks: Record<string, Record<string, SheetData>>;
 
-    // sheetName -> timeouts for debouncing
+    // workbookId -> timeouts for debouncing
     updateTimeouts: Record<string, NodeJS.Timeout>;
 
-    // Subscriptions: sheetName -> array of subscriptions
+    // Subscriptions: workbookId -> array of subscriptions
     subscriptions: Record<string, SheetSubscription[]>;
 
     // Actions
-    updateCell: (sheetId: string, row: number, col: number, value: any) => void;
-    updateCells: (sheetId: string, updates: { row: number; col: number; value: any }[]) => void;
-    setSheet: (sheetId: string, data: any) => void;
-    setSheets: (sheetsData: Record<string, any>) => void;
-    subscribe: (sheetId: string, widgetId: string, range: RangeConfig, callback: DependentWidgetCallback) => void;
-    unsubscribe: (sheetId: string, widgetId: string) => void;
+    setSheet: (workbookId: string, sheetName: string, data: any) => void;
+    setSheets: (workbookId: string, sheetsData: Record<string, any>) => void;
+    subscribe: (workbookId: string, widgetId: string, sheetNames: string[], ranges: RangeConfig[], callback: DependentWidgetCallback) => void;
+    unsubscribe: (workbookId: string, widgetId: string) => void;
 
     // Internal method to trigger updates to dependents
-    _notifyDependents: (sheetId: string) => void;
+    _notifyDependents: (workbookId: string) => void;
 }
 
-const DEBOUNCE_MS = 5 * 1000; // 5 seconds
+const DEBOUNCE_MS = 1000;
+
+export function extractSheetAsGrid(sheet: SheetData): any[][] {
+    const rows = Object.keys(sheet).map(Number);
+    if (rows.length === 0) return [];
+
+    const maxRow = Math.max(...rows);
+    let maxCol = 0;
+
+    rows.forEach(r => {
+        const cols = Object.keys(sheet[r] || {}).map(Number);
+        if (cols.length > 0) {
+            maxCol = Math.max(maxCol, ...cols);
+        }
+    });
+
+    const result: any[][] = [];
+    for (let r = 0; r <= maxRow; r++) {
+        const rowData: any[] = [];
+        for (let c = 0; c <= maxCol; c++) {
+            rowData.push(sheet[r]?.[c]?.v ?? null);
+        }
+        result.push(rowData);
+    }
+    return result;
+}
 
 export function extractRangeData(sheet: SheetData, range: RangeConfig): any[][] {
     const result: any[][] = [];
-
-    // Always extract row 0 (headers) for the specified columns
+    // Include header row (row 0)
     const headerRow: any[] = [];
     for (let c = range.startCol; c <= range.endCol; c++) {
         headerRow.push(sheet[0]?.[c]?.v ?? null);
     }
     result.push(headerRow);
 
-    // Then extract the requested range rows, skipping row 0 if it was included in the range
     const actualStartRow = Math.max(1, range.startRow);
-
     for (let r = actualStartRow; r <= range.endRow; r++) {
         const rowData: any[] = [];
         for (let c = range.startCol; c <= range.endCol; c++) {
@@ -72,134 +93,140 @@ export function extractRangeData(sheet: SheetData, range: RangeConfig): any[][] 
     return result;
 }
 
+// Extract data for a subscription based on its sheetNames and ranges criteria
+function resolveSubscriptionData(workbook: Record<string, SheetData> | undefined, sub: SheetSubscription): any {
+    if (!workbook) {
+        return null;
+    }
+
+    // If no sheetNames specified, default to all sheets
+    const targetSheets = sub.sheetNames.length > 0 ? sub.sheetNames : Object.keys(workbook);
+
+    const result: Record<string, any> = {};
+
+    targetSheets.forEach(sheetName => {
+        const sheet = workbook[sheetName];
+        if (!sheet) {
+            return;
+        }
+
+        result[sheetName] = sub.ranges.length > 0
+            ? extractRangeData(sheet, sub.ranges[0])
+            : extractSheetAsGrid(sheet);
+    });
+
+    console.log(`[sheetStore] Resolved data for widget ${sub.widgetId}:`, result);
+    // If exactly 1 sheet and 1 range, we can return just the direct array to retain original behavior for simple widgets
+    if (sub.sheetNames.length === 1 && sub.ranges.length === 1) {
+        return result[sub.sheetNames[0]];
+    }
+
+    return result;
+}
+
 export const useSheetStore = create<SheetState>((set, get) => ({
-    sheets: {},
+    workbooks: {},
     updateTimeouts: {},
     subscriptions: {},
 
-    updateCell: (sheetId, row, col, value) => {
-        console.log("sending update", sheetId, row, col, value);
-        get().updateCells(sheetId, [{ row, col, value }]);
-    },
-
-    updateCells: (sheetId, updates) => {
+    setSheets: (workbookId, sheetsData) => {
         set((state) => {
-            const sheet = state.sheets[sheetId] || {};
-            const newSheet = { ...sheet };
-
-            updates.forEach(({ row, col, value }) => {
-                if (!newSheet[row]) newSheet[row] = {};
-                newSheet[row] = {
-                    ...newSheet[row],
-                    [col]: { v: value }
-                };
-            });
-
+            const workbook = state.workbooks[workbookId] || {};
             return {
-                sheets: { ...state.sheets, [sheetId]: newSheet }
+                workbooks: {
+                    ...state.workbooks,
+                    [workbookId]: {
+                        ...workbook,
+                        ...sheetsData
+                    }
+                }
             };
         });
 
-        // Handle debouncing for notifying dependents
         const state = get();
-        if (state.updateTimeouts[sheetId]) {
-            clearTimeout(state.updateTimeouts[sheetId]);
+        if (state.updateTimeouts[workbookId]) {
+            clearTimeout(state.updateTimeouts[workbookId]);
         }
-
         const timeout = setTimeout(() => {
-            get()._notifyDependents(sheetId);
+            get()._notifyDependents(workbookId);
         }, DEBOUNCE_MS);
-
         set((state) => ({
-            updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
+            updateTimeouts: { ...state.updateTimeouts, [workbookId]: timeout }
         }));
     },
 
-    setSheets: (sheetsData) => {
-        console.log("setting multiple sheets data");
-        set((state) => ({
-            sheets: { ...state.sheets, ...sheetsData }
-        }));
-
-        const state = get();
-        Object.keys(sheetsData).forEach(sheetId => {
-            if (state.updateTimeouts[sheetId]) {
-                clearTimeout(state.updateTimeouts[sheetId]);
-            }
-
-            const timeout = setTimeout(() => {
-                get()._notifyDependents(sheetId);
-            }, DEBOUNCE_MS);
-
-            set((state) => ({
-                updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
-            }));
-        });
-    },
-
-    setSheet: (sheetId, data) => {
-        console.log("setting full sheet data for", sheetId);
-        set((state) => ({
-            sheets: { ...state.sheets, [sheetId]: data }
-        }));
-
-        const state = get();
-        if (state.updateTimeouts[sheetId]) {
-            clearTimeout(state.updateTimeouts[sheetId]);
-        }
-
-        const timeout = setTimeout(() => {
-            get()._notifyDependents(sheetId);
-        }, DEBOUNCE_MS);
-
-        set((state) => ({
-            updateTimeouts: { ...state.updateTimeouts, [sheetId]: timeout }
-        }));
-    },
-
-    subscribe: (sheetId, widgetId, range, callback) => {
+    setSheet: (workbookId, sheetName, data) => {
         set((state) => {
-            const sheetSubs = state.subscriptions[sheetId] || [];
-            const filtered = sheetSubs.filter(sub => sub.widgetId !== widgetId);
+            const workbook = state.workbooks[workbookId] || {};
+            return {
+                workbooks: {
+                    ...state.workbooks,
+                    [workbookId]: {
+                        ...workbook,
+                        [sheetName]: data
+                    }
+                }
+            };
+        });
+
+        const state = get();
+        if (state.updateTimeouts[workbookId]) {
+            clearTimeout(state.updateTimeouts[workbookId]);
+        }
+        const timeout = setTimeout(() => {
+            get()._notifyDependents(workbookId);
+        }, DEBOUNCE_MS);
+        set((state) => ({
+            updateTimeouts: { ...state.updateTimeouts, [workbookId]: timeout }
+        }));
+    },
+
+    subscribe: (workbookId, widgetId, sheetNames, ranges, callback) => {
+        set((state) => {
+            const workbookSubs = state.subscriptions[workbookId] || [];
+            const filtered = workbookSubs.filter(sub => sub.widgetId !== widgetId);
             return {
                 subscriptions: {
                     ...state.subscriptions,
-                    [sheetId]: [...filtered, { widgetId, range, callback }]
+                    [workbookId]: [...filtered, { widgetId, sheetNames, ranges, callback }]
                 }
             };
         });
 
         // Trigger initial update immediately
-        const sheet = get().sheets[sheetId];
-        if (sheet) {
-            const extracted = extractRangeData(sheet, range);
-            callback(extracted);
+        const workbook = get().workbooks[workbookId];
+        if (workbook) {
+            const subData = resolveSubscriptionData(workbook, { widgetId, sheetNames, ranges, callback });
+            if (subData) {
+                callback(subData);
+            }
         }
     },
 
-    unsubscribe: (sheetId, widgetId) => {
+    unsubscribe: (workbookId, widgetId) => {
         set((state) => {
-            const sheetSubs = state.subscriptions[sheetId] || [];
+            const workbookSubs = state.subscriptions[workbookId] || [];
             return {
                 subscriptions: {
                     ...state.subscriptions,
-                    [sheetId]: sheetSubs.filter(sub => sub.widgetId !== widgetId)
+                    [workbookId]: workbookSubs.filter(sub => sub.widgetId !== widgetId)
                 }
             };
         });
     },
 
-    _notifyDependents: (sheetId) => {
+    _notifyDependents: (workbookId) => {
         const state = get();
-        const sheet = state.sheets[sheetId];
-        const subs = state.subscriptions[sheetId];
+        const workbook = state.workbooks[workbookId];
+        const subs = state.subscriptions[workbookId];
 
-        if (!sheet || !subs) return;
+        if (!workbook || !subs) return;
 
         subs.forEach(sub => {
-            const data = extractRangeData(sheet, sub.range);
-            console.log("sending data to widget", data);
-            sub.callback(data);
+            const subData = resolveSubscriptionData(workbook, sub);
+            if (subData) {
+                sub.callback(subData);
+            }
         });
     }
 }));

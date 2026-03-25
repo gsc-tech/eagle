@@ -64,8 +64,6 @@ const TvLineChartWidget: React.FC<TvLineChartWidgetProps & { darkMode?: boolean 
     useEffect(() => {
         if (!chartContainerRef.current) return;
 
-        console.log("line color is ", lineColor);
-
         const chart = createChart(chartContainerRef.current, {
             layout: {
                 background: { type: ColorType.Solid, color: "transparent" },
