@@ -51,7 +51,7 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
 
-    let routeData;
+    let routeData: any = null;
     if (apiUrl !== null) {
         const { data } = useWidgetData(apiUrl as string, {
             parameters: currentParams,
@@ -61,8 +61,6 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
 
     const { sheetData } = useSheetDependency(sheetDependency);
     const rawData = sheetDependency?.isDependent ? sheetData : routeData;
-
-    console.log("rawData", rawData);
 
     const handleParametersChange = (values: ParameterValues) => {
         setCurrentParams(values);
@@ -224,17 +222,15 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
 
                 if (seriesRefs.current.length > 0 && rawData && Array.isArray(rawData)) {
                     let processedData = [...rawData];
-
-                    processedData = processedData.map((item: any) => {
-                        const mappedItem = { ...item };
-                        if (item.$x !== undefined && mappedItem[categoryField] === undefined) {
-                            mappedItem[categoryField] = String(item.$x);
-                        }
-                        if (mappedItem[categoryField] != null) {
-                            mappedItem[categoryField] = String(mappedItem[categoryField]);
-                        }
-                        return mappedItem;
-                    });
+                    if (routeData && Array.isArray(routeData)) {
+                        processedData = processedData.map((item: any) => {
+                            const mappedItem = { ...item };
+                            if (mappedItem[categoryField] != null) {
+                                mappedItem[categoryField] = String(mappedItem[categoryField]);
+                            }
+                            return mappedItem;
+                        });
+                    }
 
                     const xAxis = chartRef.current?.xAxes.getIndex(0);
                     const yAxis = chartRef.current?.yAxes.getIndex(0);
@@ -246,10 +242,9 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
                         if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(processedData);
                     }
 
-                    seriesRefs.current.forEach(series => {
+                            seriesRefs.current.forEach(series => {
                         const isHorizontal = orientation === 'horizontal';
-                        const originalValueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
-                        const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? "$y" : originalValueField;
+                        const valueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
 
                         if (isHorizontal) {
                             series.set("valueXField", valueField);
@@ -280,17 +275,15 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     useEffect(() => {
         if (seriesRefs.current.length > 0 && rawData && Array.isArray(rawData)) {
             let processedData = [...rawData];
-
-            processedData = processedData.map((item: any) => {
-                const mappedItem = { ...item };
-                if (item.$x !== undefined && mappedItem[categoryField] === undefined) {
-                    mappedItem[categoryField] = String(item.$x);
-                }
-                if (mappedItem[categoryField] != null) {
-                    mappedItem[categoryField] = String(mappedItem[categoryField]);
-                }
-                return mappedItem;
-            });
+            if (routeData && Array.isArray(routeData)) {
+                processedData = processedData.map((item: any) => {
+                    const mappedItem = { ...item };
+                    if (mappedItem[categoryField] != null) {
+                        mappedItem[categoryField] = String(mappedItem[categoryField]);
+                    }
+                    return mappedItem;
+                });
+            }
 
             const xAxis = chartRef.current?.xAxes.getIndex(0);
             const yAxis = chartRef.current?.yAxes.getIndex(0);
@@ -304,8 +297,7 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
 
             seriesRefs.current.forEach(series => {
                 const isHorizontal = orientation === 'horizontal';
-                const originalValueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
-                const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? "$y" : originalValueField;
+                const valueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
 
                 if (isHorizontal) {
                     series.set("valueXField", valueField);

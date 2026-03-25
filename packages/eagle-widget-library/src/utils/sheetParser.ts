@@ -1,4 +1,4 @@
-import { SheetDependencyConfig, DataMappingConfig } from '../types';
+import { SheetDependencyConfig } from '../types';
 
 /** Convert A1, B2 etc. to column index (0-based) */
 export function colLetterToIndex(letter: string): number {
@@ -35,26 +35,40 @@ export function parseRange(rangeStr: string) {
     };
 }
 
+export function gridToRecords(rawData: any[][]): Record<string, any>[] {
+    if (!rawData || rawData.length < 2) return [];
+    const headers = rawData[0];
+    const dataRows = rawData.slice(1);
+
+    return dataRows.map(row => {
+        const rowObj: Record<string, any> = {};
+        headers.forEach((header, index) => {
+            if (header !== null && header !== undefined && header !== "") {
+                rowObj[String(header)] = row[index];
+            }
+        });
+        return rowObj;
+    });
+}
+
+export function recordsToSeries(records: Record<string, any>[]): Record<string, any[]> {
+    if (!records || records.length === 0) return {};
+    const series: Record<string, any[]> = {};
+    
+    // Create an array for every key found in any record
+    // Usually the first record defines all keys, but we can be safe
+    const allKeys = Array.from(new Set(records.flatMap(r => Object.keys(r))));
+    allKeys.forEach(key => {
+        series[key] = records.map(record => record[key]);
+    });
+    return series;
+}
+
 export async function normalizeSheetData(
     rawData: any[][],
     strategy: SheetDependencyConfig['parsingStrategy']
 ) {
-    if (strategy.useAutoParser) {
-        // Auto-generation logic: assume the very first row contains the headers (keys)
-        if (!rawData || rawData.length === 0) return [];
-        const headers = rawData[0];
-        const dataRows = rawData.slice(1);
-
-        return dataRows.map(row => {
-            const rowObj: Record<string, any> = {};
-            headers.forEach((header, index) => {
-                if (header !== null && header !== undefined && header !== "") {
-                    rowObj[header.toString()] = row[index];
-                }
-            });
-            return rowObj;
-        });
-    }
+    let result: any = rawData;
 
     if (strategy.normalizationEndpoint) {
         // POST to custom dev endpoint
@@ -77,6 +91,16 @@ export async function normalizeSheetData(
         }
     }
 
-    // Default fallback: return raw data if no parsing triggered
-    return rawData;
+    // Determine target format
+    const format = strategy.format || 'records';
+
+    if (format === 'records') {
+        result = gridToRecords(Array.isArray(result) ? result : rawData);
+    } else if (format === 'series') {
+        const records = gridToRecords(Array.isArray(result) ? result : rawData);
+        result = recordsToSeries(records);
+    }
+
+    console.log(`[sheetParser] Normalized data (format: ${format}):`, result);
+    return result;
 }

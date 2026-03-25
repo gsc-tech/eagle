@@ -143,7 +143,7 @@ const Toolbar = ({ editor, darkMode }: { editor: any, darkMode: boolean }) => {
 export const TextWidget: React.FC<TextWidgetProps & { darkMode?: boolean }> = ({
   id,
   text = "start editing...",
-  onSync = (id: string, data: any) => { console.log(id, data) },
+  onSync = (id: string, data: any) => { },
   darkMode = false,
 }) => {
   const debounceRef = React.useRef<any>(null);
