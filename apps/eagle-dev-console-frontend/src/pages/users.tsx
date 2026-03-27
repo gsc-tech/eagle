@@ -263,7 +263,7 @@ export default function Users() {
         try {
             await api.delete(`/usergroups/${managingGroup.groupId}/${userId}`);
             alert("User removed from group successfully");
-            
+
             // Refresh local member list
             const response = await api.get(`/usergroups/${managingGroup.groupId}/users`);
             const refreshedMembers = response.data || [];
@@ -274,12 +274,12 @@ export default function Users() {
                 email: String(m.email || m.Email || "")
             }));
             setGroupMembers(normalizedRefreshed);
-            
+
             // Refresh global users list to update badges
             fetchUsers();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error removing user from group", error);
-            alert("Unable to remove user from group.");
+            alert(`Unable to remove user from group: ${error.response.data.error}`);
         }
     };
 

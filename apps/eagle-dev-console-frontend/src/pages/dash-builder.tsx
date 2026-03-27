@@ -182,11 +182,14 @@ export default function DashBuilder() {
                     backendUrl: backend.backendUrl
                 });
                 // Re-fetch widgets to update list and status
+            } else {
+                alert("Unable to refresh: Backend is disconnected");
             }
             await fetchWidgets();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error refreshing backend:", error);
-            // alert("Unable to refresh the backend. Please try again.");
+            const errorMessage = error.response.data.error;
+            alert(`Unable to refresh the backend: ${errorMessage}`);
         }
     };
 

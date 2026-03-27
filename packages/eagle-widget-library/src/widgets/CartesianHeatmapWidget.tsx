@@ -208,7 +208,7 @@ function processSheetData(data: Record<string, any[]>): ParsedHeatmapData {
 
                 // Grab value logic
                 let val = item[valExcelKey];
-                if (val === null || val === undefined || val === '') {
+                if (val === null || val === undefined || val === '' || val === 0) {
                     val = item[valMarexKey];
                 }
 
@@ -402,7 +402,7 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
         } else {
             count = xLabels?.length || fallbackXLabels.length;
         }
-        
+
         // 40px per label for compact single/double digit display
         const minWidth = count * 40;
         return { chartWidth: minWidth > 0 ? `${minWidth}px` : '100%', finalXLabelsCount: count };
