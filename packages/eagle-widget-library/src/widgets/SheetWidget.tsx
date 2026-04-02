@@ -506,10 +506,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             }
         }
 
-        if (updatesByProduct.size === 0) return;
-
         // Apply updates to any sheet that has matching rules
         const sheets = workbook.getSheets();
+        let anySheetUpdated = false;
+
         for (const sheet of sheets) {
             let cellData: any;
             let sheetName = "";
@@ -526,9 +526,11 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
             // Extract base product from sheet name (e.g., "CL(2)" -> "CL")
             const baseSheetName = sheetName.replace(/\(\d+\)$/, "").toUpperCase();
+            const contractPrefix = `F.${baseSheetName}.`;
 
             const productUpdates = updatesByProduct.get(baseSheetName);
-            if (!productUpdates) continue;
+            // We still process the sheet even if no updates for this product exist (to zero out others)
+            const productUpdatesMap = productUpdates || new Map<string, any>();
 
             let updatedAnyCell = false;
 
@@ -541,21 +543,32 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 if (cellR && cellR.v && typeof cellR.v === "string") {
                     const currentContract = String(cellR.v).toUpperCase();
 
-                    for (const [labelVal, newVal] of productUpdates.entries()) {
-                        const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
+                    if (currentContract.startsWith(contractPrefix)) {
+                        const labelPart = currentContract.substring(contractPrefix.length).toUpperCase();
+                        const hasUpdate = productUpdatesMap.has(labelPart);
+                        const newVal = hasUpdate ? productUpdatesMap.get(labelPart) : 0;
 
-                        if (currentContract === expectedContract) {
+                        const targetColIdxStr = String(targetColIndex);
+                        const targetCell = (rowObj as any)[targetColIdxStr];
+                        const currentValue = targetCell?.v;
+
+                        // Only set if value actually changes.
+                        if (currentValue !== newVal) {
                             const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
-                            // Update dynamic target column
                             const letter = colLetter(targetColIndex);
                             sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
-                            updatedAnyCell = true;
+
+                            // Only count as update if it's a real update OR if zeroing out a non-zero value
+                            if (hasUpdate || Number(currentValue || 0) !== 0) {
+                                updatedAnyCell = true;
+                            }
                         }
                     }
                 }
             }
 
             if (updatedAnyCell) {
+                anySheetUpdated = true;
                 // Manually trigger calculation for the workbook to ensure inactive sheets calculate too
                 const formulaEngine = univerAPI.getFormula && univerAPI.getFormula();
                 if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
@@ -573,7 +586,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             }
         }
 
-        if (updatesByProduct.size > 0) {
+        if (anySheetUpdated) {
             triggerAutoSaveRef.current?.();
         }
     }, [id]);
