@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AgGridReact } from "ag-grid-react";
 import type {
     ColDef,
@@ -82,28 +83,96 @@ interface ColVisibilityToolbarProps {
 
 function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, darkMode }: ColVisibilityToolbarProps) {
     const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
+    const btnRef  = useRef<HTMLButtonElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+
+    // Position panel below the trigger button
+    const reposition = useCallback(() => {
+        if (!btnRef.current) return;
+        const rect = btnRef.current.getBoundingClientRect();
+        setPos({
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+        });
+    }, []);
 
     useEffect(() => {
+        if (!open) return;
+        reposition();
+        window.addEventListener('scroll', reposition, true);
+        window.addEventListener('resize', reposition);
+        return () => {
+            window.removeEventListener('scroll', reposition, true);
+            window.removeEventListener('resize', reposition);
+        };
+    }, [open, reposition]);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return;
         function handler(e: MouseEvent) {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
+            if (
+                panelRef.current && !panelRef.current.contains(e.target as Node) &&
+                btnRef.current   && !btnRef.current.contains(e.target as Node)
+            ) setOpen(false);
         }
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, []);
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
 
     const hiddenCount = hiddenCols.size;
 
-    const renderItems = (defs: (ColDef | ColGroupDef)[], depth = 0) => {
+    const itemText  = darkMode ? '#d1d5db' : '#374151';
+    const hoverRowBg = darkMode ? '#1f2937' : '#f3f4f6';
+
+    const renderItems = (defs: (ColDef | ColGroupDef)[], depth = 0): React.ReactNode => {
         return defs.map((def, idx) => {
             const isGroup = 'children' in def;
-            const indent = depth * 16;
+            const paddingLeft = depth * 16 + 12;
+
+            // ── Shared checkbox styles ──────────────────────────────────────
+            const checkboxBase: React.CSSProperties = {
+                flexShrink: 0,
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                border: '1.5px solid',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'background 0.12s, border-color 0.12s',
+            };
+
+            const checkedBox: React.CSSProperties = {
+                ...checkboxBase,
+                background: '#3b82f6',
+                borderColor: '#3b82f6',
+            };
+
+            const partialBox: React.CSSProperties = {
+                ...checkboxBase,
+                background: 'rgba(59,130,246,0.45)',
+                borderColor: '#3b82f6',
+            };
+
+            const uncheckedBox: React.CSSProperties = {
+                ...checkboxBase,
+                background: 'transparent',
+                borderColor: darkMode ? '#4b5563' : '#d1d5db',
+            };
+
+            // Tick SVG — pure inline
+            const Tick = () => (
+                <svg width={10} height={10} viewBox="0 0 24 24" fill="none"
+                    stroke="#ffffff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 13l4 4L19 7" />
+                </svg>
+            );
 
             if (isGroup) {
                 const groupDef = def as ColGroupDef;
-
                 const childFields = flattenLeaves([groupDef]).map(c => c.field!);
                 const visibleCount = childFields.filter(f => !hiddenCols.has(f)).length;
                 const isAllVisible = visibleCount === childFields.length;
@@ -111,27 +180,19 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
 
                 return (
                     <div key={`group-${groupDef.headerName}-${idx}`}>
-                        <div className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors ${darkMode ? 'text-gray-300' : 'text-gray-700'}`} style={{ paddingLeft: `${indent + 12}px` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', paddingLeft, color: itemText }}>
                             <span
-                                onMouseEnter={() => onToggleGroup(childFields, !isAllVisible)}
                                 onClick={() => onToggleGroup(childFields, !isAllVisible)}
-                                className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isAllVisible
-                                    ? "bg-blue-500 border-blue-500"
-                                    : isPartiallyVisible
-                                        ? "bg-blue-500/50 border-blue-500"
-                                        : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
-                                    } hover:ring-2 hover:ring-blue-400/50`}
+                                style={isAllVisible ? checkedBox : isPartiallyVisible ? partialBox : uncheckedBox}
                             >
-                                {isAllVisible && (
-                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                )}
+                                {isAllVisible && <Tick />}
                                 {isPartiallyVisible && (
-                                    <div className="w-1.5 h-1.5 bg-white rounded-sm" />
+                                    <span style={{ width: 6, height: 6, background: '#fff', borderRadius: 1, display: 'block' }} />
                                 )}
                             </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">{groupDef.headerName}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.9 }}>
+                                {groupDef.headerName}
+                            </span>
                         </div>
                         {renderItems(groupDef.children as (ColDef | ColGroupDef)[], depth + 1)}
                     </div>
@@ -144,71 +205,103 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
             return (
                 <div
                     key={colDef.field}
-                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors ${darkMode
-                        ? "text-gray-300"
-                        : "text-gray-700"
-                        }`}
-                    style={{ paddingLeft: `${indent + 12}px` }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', paddingLeft, color: itemText, cursor: 'default' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = hoverRowBg}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                 >
-                    {/* Checkbox visual - Toggle ONLY on hover/click here */}
                     <span
-                        onMouseEnter={() => onToggle(colDef.field!)}
                         onClick={() => onToggle(colDef.field!)}
-                        className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isVisible
-                            ? "bg-blue-500 border-blue-500"
-                            : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
-                            } hover:ring-2 hover:ring-blue-400/50`}
+                        style={isVisible ? checkedBox : uncheckedBox}
                     >
-                        {isVisible && (
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        )}
+                        {isVisible && <Tick />}
                     </span>
-                    <span className="capitalize opacity-80">{colDef.headerName}</span>
+                    <span style={{ fontSize: 12, opacity: 0.85, textTransform: 'capitalize' }}>{colDef.headerName}</span>
                 </div>
             );
         });
     };
 
+
+
+    const panelBg     = darkMode ? '#111827' : '#ffffff';
+    const panelBorder = darkMode ? '#374151' : '#e5e7eb';
+    const panelHeader = darkMode ? '#374151' : '#f3f4f6';
+    const headerText  = darkMode ? '#6b7280' : '#9ca3af';
+
     return (
-        <div
-            ref={ref}
-            className="relative flex-shrink-0"
-            onMouseEnter={() => setOpen(true)}
-            onMouseLeave={() => setOpen(false)}
-        >
+        <div className="flex-shrink-0">
+            {/* Trigger button */}
             <button
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md border shadow-sm transition-all duration-200 ${darkMode
-                    ? "border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-500"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400"
-                    }`}
+                ref={btnRef}
+                onClick={() => setOpen(o => !o)}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md border shadow-sm transition-all duration-200 ${
+                    darkMode
+                        ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-500'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
             >
                 <svg className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
                 </svg>
                 <span>Columns</span>
                 {hiddenCount > 0 && (
-                    <span className={`flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${darkMode ? "bg-blue-600 text-white" : "bg-blue-500 text-white"}`}>
+                    <span className={`flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                        darkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'
+                    }`}>
                         {hiddenCount}
                     </span>
                 )}
             </button>
 
-            {open && (
-                <div className={`absolute right-0 top-full pt-1 z-50 min-w-[200px] flex flex-col`}>
-                    <div className={`rounded-lg border shadow-xl overflow-hidden flex flex-col ${darkMode
-                        ? "bg-gray-900 border-gray-700 shadow-black/50"
-                        : "bg-white border-gray-200 shadow-gray-200"
-                        }`}>
-                        <div className={`shrink-0 px-3 py-2 text-[10px] font-bold uppercase tracking-wider border-b ${darkMode ? "border-gray-700 text-gray-500" : "border-gray-100 text-gray-400"}`}>
-                            Column Settings
-                        </div>
-                        <div className="py-2 max-h-[400px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                            {renderItems(colDefs)}
-                        </div>
+            {/* Portal panel — inline styles so bg/border render regardless of consumer's Tailwind scan */}
+            {open && createPortal(
+                <div
+                    ref={panelRef}
+                    style={{
+                        position: 'fixed',
+                        top: pos.top,
+                        right: pos.right,
+                        zIndex: 99999,
+                        minWidth: 200,
+                        background: panelBg,
+                        border: `1px solid ${panelBorder}`,
+                        borderRadius: 10,
+                        boxShadow: darkMode
+                            ? '0 20px 60px rgba(0,0,0,0.6)'
+                            : '0 12px 40px rgba(0,0,0,0.12)',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        animation: 'paramPopoverIn 0.13s cubic-bezier(.16,1,.3,1)',
+                    }}
+                >
+                    {/* Header */}
+                    <div style={{
+                        flexShrink: 0,
+                        padding: '7px 12px',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        background: panelHeader,
+                        borderBottom: `1px solid ${panelBorder}`,
+                        color: headerText,
+                    }}>
+                        Column Settings
                     </div>
-                </div>
+                    {/* Items */}
+                    <div style={{ overflowY: 'auto', maxHeight: 400, scrollbarWidth: 'thin' }}>
+                        {renderItems(colDefs)}
+                    </div>
+                    {/* Reuse the keyframe already injected by GroupPopover */}
+                    <style>{`
+                        @keyframes paramPopoverIn {
+                            from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+                            to   { opacity: 1; transform: translateY(0)   scale(1);    }
+                        }
+                    `}</style>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -229,7 +322,7 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
     if (!showTabs && !toolbar) return null;
 
     return (
-        <div className={`flex items-center justify-between border-b px-2 py-1 shrink-0 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`} style={{ scrollbarWidth: "none" }}>
+        <div className={`flex items-center justify-between border-b px-2 py-1 shrink-0 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`} style={{ scrollbarWidth: "none", position: 'relative', zIndex: 20 }}>
             {/* Tab buttons */}
             <div className="flex items-end gap-0.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                 {showTabs ? tabs.map(tab => {
@@ -375,7 +468,7 @@ function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
     }), []);
 
     return (
-        <div className="w-full h-full">
+        <div className="w-full h-full" style={{ minHeight: 0 }}>
             <AgGridReact
                 theme={darkMode ? myDarkTheme : myLightTheme}
                 rowData={data}
@@ -384,7 +477,6 @@ function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
                 suppressCellFocus={true}
                 suppressMovableColumns={false}
                 animateRows={true}
-                domLayout="autoHeight"
             />
         </div>
     );
