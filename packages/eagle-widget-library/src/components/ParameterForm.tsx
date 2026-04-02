@@ -48,6 +48,21 @@ const CheckIcon = ({ size = 12, className = '' }: { size?: number; className?: s
     </svg>
 );
 
+const ChevronDownIcon = ({ size = 10 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="6 9 12 15 18 9" />
+    </svg>
+);
+
+const XIcon = ({ size = 8 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette — cycles deterministically by group index
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,6 +79,221 @@ const GROUP_COLOURS = [
 function getGroupColour(groupId: string, allGroupIds: string[]) {
     const idx = allGroupIds.indexOf(groupId);
     return GROUP_COLOURS[(idx >= 0 ? idx : 0) % GROUP_COLOURS.length];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-select dropdown (portal-based)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface MultiSelectDropdownProps {
+    param: ParameterDefinition;
+    value: string[];          // array of selected values
+    darkMode: boolean;
+    onChange: (selected: string[]) => void;
+}
+
+function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDropdownProps) {
+    const [open, setOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const dropRef   = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
+        top: 0, left: 0, width: 180,
+    });
+
+    const bg          = darkMode ? '#111827' : '#ffffff';
+    const border      = darkMode ? '#374151' : '#e5e7eb';
+    const text        = darkMode ? '#e5e7eb' : '#111827';
+    const subtext     = darkMode ? '#6b7280' : '#9ca3af';
+    const hoverBg     = darkMode ? '#1f2937' : '#f3f4f6';
+    const pillBg      = darkMode ? '#1e3a5f' : '#dbeafe';
+    const pillText    = darkMode ? '#93c5fd' : '#1d4ed8';
+    const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
+    const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
+
+    const options  = param.options ?? [];
+    const selected = Array.isArray(value) ? value : [];
+
+    const reposition = useCallback(() => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const w = Math.max(rect.width, 160);
+        let left = rect.left;
+        if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+        setPos({ top: rect.bottom + 4, left, width: w });
+    }, []);
+
+    useEffect(() => {
+        if (!open) return;
+        reposition();
+        window.addEventListener('scroll', reposition, true);
+        window.addEventListener('resize', reposition);
+        return () => {
+            window.removeEventListener('scroll', reposition, true);
+            window.removeEventListener('resize', reposition);
+        };
+    }, [open, reposition]);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return;
+        const handle = (e: MouseEvent) => {
+            if (
+                dropRef.current   && !dropRef.current.contains(e.target as Node) &&
+                triggerRef.current && !triggerRef.current.contains(e.target as Node)
+            ) setOpen(false);
+        };
+        document.addEventListener('mousedown', handle);
+        return () => document.removeEventListener('mousedown', handle);
+    }, [open]);
+
+    const toggle = (optValue: any) => {
+        const next = selected.includes(optValue)
+            ? selected.filter(v => v !== optValue)
+            : [...selected, optValue];
+        onChange(next);
+    };
+
+    const clearAll = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange([]);
+    };
+
+    return (
+        <>
+            {/* Trigger */}
+            <button
+                ref={triggerRef}
+                type="button"
+                id={param.name}
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, padding: '3px 6px',
+                    border: `1px solid ${triggerBdr}`,
+                    borderRadius: 5,
+                    background: triggerBg,
+                    color: selected.length ? text : subtext,
+                    cursor: 'pointer', minWidth: 90, maxWidth: 200,
+                    outline: 'none',
+                    transition: 'border-color 0.15s',
+                }}
+            >
+                {/* Tag pills or placeholder */}
+                <span style={{ flex: 1, display: 'flex', flexWrap: 'nowrap', gap: 3, overflow: 'hidden', minWidth: 0 }}>
+                    {selected.length === 0 ? (
+                        <span style={{ color: subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {param.placeholder || param.label}
+                        </span>
+                    ) : selected.length === 1 ? (
+                        <span style={{
+                            background: pillBg, color: pillText,
+                            borderRadius: 4, padding: '1px 5px', fontSize: 10,
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
+                        }}>
+                            {options.find(o => o.value === selected[0])?.label ?? selected[0]}
+                        </span>
+                    ) : (
+                        <span style={{
+                            background: pillBg, color: pillText,
+                            borderRadius: 4, padding: '1px 5px', fontSize: 10, whiteSpace: 'nowrap',
+                        }}>
+                            {selected.length} selected
+                        </span>
+                    )}
+                </span>
+                {selected.length > 0 && (
+                    <span
+                        role="button"
+                        aria-label="Clear all"
+                        onClick={clearAll}
+                        style={{ color: subtext, display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                    >
+                        <XIcon size={8} />
+                    </span>
+                )}
+                <span style={{ color: subtext, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <ChevronDownIcon size={10} />
+                </span>
+            </button>
+
+            {/* Dropdown portal */}
+            {open && createPortal(
+                <div
+                    ref={dropRef}
+                    style={{
+                        position: 'fixed',
+                        top: pos.top,
+                        left: pos.left,
+                        width: pos.width,
+                        zIndex: 99999,
+                        background: bg,
+                        border: `1px solid ${border}`,
+                        borderRadius: 8,
+                        boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                        overflow: 'hidden',
+                        animation: 'paramPopoverIn 0.12s cubic-bezier(.16,1,.3,1)',
+                    }}
+                >
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {options.length === 0 ? (
+                            <div style={{ padding: '8px 12px', fontSize: 11, color: subtext }}>No options</div>
+                        ) : options.map(opt => {
+                            const isChecked = selected.includes(opt.value);
+                            return (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => toggle(opt.value)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 8,
+                                        width: '100%', padding: '7px 12px',
+                                        background: isChecked ? hoverBg : 'transparent',
+                                        border: 'none', cursor: 'pointer',
+                                        color: text, fontSize: 11, textAlign: 'left',
+                                        transition: 'background 0.1s',
+                                    }}
+                                    onMouseEnter={e => { if (!isChecked) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
+                                    onMouseLeave={e => { if (!isChecked) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                >
+                                    {/* Custom checkbox box */}
+                                    <span style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                                        border: `1.5px solid ${isChecked ? '#3b82f6' : (darkMode ? '#4b5563' : '#d1d5db')}`,
+                                        background: isChecked ? '#3b82f6' : 'transparent',
+                                        transition: 'all 0.12s',
+                                    }}>
+                                        {isChecked && <CheckIcon size={9} />}
+                                    </span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {opt.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {/* Footer: select-all / clear */}
+                    {options.length > 1 && (
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '5px 12px', borderTop: `1px solid ${border}`,
+                            fontSize: 10, color: subtext,
+                        }}>
+                            <button type="button" onClick={() => onChange(options.map(o => o.value))}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', fontSize: 10, padding: 0 }}>
+                                Select all
+                            </button>
+                            <button type="button" onClick={() => onChange([])}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: subtext, fontSize: 10, padding: 0 }}>
+                                Clear
+                            </button>
+                        </div>
+                    )}
+                </div>,
+                document.body
+            )}
+        </>
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,10 +702,38 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                         {param.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                 );
+            case 'multiselect': {
+                const arrVal = Array.isArray(val) ? val : (val ? [val] : []);
+                return (
+                    <MultiSelectDropdown
+                        param={param}
+                        value={arrVal}
+                        darkMode={darkMode}
+                        onChange={(selected) => handleChange(param.name, selected, param.groupId)}
+                    />
+                );
+            }
             case 'checkbox':
-                return <input type="checkbox" id={param.name} checked={!!val}
-                    style={{ width: 14, height: 14, cursor: 'pointer', accentColor: '#3b82f6' }}
-                    onChange={e => handleChange(param.name, e.target.checked, param.groupId)} />;
+                // Styled custom checkbox
+                return (
+                    <span
+                        role="checkbox"
+                        aria-checked={!!val}
+                        tabIndex={0}
+                        onClick={() => handleChange(param.name, !val, param.groupId)}
+                        onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') handleChange(param.name, !val, param.groupId); }}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 15, height: 15, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
+                            border: `1.5px solid ${!!val ? '#3b82f6' : (darkMode ? '#4b5563' : '#d1d5db')}`,
+                            background: !!val ? '#3b82f6' : 'transparent',
+                            transition: 'all 0.15s',
+                            outline: 'none',
+                        }}
+                    >
+                        {!!val && <CheckIcon size={9} />}
+                    </span>
+                );
             default:
                 return null;
         }

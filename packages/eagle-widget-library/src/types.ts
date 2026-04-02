@@ -1,4 +1,4 @@
-export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'checkbox';
+export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox';
 
 export interface ParameterDefinition {
     name: string;
