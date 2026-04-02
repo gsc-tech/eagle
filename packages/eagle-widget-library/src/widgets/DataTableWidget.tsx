@@ -12,6 +12,7 @@ import {
     ClientSideRowModelModule,
     ColumnAutoSizeModule,
     themeQuartz,
+    CellStyleModule,
     type Module
 } from "ag-grid-community";
 
@@ -24,6 +25,7 @@ import { WidgetContainer } from "../components/WidgetContainer";
 ModuleRegistry.registerModules([
     ClientSideRowModelModule as unknown as Module,
     ColumnAutoSizeModule as unknown as Module,
+    CellStyleModule as unknown as Module,
 ]);
 
 // ─── Themes ────────────────────────────────────────────────────────────────────
@@ -98,10 +100,10 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
         return defs.map((def, idx) => {
             const isGroup = 'children' in def;
             const indent = depth * 16;
-            
+
             if (isGroup) {
                 const groupDef = def as ColGroupDef;
-                
+
                 const childFields = flattenLeaves([groupDef]).map(c => c.field!);
                 const visibleCount = childFields.filter(f => !hiddenCols.has(f)).length;
                 const isAllVisible = visibleCount === childFields.length;
@@ -110,15 +112,15 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
                 return (
                     <div key={`group-${groupDef.headerName}-${idx}`}>
                         <div className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors ${darkMode ? 'text-gray-300' : 'text-gray-700'}`} style={{ paddingLeft: `${indent + 12}px` }}>
-                            <span 
+                            <span
                                 onMouseEnter={() => onToggleGroup(childFields, !isAllVisible)}
                                 onClick={() => onToggleGroup(childFields, !isAllVisible)}
                                 className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isAllVisible
-                                ? "bg-blue-500 border-blue-500"
-                                : isPartiallyVisible 
-                                ? "bg-blue-500/50 border-blue-500"
-                                : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
-                                } hover:ring-2 hover:ring-blue-400/50`}
+                                    ? "bg-blue-500 border-blue-500"
+                                    : isPartiallyVisible
+                                        ? "bg-blue-500/50 border-blue-500"
+                                        : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
+                                    } hover:ring-2 hover:ring-blue-400/50`}
                             >
                                 {isAllVisible && (
                                     <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -138,7 +140,7 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
 
             const colDef = def as ColDef;
             const isVisible = !hiddenCols.has(colDef.field!);
-            
+
             return (
                 <div
                     key={colDef.field}
@@ -149,13 +151,13 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
                     style={{ paddingLeft: `${indent + 12}px` }}
                 >
                     {/* Checkbox visual - Toggle ONLY on hover/click here */}
-                    <span 
+                    <span
                         onMouseEnter={() => onToggle(colDef.field!)}
                         onClick={() => onToggle(colDef.field!)}
                         className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isVisible
-                        ? "bg-blue-500 border-blue-500"
-                        : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
-                        } hover:ring-2 hover:ring-blue-400/50`}
+                            ? "bg-blue-500 border-blue-500"
+                            : darkMode ? "border-gray-600 bg-transparent" : "border-gray-300 bg-transparent"
+                            } hover:ring-2 hover:ring-blue-400/50`}
                     >
                         {isVisible && (
                             <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -265,7 +267,7 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
 
 function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): (ColDef | ColGroupDef)[] {
     if (!data || data.length === 0) return [];
-    const keys = Object.keys(data[0]);    
+    const keys = Object.keys(data[0]);
     const groups = new Map<string, string[]>();
     const orderedGroups: string[] = [];
 
@@ -308,7 +310,7 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): 
             cellRenderer: (params: any) => {
                 const val = Number(params.value);
                 const isNum = !isNaN(val) && params.value !== "" && params.value !== null;
-                
+
                 let textColor = "inherit";
                 let weight = "inherit";
                 if (isNum && val > 0) {
@@ -318,9 +320,9 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): 
                     textColor = "#ef4444"; // Negative
                     weight = "600";
                 }
-                
+
                 return (
-                    <span 
+                    <span
                         className={isNum ? "tabular-nums" : ""}
                         style={{ color: textColor, fontWeight: weight, display: "inline-block", width: "100%", textAlign: "center" }}
                     >
@@ -337,7 +339,7 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): 
             const def = makeLeaf(groupName, groupName, isNumType.get(groupName) ?? false);
             return def;
         }
-        
+
         return {
             headerName: groupName,
             headerClass: 'centered-header',
