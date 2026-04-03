@@ -281,28 +281,119 @@ interface TabBarProps {
 
 function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps) {
     const showTabs = tabs.length > 1;
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
+
+    const checkScroll = useCallback(() => {
+        if (scrollRef.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+            // Use a 1px buffer for rounding issues
+            setCanScrollLeft(scrollLeft > 1);
+            setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 1);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkScroll();
+        const el = scrollRef.current;
+        if (el) {
+            const resizeObserver = new ResizeObserver(() => checkScroll());
+            resizeObserver.observe(el);
+            return () => resizeObserver.disconnect();
+        }
+    }, [checkScroll, tabs]);
+
+    // Ensure active tab is visible when it changes
+    useEffect(() => {
+        if (scrollRef.current && activeTab) {
+            const activeBtn = scrollRef.current.querySelector('[data-active="true"]');
+            if (activeBtn) {
+                activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+        }
+    }, [activeTab]);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollRef.current) {
+            const amount = scrollRef.current.clientWidth * 0.75;
+            scrollRef.current.scrollBy({
+                left: direction === 'left' ? -amount : amount,
+                behavior: 'smooth'
+            });
+        }
+    };
+
     if (!showTabs && !toolbar) return null;
 
+    const arrowColor = darkMode ? "text-gray-300 hover:text-white" : "text-gray-600 hover:text-gray-900";
+    const arrowBg = darkMode ? "bg-gray-900/90" : "bg-gray-50/90";
+    const arrowBorder = darkMode ? "border-gray-700" : "border-gray-200";
+
     return (
-        <div className={`flex items-center justify-between border-b px-2 py-1 shrink-0 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`} style={{ position: 'relative', zIndex: 20 }}>
-            <div className="flex items-end gap-0.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                {showTabs && tabs.map(tab => {
-                    const isActive = tab === activeTab;
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => onTabChange(tab)}
-                            className={`px-4 py-2.5 text-xs font-semibold rounded-t-md transition-all duration-200 whitespace-nowrap border-x border-t mt-1 ${isActive
-                                    ? darkMode ? "bg-gray-800 border-gray-600 text-blue-400 -mb-px" : "bg-white border-gray-200 text-blue-600 shadow-sm -mb-px"
-                                    : darkMode ? "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/50" : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-200/50"
-                                }`}
-                        >
-                            {tab}
-                        </button>
-                    );
-                })}
+        <div className={`flex items-center gap-2 border-b px-2 py-1 shrink-0 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`} style={{ position: 'relative', zIndex: 20, overflow: 'hidden' }}>
+            <div className="flex-1 flex items-center min-w-0 overflow-hidden h-full">
+                {canScrollLeft && (
+                    <button 
+                        onClick={(e) => { e.preventDefault(); scroll('left'); }}
+                        className={`flex-shrink-0 z-[30] p-1.5 mr-1 ${arrowBg} ${arrowColor} border ${arrowBorder} rounded-full shadow-sm transition-all hover:scale-110 active:scale-95`}
+                        title="Scroll left"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                )}
+                
+                <div className="flex-1 overflow-hidden h-full">
+                    <div 
+                        ref={scrollRef}
+                        onScroll={checkScroll}
+                        className="flex items-end gap-1 overflow-x-auto overflow-y-hidden custom-tab-scrollbar scroll-smooth w-full h-full" 
+                    >
+                        {showTabs && tabs.map(tab => {
+                            const isActive = tab === activeTab;
+                            return (
+                                <button
+                                    key={tab}
+                                    data-active={isActive}
+                                    onClick={() => onTabChange(tab)}
+                                    className={`flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-t-md transition-all duration-200 whitespace-nowrap border-x border-t mt-1.5 ${isActive
+                                            ? darkMode ? "bg-gray-800 border-gray-600 text-blue-400 z-[1]" : "bg-white border-gray-200 text-blue-600 shadow-sm z-[1]"
+                                            : darkMode ? "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/50" : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-200/50"
+                                        }`}
+                                >
+                                    {tab}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {canScrollRight && (
+                    <button 
+                        onClick={(e) => { e.preventDefault(); scroll('right'); }}
+                        className={`flex-shrink-0 z-[30] p-1.5 ml-1 ${arrowBg} ${arrowColor} border ${arrowBorder} rounded-full shadow-sm transition-all hover:scale-110 active:scale-95`}
+                        title="Scroll right"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                )}
             </div>
-            {toolbar && <div className="flex-shrink-0">{toolbar}</div>}
+            
+            {toolbar && <div className="flex-shrink-0 ml-1">{toolbar}</div>}
+            
+            <style>{`
+                .custom-tab-scrollbar::-webkit-scrollbar { height: 3px; }
+                .custom-tab-scrollbar::-webkit-scrollbar:vertical { width: 0 !important; height: 0 !important; display: none !important; opacity: 0 !important; visibility: hidden !important; }
+                .custom-tab-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-tab-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#4b5563' : '#d1d5db'}; border-radius: 10px; }
+                .custom-tab-scrollbar::-webkit-scrollbar-thumb:hover { background: ${darkMode ? '#6b7280' : '#9ca3af'}; }
+                .custom-tab-scrollbar { 
+                    scrollbar-width: thin; 
+                    scrollbar-color: ${darkMode ? '#4b5563 transparent' : '#d1d5db transparent'};
+                    -ms-overflow-style: none;
+                }
+                .scroll-smooth { scroll-behavior: smooth; }
+            `}</style>
         </div>
     );
 }
