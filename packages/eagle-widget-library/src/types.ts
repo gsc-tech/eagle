@@ -25,6 +25,8 @@ export interface BaseWidgetProps {
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     sheetDependency?: SheetDependencyConfig;
     initialParameterValues?: Record<string, string>;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
 
 export interface NormalizationConfig {

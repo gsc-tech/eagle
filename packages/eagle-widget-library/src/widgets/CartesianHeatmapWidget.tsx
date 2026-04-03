@@ -537,6 +537,8 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ 
     groupedParametersValues,
     apiUrl = null,
     sheetDependency,
+    isTokenRequired,
+    getFirebaseToken,
     ...props
 }) => {
     const defaultParams = useParameterDefaults(parameters);
@@ -551,6 +553,8 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ 
         const { data } = useWidgetData(apiUrl as string, {
             parameters: currentParams,
             pollInterval: apiDataConfig?.pollInterval,
+            isTokenRequired,
+            getFirebaseToken,
         });
         routeData = data;
     }

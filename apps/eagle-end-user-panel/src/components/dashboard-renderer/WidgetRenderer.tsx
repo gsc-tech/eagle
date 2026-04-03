@@ -104,6 +104,9 @@ export default function WidgetRenderer({
                 groupedParametersValues={groupedParametersValues}
                 onGroupedParametersChange={handleGroupedParametersChange}
                 // SheetWidget-specific: load saved snapshot and persist on close
+                {...(widget.defaultProps?.isTokenRequired && {
+                    getFirebaseToken,
+                })}
                 {...(widget.componentName === "SheetWidget" && {
                     initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
                     initialParameterValues: initialWorkbookData?.parameters

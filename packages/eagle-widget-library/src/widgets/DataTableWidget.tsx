@@ -550,7 +550,9 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({ initialParamet
     darkMode = false,
     pollInterval = 30000,
     onGroupedParametersChange,
-    groupedParametersValues
+    groupedParametersValues,
+    isTokenRequired,
+    getFirebaseToken
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
@@ -558,9 +560,13 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({ initialParamet
     const [activeTab, setActiveTab] = useState<string | null>(null);
     const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
 
+    console.log("token required ?", isTokenRequired);
+
     const { data: rawData } = useWidgetData(apiUrl as string, {
         pollInterval: pollInterval,
         parameters: currentParams,
+        isTokenRequired,
+        getFirebaseToken
     });
 
     const [stableData, setStableData] = useState<any[] | null>(null);
