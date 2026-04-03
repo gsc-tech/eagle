@@ -206,8 +206,8 @@ function ColVisibilityToolbar({ colDefs, hiddenCols, onToggle, onToggleGroup, da
                 ref={btnRef}
                 onClick={() => setOpen(o => !o)}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md border shadow-sm transition-all duration-200 ${darkMode
-                        ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-500'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                    ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-500'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
                     }`}
             >
                 <svg className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -334,7 +334,7 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
         <div className={`flex items-center gap-2 border-b px-2 py-1 shrink-0 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`} style={{ position: 'relative', zIndex: 20, overflow: 'hidden' }}>
             <div className="flex-1 flex items-center min-w-0 overflow-hidden h-full">
                 {canScrollLeft && (
-                    <button 
+                    <button
                         onClick={(e) => { e.preventDefault(); scroll('left'); }}
                         className={`flex-shrink-0 z-[30] p-1.5 mr-1 ${arrowBg} ${arrowColor} border ${arrowBorder} rounded-full shadow-sm transition-all hover:scale-110 active:scale-95`}
                         title="Scroll left"
@@ -342,12 +342,12 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                     </button>
                 )}
-                
+
                 <div className="flex-1 overflow-hidden h-full">
-                    <div 
+                    <div
                         ref={scrollRef}
                         onScroll={checkScroll}
-                        className="flex items-end gap-1 overflow-x-auto overflow-y-hidden custom-tab-scrollbar scroll-smooth w-full h-full" 
+                        className="flex items-end gap-1 overflow-x-auto overflow-y-hidden custom-tab-scrollbar scroll-smooth w-full h-full"
                     >
                         {showTabs && tabs.map(tab => {
                             const isActive = tab === activeTab;
@@ -357,8 +357,8 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
                                     data-active={isActive}
                                     onClick={() => onTabChange(tab)}
                                     className={`flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-t-md transition-all duration-200 whitespace-nowrap border-x border-t mt-1.5 ${isActive
-                                            ? darkMode ? "bg-gray-800 border-gray-600 text-blue-400 z-[1]" : "bg-white border-gray-200 text-blue-600 shadow-sm z-[1]"
-                                            : darkMode ? "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/50" : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-200/50"
+                                        ? darkMode ? "bg-gray-800 border-gray-600 text-blue-400 z-[1]" : "bg-white border-gray-200 text-blue-600 shadow-sm z-[1]"
+                                        : darkMode ? "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/50" : "text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-200/50"
                                         }`}
                                 >
                                     {tab}
@@ -369,7 +369,7 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
                 </div>
 
                 {canScrollRight && (
-                    <button 
+                    <button
                         onClick={(e) => { e.preventDefault(); scroll('right'); }}
                         className={`flex-shrink-0 z-[30] p-1.5 ml-1 ${arrowBg} ${arrowColor} border ${arrowBorder} rounded-full shadow-sm transition-all hover:scale-110 active:scale-95`}
                         title="Scroll right"
@@ -378,9 +378,9 @@ function TabBar({ tabs, activeTab, onTabChange, darkMode, toolbar }: TabBarProps
                     </button>
                 )}
             </div>
-            
+
             {toolbar && <div className="flex-shrink-0 ml-1">{toolbar}</div>}
-            
+
             <style>{`
                 .custom-tab-scrollbar::-webkit-scrollbar { height: 3px; }
                 .custom-tab-scrollbar::-webkit-scrollbar:vertical { width: 0 !important; height: 0 !important; display: none !important; opacity: 0 !important; visibility: hidden !important; }
@@ -531,7 +531,7 @@ function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
                 defaultColDef={defaultColDef}
                 suppressCellFocus={true}
                 animateRows={true}
-                domLayout="autoHeight"
+                domLayout="normal"
                 tooltipShowDelay={100}
                 tooltipInteraction={true}
             />
