@@ -77,9 +77,9 @@ export default function Backends() {
         fetchBackends();
         setIsAddBackendOpen(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
-      alert("Unable to connect the backend try again");
+      alert(`Unable to connect the backend: ${error.response.data.error}`);
     }
     setBackendName("");
     setApiUrl("");
@@ -118,9 +118,9 @@ export default function Backends() {
         backendUrl: backend.backendUrl
       })
       console.log(response)
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
-      // alert("Unable to refresh the widgets try again");
+      throw error;
     }
   }
 
@@ -129,11 +129,14 @@ export default function Backends() {
       const isBackendConnected = await checkBackend(backend)
       if (isBackendConnected) {
         await refreshWidgets(backend)
+        alert("Backend Refreshed Successfully");
+      } else {
+        alert("Unable to refresh: Backend is disconnected");
       }
-      alert("Backend Refreshed Successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error(error)
-      alert("Unable to refresh the backend try again");
+      const errorMessage = error.response.data.error;
+      alert(`Unable to refresh the backend: ${errorMessage}`);
     }
   }
 

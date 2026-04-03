@@ -25,7 +25,6 @@ export function useWidgetData<T = any>(
                 let url = apiUrl;
                 if (parameters && Object.keys(parameters).length > 0) {
                     const queryParams = new URLSearchParams();
-                    console.log(parameters);
                     Object.entries(parameters).forEach(([key, value]) => {
                         if (value !== null && value !== undefined && value !== '') {
                             if (Array.isArray(value)) {
@@ -37,7 +36,6 @@ export function useWidgetData<T = any>(
                             }
                         }
                     });
-                    console.log(queryParams.toString());
                     const queryString = queryParams.toString();
                     if (queryString) {
                         url = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${queryString}`;

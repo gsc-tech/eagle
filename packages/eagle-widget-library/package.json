@@ -60,6 +60,8 @@
     "@univerjs/preset-sheets-core": "^0.15.5",
     "@univerjs/presets": "^0.15.5",
     "cal-heatmap": "^4.2.4",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
     "framer-motion": "^12.23.24",
     "lightweight-charts": "^5.0.9",
     "lucide-react": "^0.554.0",

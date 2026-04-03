@@ -1,5 +1,5 @@
 import { useState, useEffect, useId } from 'react';
-import { useSheetStore } from '../store/sheetStore';
+import { useSheetStore, extractSheetAsGrid } from '../store/sheetStore';
 import { SheetDependencyConfig } from '../types';
 import { parseRange, normalizeSheetData } from '../utils/sheetParser';
 
@@ -9,53 +9,64 @@ export function useSheetDependency(dependency?: SheetDependencyConfig) {
     const widgetId = useId();
 
     useEffect(() => {
-        if (!dependency || !dependency.isDependent || !dependency.sheetId || !dependency.range) {
+        if (!dependency || !dependency.isDependent || !dependency.workbookId) {
             setSheetData(null);
             return;
         }
 
-        const { sheetId: sheetWidgetId, range, parsingStrategy } = dependency;
+        const { workbookId, sheetNames, ranges, parsingStrategy } = dependency;
 
-        let parsedRange;
-        try {
-            parsedRange = parseRange(range);
-        } catch (e) {
-            console.error("[useSheetDependency] Invalid range format:", range);
-            return;
+        const parsedRanges: any[] = [];
+
+        if (ranges && ranges.length > 0) {
+            for (const rangeStr of ranges) {
+                if (rangeStr && rangeStr.trim() !== "") {
+                    try {
+                        const parsed = parseRange(rangeStr);
+                        parsedRanges.push(parsed);
+                    } catch (e) {
+                        console.error("[useSheetDependency] Invalid range format:", rangeStr);
+                    }
+                }
+            }
         }
+
+        // Unique sheet names from both explicitly provided names and those found in range strings
+        const finalSheetNames = Array.from(new Set(sheetNames || []));
 
         let isMounted = true;
         setIsLoading(true);
 
-        const handleDataUpdate = async (rawData: any[][]) => {
+        const handleDataUpdate = async (rawData: any) => {
             if (!isMounted) return;
             setIsLoading(true);
             try {
-                // Tier 1 & 3: Run normalization step first (AutoParser or Backend POST)
-                const normalizedData = await normalizeSheetData(rawData, parsingStrategy);
+                const processArrayData = async (dataArray: any[][]) => {
+                    const normalizedData = await normalizeSheetData(dataArray, parsingStrategy);
+                    return normalizedData;
+                };
 
-                // Tier 2: Explicit Mapping
-                let finalData = normalizedData;
-                if (parsingStrategy.mapping && Array.isArray(normalizedData)) {
-                    const { xAxis, yAxis, series } = parsingStrategy.mapping;
+                let finalData: any;
 
-                    // The mapping essentially guarantees standard keys ($x, $y) exist
-                    // so the dependent widgets don't have to guess.
-                    finalData = normalizedData.map(row => {
-                        const mappedRow: Record<string, any> = { ...row };
-
-                        // Standardize basic X/Y mapping if present
-                        if (xAxis && row[xAxis] !== undefined) {
-                            mappedRow.$x = row[xAxis];
+                if (Array.isArray(rawData)) {
+                    finalData = await processArrayData(rawData);
+                } else if (typeof rawData === 'object' && rawData !== null) {
+                    finalData = {};
+                    for (const [key, value] of Object.entries(rawData)) {
+                        if (Array.isArray(value)) {
+                            finalData[key] = await processArrayData(value);
+                        } else {
+                            finalData[key] = value; // Retain full SheetData objects if no ranges provided
                         }
-                        if (yAxis && row[yAxis] !== undefined) {
-                            mappedRow.$y = row[yAxis];
-                        }
-                        return mappedRow;
-                    });
+                    }
+                } else {
+                    // If rawData is neither an array nor an object, treat it as is.
+                    // This case should ideally not happen if the store consistently returns arrays or objects of arrays.
+                    finalData = rawData;
                 }
 
                 if (isMounted) {
+                    console.log(`[useSheetDependency] Setting sheetData for widget ${widgetId}:`, finalData);
                     setSheetData(finalData);
                 }
             } catch (err) {
@@ -68,11 +79,11 @@ export function useSheetDependency(dependency?: SheetDependencyConfig) {
         };
 
         const store = useSheetStore.getState();
-        store.subscribe(sheetWidgetId, widgetId, parsedRange, handleDataUpdate);
+        store.subscribe(workbookId, widgetId, finalSheetNames, parsedRanges, handleDataUpdate);
 
         return () => {
             isMounted = false;
-            store.unsubscribe(sheetWidgetId, widgetId);
+            store.unsubscribe(workbookId, widgetId);
         };
     }, [dependency, widgetId]);
 

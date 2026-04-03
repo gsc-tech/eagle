@@ -88,7 +88,6 @@ const WatchListWidget: React.FC<WatchListWidgetProps> = ({
     useEffect(() => {
         if (!wsUrl) return;
 
-        console.log("wsUrl", wsUrl);
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
@@ -166,9 +165,7 @@ const WatchListWidget: React.FC<WatchListWidgetProps> = ({
         if (!newSymbol) return;
 
         setSymbols(prev => [...prev, newSymbol]);
-        console.log("ws", wsRef.current)
         if (wsRef.current) {
-            console.log("sending subscribe request");
             wsRef.current.send(JSON.stringify({
                 type: "subscribe",
                 symbols: [newSymbol],

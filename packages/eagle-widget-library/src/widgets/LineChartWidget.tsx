@@ -61,10 +61,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
   }
 
   const { sheetData } = useSheetDependency(sheetDependency);
-  console.log("sheetData is", sheetData);
   const rawData = sheetDependency?.isDependent ? sheetData : routeData;
-  console.log("sheetDependency is", sheetDependency);
-  console.log("rawData is", rawData);
 
   const handleParametersChange = (values: ParameterValues) => {
     setCurrentParams(values);
@@ -199,7 +196,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
 
           if (xAxisType === "date") {
             // Sort data by date
-            const dateAxis = sheetDependency?.parsingStrategy?.mapping?.xAxis ? '$x' : dateField;
+            const dateAxis = dateField;
             processedData.sort(
               (a, b) => new Date(a[dateAxis]).getTime() - new Date(b[dateAxis]).getTime()
             );
@@ -235,7 +232,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
           // Each series will pick its own valueField from the data
           seriesRefs.current.forEach(series => {
             // Apply $y mapping if explicitly provided by sheet dependency mapping
-            const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? "$y" : series.get("valueYField");
+            const valueField = series.get("valueYField");
             series.set("valueYField", valueField);
             series.data.setAll(processedData);
           });
@@ -300,7 +297,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
       // Each series will pick its own valueField from the data
       seriesRefs.current.forEach(series => {
         // Apply $y mapping if explicitly provided by sheet dependency mapping
-        const valueField = sheetDependency?.parsingStrategy?.mapping?.yAxis ? sheetDependency.parsingStrategy.mapping.yAxis : series.get("valueYField");
+        const valueField = series.get("valueYField");
         series.set("valueYField", valueField);
         series.data.setAll(processedData);
       });

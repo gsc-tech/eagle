@@ -28,7 +28,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
     if (!fWorksheet) return;
 
     try {
-        console.log(`[SheetWidget] Applying conditional formatting to ${fWorksheet.getSheetName()}...`);
 
         // Strategy legs: Columns C to N (index 2 to 13)
         // Data usually starts from Row 4 (index 3). 
@@ -174,7 +173,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const [marexStatus, setMarexStatus] = useState<"connected" | "connecting" | "error" | "failed">("connecting");
     const excelAttemptRef = useRef(0);
     const marexAttemptRef = useRef(0);
-    
+
     // Connect triggers for interactive UI refresh
     const [excelConnectTrigger, setExcelConnectTrigger] = useState(0);
     const [marexConnectTrigger, setMarexConnectTrigger] = useState(0);
@@ -211,7 +210,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 try {
                     const fWorkbook = univerRef.current.getActiveWorkbook();
                     if (fWorkbook) {
-                        console.log("[SheetWidget] Auto-saving workbook snapshot...");
                         const paramsArray = Object.entries(currentParamsRef.current).map(([k, v]) => ({ [k]: String(v) }));
                         onSaveRef.current(fWorkbook.save(), paramsArray);
                     }
@@ -250,7 +248,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         setExcelAccountId(values["Excel Account Id"]);
         setMarexAccountId(values["Marex Account Id"]);
         currentParamsRef.current = values;
-        console.log("[SheetWidget] Parameters changed:", values);
     }, []);
 
 
@@ -298,9 +295,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     // a fresh skeleton from templates and patch the old data back into it.
                     // This is the "bringing back" workaround to fix frozen formulas.
                     workbookData = await reconstructWorkbookFromSnapshot(initialWorkbookDataRef.current);
-                    console.log("[SheetWidget] Successfully reconstructed workbook from snapshot");
                 } else {
-                    console.log("setting new data")
                     // ── Build default template (RB sheet) ────────────────────
                     const { sheetId, sheetSnapshot } = await buildProductSheet("RB");
                     sheetSnapshot[sheetId].name = "RB";
@@ -351,8 +346,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     sheets.forEach((s: any, index: number) => {
                         const snapshot = s.getSheet().getSnapshot();
                         if (snapshot?.name && snapshot?.cellData) {
-                            const storeKey = id ? `${id}_${snapshot.name}` : snapshot.name;
-                            sheetsDataToBatch[storeKey] = snapshot.cellData;
+                            sheetsDataToBatch[snapshot.name] = snapshot.cellData;
                         }
 
                         // Apply conditional formatting to other sheets with a slight delay to avoid freezing UI
@@ -362,7 +356,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     });
 
                     if (Object.keys(sheetsDataToBatch).length > 0) {
-                        useSheetStore.getState().setSheets(sheetsDataToBatch);
+                        useSheetStore.getState().setSheets(id || "univer", sheetsDataToBatch);
                     }
                 }
 
@@ -380,7 +374,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     const { id } = event;
                     // Intercept both the object ID and the literal string for robustness
                     if (id === InsertSheetCommand.id || id === 'sheet.command.insert-sheet') {
-                        console.log("insert sheet command triggered");
                         // If WE triggered this programmatically (via modal confirmation), let it through.
                         if (isProgrammaticInsertRef.current) return;
 
@@ -402,7 +395,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 let editSubscription: any = null;
                 if (univerAPI.Event && univerAPI.Event.SheetEditEnded) {
                     editSubscription = univerAPI.addEvent(univerAPI.Event.SheetEditEnded, (params: any) => {
-                        // console.log(params);
                         const { worksheet } = params;
                         const name = worksheet._worksheet._snapshot.name;
                         const fWorkbook = univerRef.current.getActiveWorkbook();
@@ -412,13 +404,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
                         // Grab the fully evaluated/saved snapshot for this specific sheet
 
-                        setTimeout(() => {
-                            const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
-                            if (targetSheetObj && targetSheetObj.cellData) {
-                                const storeKey = id ? `${id}_${name}` : name;
-                                useSheetStore.getState().setSheet(storeKey, targetSheetObj.cellData);
-                            }
-                        }, 500)
+                        const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
+                        if (targetSheetObj && targetSheetObj.cellData) {
+                            useSheetStore.getState().setSheet(id || "univer", name, targetSheetObj.cellData);
+                        }
                     });
                 }
 
@@ -427,7 +416,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 const formulaEngine = univerAPI.getFormula();
                 if (formulaEngine && typeof formulaEngine.calculationResultApplied === 'function') {
                     formulaSubscription = formulaEngine.calculationResultApplied((result: any) => {
-                        console.log("[SheetWidget] Formula calculation applied:", result);
                         const fWorkbook = univerAPI.getActiveWorkbook();
                         if (!fWorkbook) return;
 
@@ -437,8 +425,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         // Update the store with the fully evaluated snapshot
                         for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
                             if (sheetObj?.name && sheetObj?.cellData) {
-                                const storeKey = id ? `${id}_${sheetObj.name}` : sheetObj.name;
-                                useSheetStore.getState().setSheet(storeKey, sheetObj.cellData);
+                                useSheetStore.getState().setSheet(id || "univer", sheetObj.name, sheetObj.cellData);
                             }
                         }
                     });
@@ -477,7 +464,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     if (fWorkbook && onSaveRef.current) {
                         try {
                             const snapshot = fWorkbook.save();
-                            console.log("[SheetWidget] Saving workbook snapshot on close.");
                             const paramsArray = Object.entries(currentParamsRef.current).map(([k, v]) => ({ [k]: String(v) }));
                             onSaveRef.current(snapshot, paramsArray);
                         } catch (err) {
@@ -520,10 +506,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             }
         }
 
-        if (updatesByProduct.size === 0) return;
-
         // Apply updates to any sheet that has matching rules
         const sheets = workbook.getSheets();
+        let anySheetUpdated = false;
+
         for (const sheet of sheets) {
             let cellData: any;
             let sheetName = "";
@@ -540,9 +526,11 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
             // Extract base product from sheet name (e.g., "CL(2)" -> "CL")
             const baseSheetName = sheetName.replace(/\(\d+\)$/, "").toUpperCase();
+            const contractPrefix = `F.${baseSheetName}.`;
 
             const productUpdates = updatesByProduct.get(baseSheetName);
-            if (!productUpdates) continue;
+            // We still process the sheet even if no updates for this product exist (to zero out others)
+            const productUpdatesMap = productUpdates || new Map<string, any>();
 
             let updatedAnyCell = false;
 
@@ -555,21 +543,32 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 if (cellR && cellR.v && typeof cellR.v === "string") {
                     const currentContract = String(cellR.v).toUpperCase();
 
-                    for (const [labelVal, newVal] of productUpdates.entries()) {
-                        const expectedContract = `F.${baseSheetName}.${labelVal.toUpperCase()}`;
+                    if (currentContract.startsWith(contractPrefix)) {
+                        const labelPart = currentContract.substring(contractPrefix.length).toUpperCase();
+                        const hasUpdate = productUpdatesMap.has(labelPart);
+                        const newVal = hasUpdate ? productUpdatesMap.get(labelPart) : 0;
 
-                        if (currentContract === expectedContract) {
+                        const targetColIdxStr = String(targetColIndex);
+                        const targetCell = (rowObj as any)[targetColIdxStr];
+                        const currentValue = targetCell?.v;
+
+                        // Only set if value actually changes.
+                        if (currentValue !== newVal) {
                             const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
-                            // Update dynamic target column
                             const letter = colLetter(targetColIndex);
                             sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
-                            updatedAnyCell = true;
+
+                            // Only count as update if it's a real update OR if zeroing out a non-zero value
+                            if (hasUpdate || Number(currentValue || 0) !== 0) {
+                                updatedAnyCell = true;
+                            }
                         }
                     }
                 }
             }
 
             if (updatedAnyCell) {
+                anySheetUpdated = true;
                 // Manually trigger calculation for the workbook to ensure inactive sheets calculate too
                 const formulaEngine = univerAPI.getFormula && univerAPI.getFormula();
                 if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
@@ -582,13 +581,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === sheetName) as any;
 
                 if (targetSheetObj && targetSheetObj.cellData) {
-                    const storeKey = id ? `${id}_${sheetName}` : sheetName;
-                    useSheetStore.getState().setSheet(storeKey, targetSheetObj.cellData);
+                    useSheetStore.getState().setSheet(id || "univer", sheetName, targetSheetObj.cellData);
                 }
             }
         }
 
-        if (updatesByProduct.size > 0) {
+        if (anySheetUpdated) {
             triggerAutoSaveRef.current?.();
         }
     }, [id]);
@@ -603,13 +601,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             excelWsRef.current = ws;
 
             ws.onopen = () => {
-                console.log("[SheetWidget] Excel WS connected:", excelWsUrl);
             };
 
             ws.onmessage = (event) => {
                 try {
                     const msg = JSON.parse(event.data);
-                    
+
                     if (msg.type === "error" && msg.message) {
                         setExcelStatus("error");
                         toast.error(`Excel: ${msg.message}`, { toastId: "excel_ws_error", autoClose: 3000 });
@@ -630,9 +627,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             ws.onclose = () => {
                 excelAttemptRef.current += 1;
                 const attempt = excelAttemptRef.current;
-                
+
                 if (attempt >= 5) {
-                    console.log(`[SheetWidget] Excel WS closed. Reached 30s cap. Stopped connecting.`);
                     setExcelStatus("failed");
                     // Update existing toast or create new one
                     if (toast.isActive("excel_ws_reconnect")) {
@@ -643,8 +639,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 } else {
                     setExcelStatus("error");
                     const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
-                    console.log(`[SheetWidget] Excel WS closed. Reconnecting in ${delay}ms... (Attempt ${attempt})`);
-                    const msg = `Excel: Connection lost. Reconnecting in ${delay/1000}s... (Attempt ${attempt}/4)`;
+                    const msg = `Excel: Connection lost. Reconnecting in ${delay / 1000}s... (Attempt ${attempt}/4)`;
                     if (toast.isActive("excel_ws_reconnect")) {
                         toast.update("excel_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
                     } else {
@@ -682,7 +677,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             marexWsRef.current = ws;
 
             ws.onopen = async () => {
-                console.log("[SheetWidget] Marex WS connected:", marexWsUrl);
                 try {
                     const token = getFirebaseToken ? await getFirebaseToken() : "";
                     if (ws.readyState === WebSocket.OPEN) {
@@ -720,9 +714,8 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             ws.onclose = () => {
                 marexAttemptRef.current += 1;
                 const attempt = marexAttemptRef.current;
-                
+
                 if (attempt >= 5) {
-                    console.log(`[SheetWidget] Marex WS closed. Reached 30s cap. Stopped connecting.`);
                     setMarexStatus("failed");
                     if (toast.isActive("marex_ws_reconnect")) {
                         toast.update("marex_ws_reconnect", { type: "error", render: "Risk: Connection failed. Please hit ↻ Refresh in the widget.", autoClose: 3000 });
@@ -732,8 +725,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 } else {
                     setMarexStatus("error");
                     const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
-                    console.log(`[SheetWidget] Marex WS closed. Reconnecting in ${delay}ms... (Attempt ${attempt})`);
-                    const msg = `Risk: Connection lost. Reconnecting in ${delay/1000}s... (Attempt ${attempt}/4)`;
+                    const msg = `Risk: Connection lost. Reconnecting in ${delay / 1000}s... (Attempt ${attempt}/4)`;
                     if (toast.isActive("marex_ws_reconnect")) {
                         toast.update("marex_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
                     } else {
@@ -959,7 +951,6 @@ async function insertSheetIntoWorkbook(
             return null;
         }
 
-        console.log(`[SheetWidget] Successfully inserted sheet "${finalName}" using fWorkbook.create API`);
         return newSheet;
     } catch (err) {
         console.error("[SheetWidget] insertSheetIntoWorkbook error:", err);

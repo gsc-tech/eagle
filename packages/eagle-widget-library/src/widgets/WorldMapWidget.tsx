@@ -106,8 +106,6 @@ export const WorldMapWidget: React.FC<AmWorldMapWidgetProps> = ({
         setCurrentParams(values);
     };
 
-    console.log("data", rawData);
-
     useEffect(() => {
         let disposed = false;
 
