@@ -190,28 +190,30 @@ function buildVisualMapPieces(allNumericValues: number[]): any[] {
     pieces.push({ value: 0, color: ZERO_COLOR, label: 'Zero' });
 
     // Positive gradient
-    const positiveMax = Math.max(...allNumericValues.filter(v => v > 0), 1);
+    const posValues = allNumericValues.filter(v => v > 0);
+    const positiveMax = posValues.length > 0 ? posValues.reduce((a, b) => Math.max(a, b), 1) : 1;
     const posSteps = POSITIVE_COLORS.length;
     for (let i = 0; i < posSteps; i++) {
         const lo = i === 0 ? 0 : (positiveMax / posSteps) * i;
         const hi = (positiveMax / posSteps) * (i + 1);
         pieces.push({
-            gt: i === 0 ? 0 : lo,
-            lte: i === posSteps - 1 ? positiveMax * 10 : hi,
+            gt: i === 0 ? 0.000001 : lo,
+            lte: i === posSteps - 1 ? 999999999 : hi,
             color: POSITIVE_COLORS[i],
             label: i === 0 ? 'Positive (low)' : i === posSteps - 1 ? 'Positive (high)' : undefined,
         });
     }
 
     // Negative gradient
-    const negativeMin = Math.min(...allNumericValues.filter(v => v < 0), -1);
+    const negValues = allNumericValues.filter(v => v < 0);
+    const negativeMin = negValues.length > 0 ? negValues.reduce((a, b) => Math.min(a, b), -1) : -1;
     const negSteps = NEGATIVE_COLORS.length;
     for (let i = 0; i < negSteps; i++) {
         const hi = i === 0 ? 0 : (negativeMin / negSteps) * i;
         const lo = (negativeMin / negSteps) * (i + 1);
         pieces.push({
-            gt: i === negSteps - 1 ? negativeMin * 10 : lo,
-            lte: i === 0 ? 0 : hi,
+            gt: i === negSteps - 1 ? -999.999 : lo,
+            lte: i === 0 ? -0.000001 : hi,
             color: NEGATIVE_COLORS[i],
             label: i === 0 ? 'Negative (low)' : i === negSteps - 1 ? 'Negative (high)' : undefined,
         });
