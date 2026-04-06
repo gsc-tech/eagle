@@ -19,9 +19,19 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
-    const [, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
     const [pdfUrl, setPdfUrl] = useState<string | null>(initialPdfUrl || null);
     const [fileName, setFileName] = useState<string | null>(initialPdfUrl ? "Document.pdf" : null);
     const [error, setError] = useState<string | null>(null);
@@ -93,6 +103,7 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

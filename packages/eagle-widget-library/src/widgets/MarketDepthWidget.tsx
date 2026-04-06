@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
@@ -26,6 +26,8 @@ export const MarketDepthWidget: React.FC<MarketDepthWidgetProps & { darkMode?: b
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const [l1Data, setL1Data] = useState<L1MarketData>({
         bestBid: null,
@@ -35,7 +37,15 @@ export const MarketDepthWidget: React.FC<MarketDepthWidgetProps & { darkMode?: b
     });
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { isConnected } = useRealtimeWidgetData({
         wsUrl: wsUrl as string,
@@ -107,6 +117,7 @@ export const MarketDepthWidget: React.FC<MarketDepthWidgetProps & { darkMode?: b
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             groupedParametersValues={groupedParametersValues}
             onGroupedParametersChange={onGroupedParametersChange}
         >

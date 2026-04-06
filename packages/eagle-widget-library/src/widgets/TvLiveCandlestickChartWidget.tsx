@@ -67,6 +67,8 @@ const TvLiveCandlestickChartWidget: React.FC<TvLiveCandlestickChartWidgetProps &
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
@@ -75,7 +77,15 @@ const TvLiveCandlestickChartWidget: React.FC<TvLiveCandlestickChartWidgetProps &
     const [data, setData] = useState<ChartData[]>([]);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -238,6 +248,7 @@ const TvLiveCandlestickChartWidget: React.FC<TvLiveCandlestickChartWidgetProps &
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

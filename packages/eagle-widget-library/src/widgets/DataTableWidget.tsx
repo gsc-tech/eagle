@@ -547,7 +547,8 @@ export interface DataTableWidgetProps extends BaseWidgetProps {
 }
 
 export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
-    initialParameterValues,
+    initialWidgetState,
+    onWidgetStateChange,
     id,
     apiUrl = "http://localhost:8080/api/data",
     title,
@@ -560,9 +561,21 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     getFirebaseToken
 }) => {
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
-    const [activeTab, setActiveTab] = useState<string | null>(null);
-    const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+    const [activeTab, setActiveTab] = useState<string | null>(() => initialWidgetState?.activeTab || null);
+    const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => new Set(initialWidgetState?.hiddenCols || []));
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({
+                parameters: currentParams,
+                activeTab,
+                hiddenCols: Array.from(hiddenCols)
+            });
+        }
+    }, [currentParams, activeTab, hiddenCols, onWidgetStateChange]);
 
     const handleParametersChange = (values: ParameterValues) => setCurrentParams(values);
 
@@ -635,6 +648,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

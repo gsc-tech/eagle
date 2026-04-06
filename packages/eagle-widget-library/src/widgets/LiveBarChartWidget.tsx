@@ -59,13 +59,23 @@ export const LiveBarChartWidget: React.FC<LiveBarChartWidgetProps & { darkMode?:
     darkMode = false,
     onGroupedParametersChange,
     groupedParametersValues,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartContainerRef = useRef<HTMLDivElement | null>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const processBarData = (rawData: any[]): HistogramData[] => {
         return rawData.map((item: any) => {
@@ -257,6 +267,7 @@ export const LiveBarChartWidget: React.FC<LiveBarChartWidgetProps & { darkMode?:
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

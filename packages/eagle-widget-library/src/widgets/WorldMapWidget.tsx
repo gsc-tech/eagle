@@ -87,6 +87,8 @@ export const WorldMapWidget: React.FC<AmWorldMapWidgetProps> = ({
     centerCoordinates,
     onGroupedParametersChange,
     groupedParametersValues,
+    initialWidgetState,
+    onWidgetStateChange,
     excludeAntarctica = true,
 }) => {
     const chartId = useId();
@@ -96,7 +98,15 @@ export const WorldMapWidget: React.FC<AmWorldMapWidgetProps> = ({
     const polygonSeriesRef = useRef<am5map.MapPolygonSeries | null>(null);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -357,6 +367,7 @@ export const WorldMapWidget: React.FC<AmWorldMapWidgetProps> = ({
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

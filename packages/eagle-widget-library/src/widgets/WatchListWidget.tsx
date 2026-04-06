@@ -66,9 +66,11 @@ const WatchListWidget: React.FC<WatchListWidgetProps> = ({
     darkMode = false,
     onGroupedParametersChange,
     groupedParametersValues,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const [watchList, setWatchList] = useState<WatchListItem[]>([]);
-    const [symbols, setSymbols] = useState<string[]>([]);
+    const [symbols, setSymbols] = useState<string[]>(() => initialWidgetState?.symbols || []);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newSymbol, setNewSymbol] = useState("");
     const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -76,7 +78,15 @@ const WatchListWidget: React.FC<WatchListWidgetProps> = ({
     const storeRef = useRef<Map<string, SymbolStoreItem>>(new Map());
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams, symbols });
+        }
+    }, [currentParams, symbols, onWidgetStateChange]);
 
     const handleParametersChange = (values: ParameterValues) => {
         setCurrentParams(values);
@@ -202,6 +212,7 @@ const WatchListWidget: React.FC<WatchListWidgetProps> = ({
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         // title={title}

@@ -24,7 +24,8 @@ export interface BaseWidgetProps {
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     sheetDependency?: SheetDependencyConfig;
-    initialParameterValues?: Record<string, string>;
+    initialWidgetState?: any;
+    onWidgetStateChange?: (state: any) => void;
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
 }

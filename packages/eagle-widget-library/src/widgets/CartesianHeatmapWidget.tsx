@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { WidgetContainer } from '../components/WidgetContainer';
 import type { BaseWidgetProps, ParameterValues } from '../types';
@@ -527,7 +527,7 @@ function buildChartOption(parsed: ParsedHeatmapData, darkMode: boolean) {
 // Widget component
 // ---------------------------------------------------------------------------
 
-export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ initialParameterValues, id,
+export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ id,
     title = 'Grouped Cartesian Heatmap',
     parameters = [],
     darkMode = false,
@@ -541,10 +541,21 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ 
     sheetDependency,
     isTokenRequired,
     getFirebaseToken,
+    initialWidgetState,
+    onWidgetStateChange,
     ...props
 }) => {
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
+
     const handleParametersChange = (values: ParameterValues) => setCurrentParams(values);
 
     // Determine whether to fetch from API
@@ -675,6 +686,7 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({ 
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
             onParametersChange={handleParametersChange}
+            initialParameterValues={currentParams}
             {...props}
         >
             {!hasData ? (

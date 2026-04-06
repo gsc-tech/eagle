@@ -39,9 +39,19 @@ export const HeatMapWidget: React.FC<HeatMapWidgetProps & { darkMode?: boolean }
     darkMode = false,
     onGroupedParametersChange,
     groupedParametersValues,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
     const heatMapRef = useRef<HTMLDivElement>(null);
     const calInstanceRef = useRef<any>(null);
 
@@ -126,6 +136,7 @@ export const HeatMapWidget: React.FC<HeatMapWidgetProps & { darkMode?: boolean }
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

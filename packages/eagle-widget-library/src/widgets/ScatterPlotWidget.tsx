@@ -35,6 +35,8 @@ export const ScatterPlotWidget: React.FC<ScatterPlotWidgetProps & { darkMode?: b
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const rootRef = useRef<any>(null);
     const chartRef = useRef<any>(null);
@@ -44,7 +46,15 @@ export const ScatterPlotWidget: React.FC<ScatterPlotWidgetProps & { darkMode?: b
     const chartId = `amchart-scatter-${autoId}`;
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -316,6 +326,7 @@ export const ScatterPlotWidget: React.FC<ScatterPlotWidgetProps & { darkMode?: b
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

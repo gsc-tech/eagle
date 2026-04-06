@@ -24,6 +24,8 @@ export const AmCandlestickChartWidget: React.FC<BaseWidgetProps & { darkMode?: b
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     // Auto-generate a unique ID if chartId is not provided
     const chartId = useId();
@@ -33,7 +35,15 @@ export const AmCandlestickChartWidget: React.FC<BaseWidgetProps & { darkMode?: b
     const seriesRef = useRef<any>(null);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -160,6 +170,7 @@ export const AmCandlestickChartWidget: React.FC<BaseWidgetProps & { darkMode?: b
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             groupedParametersValues={groupedParametersValues}
             onGroupedParametersChange={onGroupedParametersChange}
         >
