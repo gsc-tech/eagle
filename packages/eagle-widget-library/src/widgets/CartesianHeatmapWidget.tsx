@@ -68,12 +68,17 @@ const PRODUCT_GROUPS: Record<string, { fullName: string; groupName: string }> = 
     RB: { fullName: 'RB', groupName: 'Energy' },
     BRN: { fullName: 'BRN', groupName: 'Energy' },
     G: { fullName: 'G', groupName: 'Energy' },
+    HTT: {fullName: 'HTT', groupName: 'Energy'},
+    QG: {fullName: 'QG', groupName: 'Energy'},
     // Metals
     GC: { fullName: 'GC', groupName: 'Metals' },
     SI: { fullName: 'SI', groupName: 'Metals' },
     PL: { fullName: 'PL', groupName: 'Metals' },
     PA: { fullName: 'PA', groupName: 'Metals' },
     HG: { fullName: 'HG', groupName: 'Metals' },
+    BCH: { fullName: 'BCH', groupName: 'Metals' },
+    MGC: {fullName: 'MGC', groupName: 'Metals'},
+    SIL: {fullName: 'SIL', groupName: 'Metals'},
     // Agriculture
     ZC: { fullName: 'ZC', groupName: 'Agriculture (Grains and OilSeeds)' },
     ZS: { fullName: 'ZS', groupName: 'Agriculture (Grains and OilSeeds)' },
@@ -81,6 +86,11 @@ const PRODUCT_GROUPS: Record<string, { fullName: string; groupName: string }> = 
     ZM: { fullName: 'ZM', groupName: 'Agriculture (Grains and OilSeeds)' },
     ZW: { fullName: 'ZW', groupName: 'Agriculture (Grains and OilSeeds)' },
     KE: { fullName: 'KE', groupName: 'Agriculture (Grains and OilSeeds)' },
+    CWD: { fullName: 'CWD', groupName: 'Agriculture (Grains and OilSeeds)' },
+    ECO: { fullName: 'ECO', groupName: 'Agriculture (Grains and OilSeeds)' },
+    KWD:{fullName: 'KWD', groupName: 'Agriculture (Grains and OilSeeds)'},
+    MWE: {fullName: 'MWE', groupName: 'Agriculture (Grains and OilSeeds)'},
+    MZS: {fullName: 'MZS', groupName: 'Agriculture (Grains and OilSeeds)'},
     // Softs
     KC: { fullName: 'KC', groupName: 'Soft Commodities (ICE)' },
     RC: { fullName: 'RC', groupName: 'Soft Commodities (ICE)' },
@@ -119,11 +129,11 @@ const NEGATIVE_COLORS = ['#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', 
 const GROUP_EMPTY_COLORS: Record<string, string> = {
     'Energy': '#e0f2fe',
     'Metals': '#fef3c7',
-    'Agriculture (Grains and OilSeeds)': '#f5f5dc',
+    'Agriculture (Grains and OilSeeds)': '#C1E59F',
     'Soft Commodities (ICE)': '#fae8ff',
     'Livestock': '#ddd6fe',
     'Interest Rates/Fixed Income': '#f1f5f9',
-    'Other': '#f8fafc',
+    'Other': '#faf8deff',
 };
 
 const GROUP_ID_OFFSET = -1000;
