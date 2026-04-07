@@ -1,4 +1,4 @@
-export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'checkbox';
+export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox';
 
 export interface ParameterDefinition {
     name: string;
@@ -24,7 +24,10 @@ export interface BaseWidgetProps {
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     sheetDependency?: SheetDependencyConfig;
-    initialParameterValues?: Record<string, string>;
+    initialWidgetState?: any;
+    onWidgetStateChange?: (state: any) => void;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
 
 export interface NormalizationConfig {

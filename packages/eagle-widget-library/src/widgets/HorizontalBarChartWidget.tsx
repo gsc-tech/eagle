@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
@@ -57,9 +57,19 @@ export const HorizontalBarChartWidget: React.FC<HorizontalBarChartWidgetProps & 
     darkMode = false,
     onGroupedParametersChange,
     groupedParametersValues,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -137,6 +147,7 @@ export const HorizontalBarChartWidget: React.FC<HorizontalBarChartWidgetProps & 
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

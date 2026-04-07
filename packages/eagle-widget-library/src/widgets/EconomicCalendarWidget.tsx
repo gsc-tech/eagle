@@ -32,10 +32,19 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps & { da
   darkMode = false,
   onGroupedParametersChange,
   groupedParametersValues,
+  initialWidgetState,
+  onWidgetStateChange,
 }) => {
   const defaultParams = useParameterDefaults(parameters);
-  const [currentParams, setCurrentParams] =
-    useState<ParameterValues>(defaultParams);
+  const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+    return initialWidgetState?.parameters || defaultParams;
+  });
+
+  useEffect(() => {
+    if (onWidgetStateChange) {
+      onWidgetStateChange({ parameters: currentParams });
+    }
+  }, [currentParams, onWidgetStateChange]);
 
   // useWidgetData might return either: [] OR { data: [] }
   const raw = useWidgetData(apiUrl as string, { parameters: currentParams }).data;
@@ -100,6 +109,7 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps & { da
       parameters={parameters}
       onParametersChange={handleParametersChange}
       darkMode={darkMode}
+      initialParameterValues={currentParams}
       onGroupedParametersChange={onGroupedParametersChange}
       groupedParametersValues={groupedParametersValues}
     >

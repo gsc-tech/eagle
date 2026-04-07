@@ -36,12 +36,15 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
     onGroupedParametersChange,
     groupedParametersValues,
     sheetDependency,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartContainerRef = useRef<HTMLDivElement | null>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
 
     const processBarData = (rawData: any[]): HistogramData[] => {
+        // ... (data processing) ...
         return rawData.map((item: any) => {
             const timestamp = typeof item.time === 'string' ? new Date(item.time).getTime() / 1000 : typeof item.date === 'string' ? new Date(item.date).getTime() / 1000 : item.time;
             let color = staticColor;
@@ -69,7 +72,15 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
     };
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: routeData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -170,6 +181,7 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

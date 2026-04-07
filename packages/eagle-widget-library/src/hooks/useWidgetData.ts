@@ -4,13 +4,15 @@ import type { ParameterValues } from '../types';
 interface UseWidgetDataOptions {
     pollInterval?: number;
     parameters?: ParameterValues;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
 
 export function useWidgetData<T = any>(
     apiUrl: string,
     options?: UseWidgetDataOptions
 ) {
-    const { pollInterval, parameters } = options || {};
+    const { pollInterval, parameters, isTokenRequired, getFirebaseToken } = options || {};
     const [data, setData] = useState<T[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -21,10 +23,24 @@ export function useWidgetData<T = any>(
 
         const fetchData = async () => {
             try {
+                // Fetch token if required
+                let token: string | undefined;
+                console.log("token required ?", isTokenRequired);
+                if (isTokenRequired && getFirebaseToken) {
+                    console.log("function to get token", getFirebaseToken);
+                    try {
+                        token = await getFirebaseToken();
+                        console.log("token", token);
+                    } catch (tokenErr) {
+                        console.error("Failed to fetch Firebase token:", tokenErr);
+                    }
+                }
+
                 // Build URL with parameters
                 let url = apiUrl;
+                const queryParams = new URLSearchParams();
+
                 if (parameters && Object.keys(parameters).length > 0) {
-                    const queryParams = new URLSearchParams();
                     Object.entries(parameters).forEach(([key, value]) => {
                         if (value !== null && value !== undefined && value !== '') {
                             if (Array.isArray(value)) {
@@ -36,10 +52,16 @@ export function useWidgetData<T = any>(
                             }
                         }
                     });
-                    const queryString = queryParams.toString();
-                    if (queryString) {
-                        url = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${queryString}`;
-                    }
+                }
+
+                // Append token if fetched
+                if (token) {
+                    queryParams.append('token', token);
+                }
+
+                const queryString = queryParams.toString();
+                if (queryString) {
+                    url = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${queryString}`;
                 }
 
                 const res = await fetch(url);
@@ -76,7 +98,7 @@ export function useWidgetData<T = any>(
             mounted = false;
             if (intervalId) clearInterval(intervalId);
         };
-    }, [apiUrl, pollInterval, JSON.stringify(parameters)]);
+    }, [apiUrl, pollInterval, JSON.stringify(parameters), isTokenRequired, getFirebaseToken]);
 
     return { data, loading, error };
 }

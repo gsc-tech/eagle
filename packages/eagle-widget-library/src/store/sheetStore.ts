@@ -39,6 +39,7 @@ interface SheetState {
     // Actions
     setSheet: (workbookId: string, sheetName: string, data: any) => void;
     setSheets: (workbookId: string, sheetsData: Record<string, any>) => void;
+    deleteSheet: (workbookId: string, sheetName: string) => void;
     subscribe: (workbookId: string, widgetId: string, sheetNames: string[], ranges: RangeConfig[], callback: DependentWidgetCallback) => void;
     unsubscribe: (workbookId: string, widgetId: string) => void;
 
@@ -165,6 +166,30 @@ export const useSheetStore = create<SheetState>((set, get) => ({
                         ...workbook,
                         [sheetName]: data
                     }
+                }
+            };
+        });
+
+        const state = get();
+        if (state.updateTimeouts[workbookId]) {
+            clearTimeout(state.updateTimeouts[workbookId]);
+        }
+        const timeout = setTimeout(() => {
+            get()._notifyDependents(workbookId);
+        }, DEBOUNCE_MS);
+        set((state) => ({
+            updateTimeouts: { ...state.updateTimeouts, [workbookId]: timeout }
+        }));
+    },
+
+    deleteSheet: (workbookId: string, sheetName: string) => {
+        set((state) => {
+            const workbook = state.workbooks[workbookId] || {};
+            const { [sheetName]: _, ...rest } = workbook;
+            return {
+                workbooks: {
+                    ...state.workbooks,
+                    [workbookId]: rest
                 }
             };
         });

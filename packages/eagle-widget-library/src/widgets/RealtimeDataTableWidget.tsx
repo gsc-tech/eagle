@@ -33,13 +33,22 @@ export const RealtimeDataTableWidget: React.FC<RealtimeWidgetProps & { darkMode?
   darkMode = false,
   groupedParametersValues,
   onGroupedParametersChange,
+  initialWidgetState,
+  onWidgetStateChange,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // ✅ Parameters
   const defaultParams = useParameterDefaults(parameters);
-  const [currentParams, setCurrentParams] =
-    useState<ParameterValues>(defaultParams);
+  const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+    return initialWidgetState?.parameters || defaultParams;
+  });
+
+  useEffect(() => {
+    if (onWidgetStateChange) {
+      onWidgetStateChange({ parameters: currentParams });
+    }
+  }, [currentParams, onWidgetStateChange]);
 
   // ✅ REST API — Initial Data
   const { data: rawData } = useWidgetData(apiUrl as string, {
@@ -187,6 +196,7 @@ export const RealtimeDataTableWidget: React.FC<RealtimeWidgetProps & { darkMode?
       parameters={parameters}
       onParametersChange={handleParametersChange}
       darkMode={darkMode}
+      initialParameterValues={currentParams}
       onGroupedParametersChange={onGroupedParametersChange}
       groupedParametersValues={groupedParametersValues}
     >

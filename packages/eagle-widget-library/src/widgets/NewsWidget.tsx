@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Clock, ExternalLink, Newspaper } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
@@ -24,10 +24,20 @@ export const NewsWidget: React.FC<BaseWidgetProps & { darkMode?: boolean }> = ({
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: news } = useWidgetData(apiUrl as string, {
         pollInterval: 1000,
@@ -62,6 +72,7 @@ export const NewsWidget: React.FC<BaseWidgetProps & { darkMode?: boolean }> = ({
             title={title}
             parameters={parameters}
             onParametersChange={handleParametersChange}
+            initialParameterValues={currentParams}
             darkMode={darkMode}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}

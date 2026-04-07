@@ -2,9 +2,11 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import type { LayoutItem } from "./types";
 import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
+import { useDashboardStateStore } from "@/store/dashboardStateStore";
 import { getAuth } from "firebase/auth";
 
 interface WidgetRendererProps {
+    dashboardId: string;
     layoutItem: LayoutItem;
     /** Pre-loaded Univer workbook snapshot for SheetWidget (from your database). */
     initialWorkbookData?: Record<string, any>;
@@ -12,12 +14,23 @@ interface WidgetRendererProps {
     onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
 }
 
+const EMPTY_OBJ = {};
+const EMPTY_MAP = {};
+
 export default function WidgetRenderer({
+    dashboardId,
     layoutItem,
     initialWorkbookData,
     onSaveWorkbook,
 }: WidgetRendererProps) {
     const { widget } = layoutItem;
+
+    const setWidgetState = useDashboardStateStore((s) => s.setWidgetState);
+    const widgetState = useDashboardStateStore((s) => s.widgetStates[dashboardId]?.[layoutItem.i]);
+
+    const handleWidgetStateChange = useCallback((state: any) => {
+        setWidgetState(dashboardId, layoutItem.i, state);
+    }, [dashboardId, layoutItem.i, setWidgetState]);
 
     // console.log("workbook inside widget renderer", initialWorkbookData);
 
@@ -44,7 +57,7 @@ export default function WidgetRenderer({
     // ── Grouped params (Zustand) ───────────────────────────────────────────────
     // Read the whole map so every widget re-renders when any group changes.
     const groupedParametersValues = useGroupedParamsStore(
-        (s) => s.groupedParametersValues
+        (s) => s.groupedParametersValues[dashboardId] || EMPTY_MAP
     );
     const mergeGroupValues = useGroupedParamsStore((s) => s.mergeGroupValues);
 
@@ -55,9 +68,9 @@ export default function WidgetRenderer({
      */
     const handleGroupedParametersChange = useCallback(
         (values: Record<string, any>) => {
-            mergeGroupValues(values);
+            mergeGroupValues(dashboardId, values);
         },
-        [mergeGroupValues]
+        [dashboardId, mergeGroupValues]
     );
 
     // ── Widget component lookup ────────────────────────────────────────────────
@@ -94,26 +107,43 @@ export default function WidgetRenderer({
         );
     }
 
+    const otherDefaultProps = useMemo(() => {
+        const { initialParameterValues: _, ...rest } = widget.defaultProps || EMPTY_OBJ;
+        return rest;
+    }, [widget.defaultProps]);
+
+    const initialParameterValues = useMemo(() => {
+        if (widget.componentName !== "SheetWidget") return EMPTY_OBJ;
+        if (!initialWorkbookData?.parameters) return widget.defaultProps?.initialParameterValues || EMPTY_OBJ;
+        return initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {});
+    }, [widget.componentName, initialWorkbookData?.parameters, widget.defaultProps?.initialParameterValues]);
+
+    const handleSave = useCallback((snapshot: Record<string, any>, parameters?: any[]) => {
+        if (onSaveWorkbook) {
+            onSaveWorkbook(layoutItem.i, snapshot, parameters);
+        }
+    }, [onSaveWorkbook, layoutItem.i]);
+
     return (
         <div className="h-full w-full overflow-hidden flex flex-col">
             <WidgetComponent
-                {...(widget.defaultProps || {})}
+                {...otherDefaultProps}
                 id={layoutItem.i}
                 title={widget.name}
                 darkMode={theme === "dark"}
                 groupedParametersValues={groupedParametersValues}
                 onGroupedParametersChange={handleGroupedParametersChange}
+                initialWidgetState={widgetState}
+                onWidgetStateChange={handleWidgetStateChange}
                 // SheetWidget-specific: load saved snapshot and persist on close
+                {...(widget.defaultProps?.isTokenRequired && {
+                    getFirebaseToken,
+                })}
                 {...(widget.componentName === "SheetWidget" && {
                     initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
-                    initialParameterValues: initialWorkbookData?.parameters
-                        ? initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {})
-                        : {},
+                    initialParameterValues,
                     getFirebaseToken,
-                    onSave: onSaveWorkbook
-                        ? (snapshot: Record<string, any>, parameters?: any[]) =>
-                            onSaveWorkbook(layoutItem.i, snapshot, parameters)
-                        : undefined,
+                    onSave: handleSave
                 })}
             />
         </div>

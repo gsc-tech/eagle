@@ -44,6 +44,8 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
   onGroupedParametersChange,
   darkMode = false,
   sheetDependency,
+  initialWidgetState,
+  onWidgetStateChange,
 }) => {
   const chartId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -52,7 +54,15 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
   const seriesRefs = useRef<any[]>([]);
 
   const defaultParams = useParameterDefaults(parameters);
-  const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+  const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+    return initialWidgetState?.parameters || defaultParams;
+  });
+
+  useEffect(() => {
+    if (onWidgetStateChange) {
+      onWidgetStateChange({ parameters: currentParams });
+    }
+  }, [currentParams, onWidgetStateChange]);
   let routeData = null;
   if (apiUrl != "") {
     routeData = useWidgetData(apiUrl as string, {
@@ -309,6 +319,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
       title={title}
       parameters={parameters}
       onParametersChange={handleParametersChange}
+      initialParameterValues={currentParams}
       darkMode={darkMode}
       onGroupedParametersChange={onGroupedParametersChange}
       groupedParametersValues={groupedParametersValues}

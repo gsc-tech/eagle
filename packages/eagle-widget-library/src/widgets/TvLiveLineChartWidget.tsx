@@ -58,6 +58,8 @@ const TvLiveLineChartWidget: React.FC<TvLiveLineChartWidgetProps & { darkMode?: 
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
@@ -66,7 +68,15 @@ const TvLiveLineChartWidget: React.FC<TvLiveLineChartWidgetProps & { darkMode?: 
     const [data, setData] = useState<ChartData[]>([]);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -217,6 +227,7 @@ const TvLiveLineChartWidget: React.FC<TvLiveLineChartWidgetProps & { darkMode?: 
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             groupedParametersValues={groupedParametersValues}
             onGroupedParametersChange={onGroupedParametersChange}
         >

@@ -1,45 +1,62 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 /**
  * Zustand store for grouped parameter values shared across all widgets in a dashboard.
- *
- * `groupedParametersValues` is a flat map: groupId → value.
- * Any widget whose parameter carries a `groupId` syncs its value through this store
- * instead of through React prop-drilling.
+ * ...
  */
 
 interface GroupedParamsState {
-    /** groupId → current value */
-    groupedParametersValues: Record<string, string>;
+    /** dashboardId → groupId → current value */
+    groupedParametersValues: Record<string, Record<string, string>>;
 
-    /** Replace one group's value (and propagate to every subscribed widget) */
-    setGroupValue: (groupId: string, value: string) => void;
+    /** Replace one group's value for a specific dashboard */
+    setGroupValue: (dashboardId: string, groupId: string, value: string) => void;
 
-    /** Merge in a full new values map (used for bulk updates) */
-    mergeGroupValues: (values: Record<string, string>) => void;
+    /** Merge new values for a dashboard */
+    mergeGroupValues: (dashboardId: string, values: Record<string, string>) => void;
 
-    /** Clear all grouped parameter state (e.g. when switching dashboards) */
-    reset: () => void;
+    /** Clear grouped parameter state for a specific dashboard */
+    clearDashboardGroups: (dashboardId: string) => void;
 }
 
-export const useGroupedParamsStore = create<GroupedParamsState>((set) => ({
-    groupedParametersValues: {},
+export const useGroupedParamsStore = create<GroupedParamsState>()(
+    persist(
+        (set) => ({
+            groupedParametersValues: {},
 
-    setGroupValue: (groupId, value) =>
-        set((state) => ({
-            groupedParametersValues: {
-                ...state.groupedParametersValues,
-                [groupId]: value,
-            },
-        })),
+            setGroupValue: (dashboardId, groupId, value) =>
+                set((state) => ({
+                    groupedParametersValues: {
+                        ...state.groupedParametersValues,
+                        [dashboardId]: {
+                            ...(state.groupedParametersValues[dashboardId] || {}),
+                            [groupId]: value,
+                        },
+                    },
+                })),
 
-    mergeGroupValues: (values) =>
-        set((state) => ({
-            groupedParametersValues: {
-                ...state.groupedParametersValues,
-                ...values,
-            },
-        })),
+            mergeGroupValues: (dashboardId, values) =>
+                set((state) => ({
+                    groupedParametersValues: {
+                        ...state.groupedParametersValues,
+                        [dashboardId]: {
+                            ...(state.groupedParametersValues[dashboardId] || {}),
+                            ...values,
+                        },
+                    },
+                })),
 
-    reset: () => set({ groupedParametersValues: {} }),
-}));
+            clearDashboardGroups: (dashboardId) =>
+                set((state) => {
+                    const newValues = { ...state.groupedParametersValues };
+                    delete newValues[dashboardId];
+                    return { groupedParametersValues: newValues };
+                }),
+        }),
+        {
+            name: "eagle-grouped-params",
+            storage: createJSONStorage(() => localStorage),
+        }
+    )
+);

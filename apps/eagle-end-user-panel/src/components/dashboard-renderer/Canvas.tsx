@@ -10,6 +10,7 @@ import type { Layout } from "react-grid-layout";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 
 interface DashboardCanvasProps {
+    dashboardId: string;
     onLayoutChange?: (layout: LayoutItem[]) => void;
     initialLayout?: LayoutItem[];
     workbookSnapshots?: Record<string, Record<string, any>>;
@@ -39,6 +40,7 @@ function CompressIcon() {
 }
 
 export default function DashboardCanvas({
+    dashboardId,
     onLayoutChange,
     initialLayout,
     workbookSnapshots,
@@ -75,9 +77,6 @@ export default function DashboardCanvas({
     const suppressLayoutPropagation = useRef(false);
 
     const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: false, initialWidth: 1280 });
-    const reset = useGroupedParamsStore((s) => s.reset);
-
-    useEffect(() => { reset(); }, [initialLayout, reset]);
 
     useEffect(() => {
         if (initialLayout) setLayoutItems(initialLayout);
@@ -220,6 +219,7 @@ export default function DashboardCanvas({
                                     </button>
 
                                     <WidgetRenderer
+                                        dashboardId={dashboardId}
                                         layoutItem={item}
                                         initialWorkbookData={workbookSnapshots?.[item.i]}
                                         onSaveWorkbook={onSaveWorkbook}

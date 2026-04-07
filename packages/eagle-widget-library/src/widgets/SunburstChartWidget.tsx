@@ -26,6 +26,8 @@ export const SunburstChartWidget: React.FC<SunburstChartWidgetProps & { darkMode
     darkMode = false,
     groupedParametersValues,
     onGroupedParametersChange,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartId = useId();
     const rootRef = useRef<any>(null);
@@ -34,7 +36,15 @@ export const SunburstChartWidget: React.FC<SunburstChartWidgetProps & { darkMode
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
@@ -141,6 +151,7 @@ export const SunburstChartWidget: React.FC<SunburstChartWidgetProps & { darkMode
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >
