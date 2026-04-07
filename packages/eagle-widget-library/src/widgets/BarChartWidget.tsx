@@ -181,6 +181,7 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >

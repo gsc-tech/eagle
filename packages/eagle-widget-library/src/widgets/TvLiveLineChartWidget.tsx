@@ -227,6 +227,7 @@ const TvLiveLineChartWidget: React.FC<TvLiveLineChartWidgetProps & { darkMode?: 
             parameters={parameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
+            initialParameterValues={currentParams}
             groupedParametersValues={groupedParametersValues}
             onGroupedParametersChange={onGroupedParametersChange}
         >
