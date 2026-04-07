@@ -91,6 +91,9 @@ const PRODUCT_GROUPS: Record<string, { fullName: string; groupName: string }> = 
     KWD:{fullName: 'KWD', groupName: 'Agriculture (Grains and OilSeeds)'},
     MWE: {fullName: 'MWE', groupName: 'Agriculture (Grains and OilSeeds)'},
     MZS: {fullName: 'MZS', groupName: 'Agriculture (Grains and OilSeeds)'},
+    MZC:{fullName: 'MZC', groupName: 'Agriculture (Grains and OilSeeds)'},
+    MZL:{fullName: 'MZL', groupName: 'Agriculture (Grains and OilSeeds)'},
+    MZM:{fullName: 'MZM', groupName: 'Agriculture (Grains and OilSeeds)'},
     // Softs
     KC: { fullName: 'KC', groupName: 'Soft Commodities (ICE)' },
     RC: { fullName: 'RC', groupName: 'Soft Commodities (ICE)' },
@@ -110,6 +113,22 @@ const PRODUCT_GROUPS: Record<string, { fullName: string; groupName: string }> = 
     SR3: { fullName: 'SR3', groupName: 'Interest Rates/Fixed Income' },
     SR1: { fullName: 'SR1', groupName: 'Interest Rates/Fixed Income' },
     SO3: { fullName: 'SO3', groupName: 'Interest Rates/Fixed Income' },
+    //Equities
+    M2K: {fullName:'M2K', groupName:'Equities'},
+    MYM: {fullName:'MYM', groupName:'Equities'},
+    ES: {fullName:'ES', groupName:'Equities'},
+    NQ: {fullName: 'NQ', groupName:'Equities'},
+    MNQ: {fullName:'MNQ', groupName:'Equities'},
+    MES: {fullName:'MES', groupName:'Equities'},
+    RTY: {fullName:'RTY', groupName:'Equities'},
+    YM: {fullName:'YM', groupName:'Equities'},
+    MMC: {fullName:'MMC', groupName:'Equities'},
+    EWF: {fullName:'EWF', groupName:'Equities'},
+    EMD: {fullName:'EMD', groupName:'Equities'},
+    MSC: {fullName:'MSC', groupName:'Equities'},
+    MNK: {fullName:'MNK', groupName:'Equities'},
+    MNI: {fullName:'MNI', groupName:'Equities'},
+    SMC: {fullName:'SMC', groupName:'Equities'},
 };
 
 const GROUP_ORDER = [
@@ -119,6 +138,7 @@ const GROUP_ORDER = [
     'Soft Commodities (ICE)',
     'Livestock',
     'Interest Rates/Fixed Income',
+    'Equities',
     'Other',
 ];
 
@@ -133,6 +153,7 @@ const GROUP_EMPTY_COLORS: Record<string, string> = {
     'Soft Commodities (ICE)': '#fae8ff',
     'Livestock': '#ddd6fe',
     'Interest Rates/Fixed Income': '#f1f5f9',
+    'Equities': '#f8dbb5',
     'Other': '#faf8deff',
 };
 
@@ -144,7 +165,8 @@ const GROUP_IDS: Record<string, number> = {
     'Soft Commodities (ICE)': 4,
     'Livestock': 5,
     'Interest Rates/Fixed Income': 6,
-    'Other': 7,
+    'Equities':7,
+    'Other': 8,
 };
 
 // ---------------------------------------------------------------------------
