@@ -16,6 +16,9 @@ import {
     themeQuartz,
     CellStyleModule,
     TooltipModule,
+    TextFilterModule,
+    NumberFilterModule,
+    CustomFilterModule,
     type Module
 } from "ag-grid-community";
 
@@ -30,6 +33,9 @@ ModuleRegistry.registerModules([
     ColumnAutoSizeModule as unknown as Module,
     CellStyleModule as unknown as Module,
     TooltipModule as unknown as Module,
+    TextFilterModule as unknown as Module,
+    NumberFilterModule as unknown as Module,
+    CustomFilterModule as unknown as Module,
 ]);
 
 // ─── Themes ────────────────────────────────────────────────────────────────────
@@ -55,7 +61,8 @@ type TabData = Record<string, any[]>;
 
 function isTabData(value: unknown): value is TabData {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    return Object.values(value as object).every(v => Array.isArray(v));
+    // Check if it has any array properties (a dictionary of tabs)
+    return Object.values(value as object).some(v => Array.isArray(v));
 }
 
 function flattenLeaves(defs: (ColDef | ColGroupDef)[]): ColDef[] {
@@ -436,14 +443,108 @@ const CustomTooltip = (props: ITooltipParams & { darkMode?: boolean }) => {
     );
 };
 
+// ─── Multi-Select Filter component ──────────────────────────────────────────────
+import type { IDoesFilterPassParams } from "ag-grid-community";
+import { useGridFilter } from "ag-grid-react";
+
+interface MultiSelectFilterProps {
+    model: { values: any[] } | null;
+    onModelChange: (model: { values: any[] } | null) => void;
+    getValue: (node: any) => any;
+    api: any;
+    darkMode?: boolean;
+}
+
+const MultiSelectFilter = (props: any) => {
+    const { model, onModelChange, getValue, darkMode, uniqueValues } = props;
+    const [filterText, setFilterText] = useState("");
+
+    const allValues = useMemo(() => {
+        return uniqueValues || [];
+    }, [uniqueValues]);
+
+    const selectedValues = useMemo(() => new Set(model?.values || []), [model]);
+
+    const filteredValues = useMemo(() => {
+        if (!filterText) return allValues;
+        const low = filterText.toLowerCase();
+        return allValues.filter((v: any) => String(v).toLowerCase().includes(low));
+    }, [allValues, filterText]);
+
+    const doesFilterPass = useCallback((params: IDoesFilterPassParams) => {
+        const val = getValue(params.node);
+        return selectedValues.size === 0 || selectedValues.has(val);
+    }, [selectedValues, getValue]);
+
+    // Register filter logic with the grid
+    useGridFilter({ doesFilterPass });
+
+    const toggleValue = (val: any) => {
+        const next = new Set(selectedValues);
+        if (next.has(val)) next.delete(val);
+        else next.add(val);
+        onModelChange(next.size > 0 ? { values: Array.from(next) } : null);
+    };
+
+    const toggleAll = () => {
+        if (selectedValues.size === allValues.length) onModelChange(null);
+        else onModelChange({ values: allValues });
+    };
+
+    const bg = darkMode ? "#111827" : "#fff";
+    const text = darkMode ? "#e5e7eb" : "#374151";
+    const borderColor = darkMode ? "#374151" : "#e5e7eb";
+    const hoverBg = darkMode ? "#1f2937" : "#f3f4f6";
+
+    return (
+        <div style={{ padding: 12, minWidth: 200, background: bg, color: text, border: `1px solid ${borderColor}`, borderRadius: 8, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
+            <div style={{ marginBottom: 10 }}>
+                <input
+                    type="text"
+                    placeholder="Search..."
+                    value={filterText}
+                    onChange={e => setFilterText(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        background: darkMode ? '#1f2937' : '#f9fafb',
+                        border: `1px solid ${borderColor}`,
+                        borderRadius: 6,
+                        color: text,
+                        outline: 'none'
+                    }}
+                />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', marginBottom: 8, borderBottom: `1px solid ${borderColor}`, cursor: 'pointer', fontSize: 11, fontWeight: 600, opacity: 0.8 }} onClick={toggleAll}>
+                <input type="checkbox" checked={selectedValues.size === allValues.length && allValues.length > 0} readOnly />
+                <span>(Select All)</span>
+            </div>
+
+            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                {filteredValues.map((v: any) => (
+                    <label key={String(v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', cursor: 'pointer', borderRadius: 4, transition: 'background 0.1s' }}
+                        onMouseEnter={e => (e.currentTarget as any).style.background = hoverBg}
+                        onMouseLeave={e => (e.currentTarget as any).style.background = 'transparent'}>
+                        <input type="checkbox" checked={selectedValues.has(v)} onChange={() => toggleValue(v)} />
+                        <span style={{ fontSize: 13 }}>{String(v)}</span>
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 // ─── Column builder ─────────────────────────────────────────────────────────────
 
-function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): (ColDef | ColGroupDef)[] {
+function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, colConfigs?: Record<string, any>): (ColDef | ColGroupDef)[] {
     if (!data || data.length === 0) return [];
 
     const keys = Object.keys(data[0]).filter(key => !key.endsWith("_breakdown"));
     const groups = new Map<string, string[]>();
     const orderedGroups: string[] = [];
+    const colConfigsMap = colConfigs || {};
 
     keys.forEach(key => {
         const parts = key.split("_");
@@ -460,38 +561,78 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean): 
         }
     });
 
-    const makeLeaf = (field: string, headerName: string): ColDef => ({
-        field,
-        headerName,
-        hide: hiddenCols.has(field),
-        sortable: true,
-        resizable: true,
-        flex: 1,
-        minWidth: 100,
-        tooltipComponent: CustomTooltip,
-        tooltipComponentParams: { darkMode },
-        tooltipValueGetter: (params) => {
-            const f = (params.colDef as ColDef)?.field;
-            return (f && params.data && params.data[`${f}_breakdown`]) ? (String(params.value) || " ") : null;
-        },
-        valueFormatter: (params: ValueFormatterParams) => {
-            return typeof params.value === "number" ? params.value.toLocaleString() : (params.value ?? "—");
-        },
-        cellRenderer: (params: any) => {
-            const val = Number(params.value);
-            const isNum = !isNaN(val) && params.value !== "" && params.value !== null;
-            let textColor = "inherit";
-            let weight = "inherit";
-            if (isNum && val > 0) { textColor = "#22c55e"; weight = "600"; }
-            else if (isNum && val < 0) { textColor = "#ef4444"; weight = "600"; }
+    const makeLeaf = (field: string, headerName: string): ColDef => {
+        const config = colConfigsMap[field] || {};
 
-            return (
-                <span className={isNum ? "tabular-nums" : ""} style={{ color: textColor, fontWeight: weight, display: "inline-block", width: "100%", textAlign: "center" }}>
-                    {params.valueFormatted ?? params.value ?? "—"}
-                </span>
-            );
+        // Pre-calculate unique values for this column to pass to the filter
+        const uniqueValues = Array.from(new Set(data.map(d => d[field])))
+            .filter(v => v !== null && v !== undefined && v !== "")
+            .sort((a, b) => String(a).localeCompare(String(b)));
+
+        const colDef: ColDef = {
+            field,
+            headerName,
+            hide: hiddenCols.has(field),
+            sortable: true,
+            resizable: true,
+            flex: 1,
+            minWidth: 100,
+            tooltipComponent: CustomTooltip,
+            tooltipComponentParams: { darkMode },
+            pinned: (config.pinned === true || config.freeze === true) ? 'left' : (config.pinned || config.freeze || null),
+            filter: config.filter === 'multi' ? MultiSelectFilter : (config.filter ? true : false),
+            filterParams: { darkMode, uniqueValues },
+            tooltipValueGetter: (params) => {
+                const f = (params.colDef as ColDef)?.field;
+                return (f && params.data && params.data[`${f}_breakdown`]) ? (String(params.value) || " ") : null;
+            },
+            valueFormatter: (params: ValueFormatterParams) => {
+                return typeof params.value === "number" ? params.value.toLocaleString() : (params.value ?? "—");
+            },
+            cellRenderer: (params: any) => {
+                const val = Number(params.value);
+                const isNum = !isNaN(val) && params.value !== "" && params.value !== null;
+                let textColor = "inherit";
+                let weight = "inherit";
+                if (isNum && val > 0) { textColor = "#22c55e"; weight = "600"; }
+                else if (isNum && val < 0) { textColor = "#ef4444"; weight = "600"; }
+
+                return (
+                    <span className={isNum ? "tabular-nums" : ""} style={{ color: textColor, fontWeight: weight, display: "inline-block", width: "100%", textAlign: "center" }}>
+                        {params.valueFormatted ?? params.value ?? "—"}
+                    </span>
+                );
+            }
+        };
+
+        if (config.conditionalBackground) {
+            colDef.cellStyle = (params: any) => {
+                const val = Number(params.value);
+                const style: any = { textAlign: 'center' };
+
+                // Determine if this specific cell should be highlighted
+                const cbConfig = config.conditionalBackground as any;
+                const isTargeted = typeof cbConfig === 'object';
+                let isMatch = !isTargeted;
+
+                if (isTargeted) {
+                    if (cbConfig.rowIndex !== undefined) {
+                        isMatch = params.node.rowIndex === cbConfig.rowIndex;
+                    } else if (cbConfig.rowField !== undefined) {
+                        isMatch = params.data[cbConfig.rowField] === cbConfig.rowValue;
+                    }
+                }
+
+                if (isMatch && !isNaN(val) && params.value !== "" && params.value !== null) {
+                    if (val > 0) style.backgroundColor = darkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)';
+                    else if (val < 0) style.backgroundColor = darkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)';
+                }
+                return style;
+            };
         }
-    });
+
+        return colDef;
+    };
 
     return orderedGroups.map(groupName => {
         const groupKeys = groups.get(groupName)!;
@@ -517,9 +658,9 @@ interface AgTableProps {
     hiddenCols: Set<string>;
 }
 
-function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
+function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { widgetConfig?: any }) {
     const keysStr = data && data.length > 0 ? Object.keys(data[0]).sort().join(",") : "";
-    const colDefs = useMemo(() => buildColDefs(data, hiddenCols, darkMode), [keysStr, hiddenCols, darkMode]);
+    const colDefs = useMemo(() => buildColDefs(data, hiddenCols, darkMode, widgetConfig), [keysStr, hiddenCols, darkMode, widgetConfig]);
     const defaultColDef = useMemo(() => ({ cellStyle: { textAlign: 'center' }, headerClass: 'centered-header', tooltipComponent: CustomTooltip }), []);
 
     return (
@@ -534,6 +675,7 @@ function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
                 domLayout="normal"
                 tooltipShowDelay={100}
                 tooltipInteraction={true}
+                reactiveCustomComponents={true}
             />
         </div>
     );
@@ -544,6 +686,17 @@ function AgTable({ data, darkMode, hiddenCols }: AgTableProps) {
 export interface DataTableWidgetProps extends BaseWidgetProps {
     darkMode?: boolean;
     pollInterval?: number;
+    columnConfig?: Record<string, {
+        filter?: boolean | string;
+        freeze?: boolean;
+        pinned?: 'left' | 'right';
+        conditionalBackground?: boolean | {
+            rowField?: string;
+            rowValue?: any;
+            rowIndex?: number;
+        };
+        [key: string]: any;
+    }>;
 }
 
 export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
@@ -558,7 +711,8 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     onGroupedParametersChange,
     groupedParametersValues,
     isTokenRequired,
-    getFirebaseToken
+    getFirebaseToken,
+    columnConfig: propColumnConfig
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
@@ -566,6 +720,8 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     });
     const [activeTab, setActiveTab] = useState<string | null>(() => initialWidgetState?.activeTab || null);
     const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => new Set(initialWidgetState?.hiddenCols || []));
+
+    console.log("propColumnConfig", propColumnConfig);
 
     useEffect(() => {
         if (onWidgetStateChange) {
@@ -598,20 +754,20 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
         }
     }, [rawData]);
 
-    const tabData = useMemo<TabData | null>(() => {
+    const finalTabData = useMemo<TabData | null>(() => {
         if (!stableData || stableData.length === 0) return null;
         if (stableData.length === 1 && isTabData(stableData[0])) return stableData[0] as TabData;
         return { "Data": stableData };
     }, [stableData]);
 
-    const tabs = useMemo(() => Object.keys(tabData ?? {}).sort(), [tabData]);
+    const tabs = useMemo(() => Object.keys(finalTabData ?? {}).sort(), [finalTabData]);
 
     useEffect(() => {
         if (tabs.length === 0) return;
         setActiveTab(prev => (prev && tabs.includes(prev) ? prev : tabs[0]));
     }, [tabs]);
 
-    const activeData = useMemo(() => (activeTab && tabData ? (tabData[activeTab] ?? []) : []), [activeTab, tabData]);
+    const activeData = useMemo(() => (activeTab && finalTabData ? (finalTabData[activeTab] ?? []) : []), [activeTab, finalTabData]);
 
     const handleToggleCol = useCallback((field: string) => {
         setHiddenCols(prev => {
@@ -630,7 +786,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
         });
     }, []);
 
-    const hierarchicalDefsForToolbar = useMemo(() => buildColDefs(activeData, new Set(), darkMode), [activeData, darkMode]);
+    const hierarchicalDefsForToolbar = useMemo(() => buildColDefs(activeData, new Set(), darkMode, propColumnConfig), [activeData, darkMode, propColumnConfig]);
 
     const toolbar = hierarchicalDefsForToolbar.length > 0 ? (
         <ColVisibilityToolbar
@@ -675,7 +831,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
                             No data available
                         </div>
                     ) : (
-                        <AgTable data={activeData} darkMode={darkMode} hiddenCols={hiddenCols} />
+                        <AgTable data={activeData} darkMode={darkMode} hiddenCols={hiddenCols} widgetConfig={propColumnConfig} />
                     )}
                 </div>
             </div>
