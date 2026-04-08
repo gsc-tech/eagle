@@ -575,8 +575,7 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, c
             hide: hiddenCols.has(field),
             sortable: true,
             resizable: true,
-            flex: 1,
-            minWidth: 100,
+            minWidth: 30,
             tooltipComponent: CustomTooltip,
             tooltipComponentParams: { darkMode },
             pinned: (config.pinned === true || config.freeze === true) ? 'left' : (config.pinned || config.freeze || null),
@@ -598,7 +597,7 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, c
                 else if (isNum && val < 0) { textColor = "#ef4444"; weight = "600"; }
 
                 return (
-                    <span className={isNum ? "tabular-nums" : ""} style={{ color: textColor, fontWeight: weight, display: "inline-block", width: "100%", textAlign: "center" }}>
+                    <span className={isNum ? "tabular-nums" : ""} style={{ color: textColor, fontWeight: weight }}>
                         {params.valueFormatted ?? params.value ?? "—"}
                     </span>
                 );
@@ -661,7 +660,16 @@ interface AgTableProps {
 function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { widgetConfig?: any }) {
     const keysStr = data && data.length > 0 ? Object.keys(data[0]).sort().join(",") : "";
     const colDefs = useMemo(() => buildColDefs(data, hiddenCols, darkMode, widgetConfig), [keysStr, hiddenCols, darkMode, widgetConfig]);
-    const defaultColDef = useMemo(() => ({ cellStyle: { textAlign: 'center' }, headerClass: 'centered-header', tooltipComponent: CustomTooltip }), []);
+    const defaultColDef = useMemo(() => ({ cellStyle: { textAlign: 'center' }, headerClass: 'centered-header', tooltipComponent: CustomTooltip, resizable: true }), []);
+    const autoSizeStrategy = useMemo(() => ({ type: 'fitCellContents' as const, includeHeader: true }), []);
+
+    const onGridReady = useCallback((params: any) => {
+        params.api.autoSizeAllColumns();
+    }, []);
+
+    const onRowDataUpdated = useCallback((params: any) => {
+        params.api.autoSizeAllColumns();
+    }, []);
 
     return (
         <div className="w-full h-full chunky-grid" style={{ minHeight: 0 }}>
@@ -676,6 +684,10 @@ function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { 
                 tooltipShowDelay={100}
                 tooltipInteraction={true}
                 reactiveCustomComponents={true}
+                autoSizeStrategy={autoSizeStrategy}
+                onGridReady={onGridReady}
+                onRowDataUpdated={onRowDataUpdated}
+                suppressColumnVirtualisation={true}
             />
         </div>
     );
