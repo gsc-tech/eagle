@@ -41,7 +41,7 @@ ModuleRegistry.registerModules([
 // ─── Themes ────────────────────────────────────────────────────────────────────
 
 export const myLightTheme = themeQuartz.withParams({
-    browserColorScheme: "light"
+    browserColorScheme: "light",
 });
 
 export const myDarkTheme = themeQuartz.withParams({
@@ -664,7 +664,7 @@ function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { 
     const defaultColDef = useMemo(() => ({ cellStyle: { textAlign: 'center' }, headerClass: 'centered-header', tooltipComponent: CustomTooltip }), []);
 
     return (
-        <div className="w-full h-full" style={{ minHeight: 0 }}>
+        <div className="w-full h-full chunky-grid" style={{ minHeight: 0 }}>
             <AgGridReact
                 theme={darkMode ? myDarkTheme : myLightTheme}
                 rowData={data}
@@ -816,6 +816,33 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
                     }
                     .tabular-nums {
                         font-variant-numeric: tabular-nums;
+                    }
+                    /* Chunky Grid Overrides (20px) */
+                    .chunky-grid .ag-body-horizontal-scroll,
+                    .chunky-grid .ag-body-horizontal-scroll-viewport,
+                    .chunky-grid .ag-body-horizontal-scroll-container,
+                    .chunky-grid .ag-horizontal-left-spacer,
+                    .chunky-grid .ag-horizontal-right-spacer {
+                        height: 15px !important;
+                        min-height: 15px !important;
+                        max-height: 15px !important;
+                    }
+                    .chunky-grid ::-webkit-scrollbar {
+                        width: 15px !important;
+                        height: 15px !important;
+                        display: block !important;
+                    }
+                    .chunky-grid ::-webkit-scrollbar-track {
+                        background: ${darkMode ? 'rgba(0,0,0,0.3)' : '#f1f5f9'} !important;
+                    }
+                    .chunky-grid ::-webkit-scrollbar-thumb {
+                        background: ${darkMode ? '#6b7280' : '#a1a1aa'} !important;
+                        border-radius: 6px !important;
+                        border: 3px solid ${darkMode ? '#1f2937' : '#f1f5f9'} !important;
+                        background-clip: padding-box;
+                    }
+                    .chunky-grid ::-webkit-scrollbar-thumb:hover {
+                        background: ${darkMode ? '#9ca3af' : '#71717a'} !important;
                     }
                 `}</style>
                 <TabBar
