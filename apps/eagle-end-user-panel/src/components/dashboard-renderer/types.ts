@@ -9,7 +9,7 @@ export interface LayoutItem {
     minH?: number;
     maxH?: number;
     static?: boolean;
-    widget: Record<string, any>;
+    widget?: Record<string, any>;
 }
 
 // Grid configuration constants

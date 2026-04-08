@@ -818,8 +818,8 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             width: 20, height: 20, borderRadius: 5, border: 'none',
                                             background: 'transparent',
-                                            color: darkMode ? '#6b7280' : '#9ca3af',
-                                            cursor: 'pointer', opacity: 0.3,
+                                            color: darkMode ? '#94a3b8' : '#4b5563',
+                                            cursor: 'pointer', opacity: darkMode ? 0.5 : 0.4,
                                             transition: 'opacity 0.15s, background 0.15s',
                                         }}
                                         onMouseEnter={e => {
@@ -827,7 +827,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                                             (e.currentTarget as HTMLElement).style.background = darkMode ? '#374151' : '#f3f4f6';
                                         }}
                                         onMouseLeave={e => {
-                                            (e.currentTarget as HTMLElement).style.opacity = '0';
+                                            (e.currentTarget as HTMLElement).style.opacity = darkMode ? '0.5' : '0.4';
                                             (e.currentTarget as HTMLElement).style.background = 'transparent';
                                         }}
                                     >

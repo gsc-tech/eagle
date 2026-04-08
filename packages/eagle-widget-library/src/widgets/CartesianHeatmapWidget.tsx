@@ -289,7 +289,7 @@ function processSheetData(data: Record<string, any[]>): ParsedHeatmapData {
 
     const sheetsByGroup: Record<string, string[]> = {
         'Energy': [], 'Metals': [], 'Agriculture (Grains and OilSeeds)': [],
-        'Soft Commodities (ICE)': [], 'Livestock': [], 'Interest Rates/Fixed Income': [], 'Other': [],
+        'Soft Commodities (ICE)': [], 'Livestock': [], 'Equities': [], 'Interest Rates/Fixed Income': [], 'Other': [],
     };
 
     Object.keys(data).forEach(sheetName => {
