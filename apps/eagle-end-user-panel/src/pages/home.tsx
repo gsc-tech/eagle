@@ -185,11 +185,32 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             }
 
             if (tabsMatch && widgetsMatch) {
-                // Use stored layout but keep backend titles/metadata
-                finalTabs = backendTabs.map(bt => ({
-                    ...bt,
-                    layout: stored.layouts[bt.id] || bt.layout
-                }));
+                // Use stored layout for positioning, but ALWAYS keep backend widget configuration
+                finalTabs = backendTabs.map(bt => {
+                    const storedTabLayout = stored.layouts[bt.id];
+                    if (!storedTabLayout) return bt;
+
+                    const mergedLayout = bt.layout.map(backendItem => {
+                        const storedItem = storedTabLayout.find(si => si.i === backendItem.i);
+                        if (storedItem) {
+                            // Merge: take user-adjustable layout props from stored, but everything else from backend
+                            return {
+                                ...backendItem,
+                                x: storedItem.x,
+                                y: storedItem.y,
+                                w: storedItem.w,
+                                h: storedItem.h,
+                            };
+                        }
+                        return backendItem;
+                    });
+
+                    return {
+                        ...bt,
+                        layout: mergedLayout
+                    };
+                });
+
                 if (stored.activeTabId && backendTabIds.includes(stored.activeTabId)) {
                     finalActiveTabId = stored.activeTabId;
                 }
@@ -292,7 +313,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 tab.id === activeTabId ? { ...tab, layout: newLayout } : tab
             )
         );
-        updateStoredTabLayout(selected.dashboardID, activeTabId, newLayout);
+        
+        // Strip widget config before saving to local storage (save only layout/positioning)
+        const layoutToStore = newLayout.map(({ widget, ...rest }) => rest);
+        updateStoredTabLayout(selected.dashboardID, activeTabId, layoutToStore as LayoutItem[]);
     };
 
     const handleTabChange = (tabId: string) => {
