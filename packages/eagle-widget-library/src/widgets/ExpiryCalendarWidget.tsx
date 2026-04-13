@@ -108,19 +108,19 @@ const CATEGORY_NORMALISE: Record<string, string> = {
 const GROUP_ORDER = ["Energy", "Metals", "Agriculture", "Soft Commodities", "Livestock", "Interest Rates", "Equities"];
 
 const GROUP_CONFIG: Record<string, { color: string; bg: string; darkBg: string; icon: string }> = {
-  Energy:           { color: "#f97316", bg: "rgba(249,115,22,0.10)", darkBg: "rgba(249,115,22,0.18)", icon: "⚡" },
-  Metals:           { color: "#d97706", bg: "rgba(217,119,6,0.10)",  darkBg: "rgba(234,179,8,0.18)",  icon: "🪙" },
-  Agriculture:      { color: "#16a34a", bg: "rgba(22,163,74,0.10)",  darkBg: "rgba(34,197,94,0.18)",  icon: "🌾" },
-  "Soft Commodities":{ color: "#7c3aed", bg: "rgba(124,58,237,0.10)",darkBg: "rgba(168,85,247,0.18)", icon: "☕" },
-  Livestock:        { color: "#db2777", bg: "rgba(219,39,119,0.10)", darkBg: "rgba(236,72,153,0.18)", icon: "🐄" },
-  "Interest Rates": { color: "#2563eb", bg: "rgba(37,99,235,0.10)",  darkBg: "rgba(59,130,246,0.18)", icon: "📈" },
-  Equities:         { color: "#0891b2", bg: "rgba(8,145,178,0.10)",  darkBg: "rgba(6,182,212,0.18)",  icon: "📊" },
-  Other:            { color: "#64748b", bg: "rgba(100,116,135,0.10)",darkBg: "rgba(113,113,122,0.18)",icon: "📦" },
+  Energy:           { color: "#f97316", bg: "rgba(249,115,22,0.08)", darkBg: "rgba(249,115,22,0.14)", icon: "⚡" },
+  Metals:           { color: "#eab308", bg: "rgba(234,179,8,0.08)",  darkBg: "rgba(234,179,8,0.14)",  icon: "🪙" },
+  Agriculture:      { color: "#22c55e", bg: "rgba(34,197,94,0.08)",  darkBg: "rgba(34,197,94,0.14)",  icon: "🌾" },
+  "Soft Commodities":{ color: "#b45309", bg: "rgba(180,83,9,0.08)",   darkBg: "rgba(180,83,9,0.14)",   icon: "☕" },
+  Livestock:        { color: "#ec4899", bg: "rgba(236,72,153,0.08)", darkBg: "rgba(236,72,153,0.14)", icon: "🐄" },
+  "Interest Rates": { color: "#3b82f6", bg: "rgba(59,130,246,0.08)",  darkBg: "rgba(59,130,246,0.14)", icon: "📈" },
+  Equities:         { color: "#6366f1", bg: "rgba(99,102,241,0.08)",  darkBg: "rgba(99,102,241,0.14)",  icon: "📊" },
+  Other:            { color: "#94a3b8", bg: "rgba(148,163,184,0.08)",darkBg: "rgba(148,163,184,0.14)",icon: "📦" },
 };
 
 const DATE_TYPE_CONFIG = {
-  expiry: { label: "Expiry", short: "EXP", color: "#dc2626", bg: "rgba(220,38,38,0.12)" },
-  ftd:    { label: "FTD",    short: "FTD", color: "#16a34a", bg: "rgba(22,163,74,0.12)"  },
+  expiry: { label: "Expiry", short: "EXP", color: "#a855f7", bg: "rgba(168,85,247,0.16)" },
+  ftd:    { label: "FTD",    short: "FTD", color: "#06b6d4", bg: "rgba(6,182,212,0.16)"  },
 } as const;
 
 export type EventDateType = "expiry" | "ftd";
@@ -356,7 +356,7 @@ function Chip({ active, children, onClick, dk }: { active: boolean; children: Re
       border: `1px solid ${active ? "#3b82f6" : t.border}`,
       background: active ? "rgba(59,130,246,0.12)" : t.bgCard,
       cursor: "pointer", color: active ? "#3b82f6" : t.textSec,
-      fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
+      fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
       transition: "all 0.1s", userSelect: "none",
       boxShadow: dk ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
     }}>
@@ -378,7 +378,7 @@ function DateTypePill({ type, small = false }: { type: EventDateType; small?: bo
   const tc = DATE_TYPE_CONFIG[type];
   return (
     <span style={{
-      fontSize: small ? 8 : 9, fontWeight: 700, padding: small ? "1px 4px" : "1px 6px",
+      fontSize: small ? 9 : 10, fontWeight: 800, padding: small ? "1px 5px" : "2px 7px",
       borderRadius: 4, background: tc.bg, color: tc.color,
       letterSpacing: "0.04em", flexShrink: 0, border: `1px solid ${tc.color}30`,
     }}>
@@ -400,7 +400,7 @@ function ViewModeToggle({ value, onChange, dk }: { value: ViewMode; onChange: (v
     }}>
       {(["expiry", "ftd", "both"] as ViewMode[]).map(m => (
         <button key={m} onClick={() => onChange(m)} style={{
-          padding: "3px 9px", fontSize: 11, fontWeight: 700,
+          padding: "4px 11px", fontSize: 12, fontWeight: 700,
           background: value === m ? (dk ? "#27272a" : "#e2e8f0") : "transparent",
           color: value === m ? t.textPrimary : t.textMuted,
           border: "none", cursor: "pointer", transition: "all 0.1s",
@@ -430,11 +430,11 @@ const EventBadge = memo(({ event, dk }: { event: ExpiryEvent; dk: boolean }) => 
         position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
         background: DATE_TYPE_CONFIG[event.dateType].color, borderRadius: "9px 0 0 9px",
       }} />
-      <GroupDot group={event._group} size={7} />
-      <span style={{ fontWeight: 800, fontSize: 12, color: cfg.color, letterSpacing: "0.02em", minWidth: 28 }}>
+      <GroupDot group={event._group} size={8} />
+      <span style={{ fontWeight: 800, fontSize: 13, color: cfg.color, letterSpacing: "0.02em", minWidth: 28 }}>
         {event.symbol}
       </span>
-      <span style={{ fontSize: 11, color: t.textSec, fontWeight: 600 }}>
+      <span style={{ fontSize: 12, color: t.textSec, fontWeight: 600 }}>
         {event.contractCode}
       </span>
       <DateTypePill type={event.dateType} />
@@ -492,7 +492,7 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
     }}>
       {/* Day number */}
       <span style={{
-        fontSize: 13, lineHeight: 1, zIndex: 1,
+        fontSize: 15, lineHeight: 1, zIndex: 1,
         fontWeight: isToday || isSelected ? 800 : hasEvents ? 700 : 500,
         color: isSelected || isToday
           ? "#3b82f6"
@@ -512,17 +512,17 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
       {hasEvents && (
         <div style={{ display: "flex", gap: 3, marginTop: 2 }}>
           {expCount > 0 && (
-            <span style={{ fontSize: 8, fontWeight: 800, color: "#dc2626", lineHeight: 1 }}>{expCount}E</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", lineHeight: 1 }}>{expCount}E</span>
           )}
           {ftdCount > 0 && (
-            <span style={{ fontSize: 8, fontWeight: 800, color: "#16a34a", lineHeight: 1 }}>{ftdCount}F</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: "#06b6d4", lineHeight: 1 }}>{ftdCount}F</span>
           )}
         </div>
       )}
 
       {/* Corner indicators */}
-      {hasExpiry && <div style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "#dc2626" }} />}
-      {hasFTD    && <div style={{ position: "absolute", top: 3, left:  3, width: 5, height: 5, borderRadius: "50%", background: "#16a34a" }} />}
+      {hasExpiry && <div style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "#a855f7" }} />}
+      {hasFTD    && <div style={{ position: "absolute", top: 3, left:  3, width: 5, height: 5, borderRadius: "50%", background: "#06b6d4" }} />}
     </div>
   );
 });
@@ -565,7 +565,7 @@ const DayDetailPanel = memo(({ date, events, dk, onClose }: {
           <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3b82f6", marginBottom: 3 }}>
             Contract Details
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: t.textPrimary }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.textPrimary }}>
             {date.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" })}
           </div>
           <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap" }}>
@@ -573,12 +573,12 @@ const DayDetailPanel = memo(({ date, events, dk, onClose }: {
               {events.length} total
             </span>
             {expCount > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(220,38,38,0.12)", color: "#dc2626" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
                 {expCount} Expiry
               </span>
             )}
             {ftdCount > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(22,163,74,0.12)", color: "#16a34a" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(6,182,212,0.12)", color: "#06b6d4" }}>
                 {ftdCount} FTD
               </span>
             )}
@@ -597,10 +597,10 @@ const DayDetailPanel = memo(({ date, events, dk, onClose }: {
       <div style={{ display: "flex", flexShrink: 0, borderBottom: `1px solid ${t.border}`, padding: "0 14px" }}>
         {([["all", "All"], ["expiry", "Expiry"], ["ftd", "FTD"]] as [string, string][]).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key as any)} style={{
-            padding: "6px 10px 5px", fontSize: 10, fontWeight: 700,
+            padding: "8px 12px 7px", fontSize: 12, fontWeight: 700,
             background: "transparent", border: "none", cursor: "pointer",
-            color: tab === key ? "#3b82f6" : t.textMuted,
-            borderBottom: tab === key ? "2px solid #3b82f6" : "2px solid transparent",
+            color: tab === key ? (key === "expiry" ? "#a855f7" : key === "ftd" ? "#06b6d4" : "#3b82f6") : t.textMuted,
+            borderBottom: tab === key ? `2px solid ${key === "expiry" ? "#a855f7" : key === "ftd" ? "#06b6d4" : "#3b82f6"}` : "2px solid transparent",
             marginBottom: -1,
           }}>
             {label}
@@ -659,7 +659,7 @@ const UpcomingItem = memo(({ dateKey, events, dk, isSelected, onClick }: {
   const expCount = events.filter(e => e.dateType === "expiry").length;
   const ftdCount = events.filter(e => e.dateType === "ftd").length;
 
-  const urgencyColor = isToday ? "#dc2626" : (!isPast && daysAway <= 3) ? "#dc2626" : daysAway <= 7 ? "#d97706" : t.textMuted;
+  const urgencyColor = isToday ? "#ef4444" : (!isPast && daysAway <= 3) ? "#f97316" : daysAway <= 7 ? "#eab308" : t.textMuted;
 
   return (
     <div onClick={onClick} style={{
@@ -673,25 +673,25 @@ const UpcomingItem = memo(({ dateKey, events, dk, isSelected, onClick }: {
       borderLeft: isSelected ? "3px solid #3b82f6" : "3px solid transparent",
     }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 3 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: t.textPrimary }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.textPrimary }}>
           {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </span>
-        <span style={{ fontSize: 9, color: t.textMuted, flex: 1 }}>
+        <span style={{ fontSize: 11, color: t.textMuted, flex: 1 }}>
           {date.toLocaleDateString("en-US", { weekday: "short" })}
         </span>
-        <span style={{ fontSize: 9, fontWeight: 800, color: urgencyColor }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: urgencyColor }}>
           {isToday ? "TODAY" : isPast ? `${Math.abs(daysAway)}d ago` : `T-${daysAway}`}
         </span>
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
         {expCount > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: "rgba(220,38,38,0.12)", color: "#dc2626", border: "1px solid rgba(220,38,38,0.2)" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 5, background: "rgba(168,85,247,0.12)", color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}>
             {expCount} EXP
           </span>
         )}
         {ftdCount > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: "rgba(22,163,74,0.12)", color: "#16a34a", border: "1px solid rgba(22,163,74,0.2)" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 5, background: "rgba(6,182,212,0.12)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.2)" }}>
             {ftdCount} FTD
           </span>
         )}
@@ -702,10 +702,10 @@ const UpcomingItem = memo(({ dateKey, events, dk, isSelected, onClick }: {
           const cfg = GROUP_CONFIG[e._group] ?? GROUP_CONFIG["Other"];
           return (
             <span key={e.id} style={{
-              fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+              fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 5,
               background: dk ? cfg.darkBg : cfg.bg, color: cfg.color,
               border: `1px solid ${cfg.color}25`,
-              display: "flex", alignItems: "center", gap: 2,
+              display: "flex", alignItems: "center", gap: 3,
             }}>
               {e.symbol}
             </span>
@@ -736,16 +736,16 @@ function Legend({ dk }: { dk: boolean }) {
       {GROUP_ORDER.map(g => {
         const cfg = GROUP_CONFIG[g];
         return (
-          <div key={g} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 600, color: t.textMuted }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
+          <div key={g} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 600, color: t.textMuted }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
             {g}
           </div>
         );
       })}
       <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-        {[["#dc2626", "Expiry (top-right)"], ["#16a34a", "FTD (top-left)"]] .map(([col, label]) => (
-          <span key={label} style={{ fontSize: 9, fontWeight: 700, color: col, display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: col, display: "inline-block" }} />
+        {[["#a855f7", "Expiry (top-right)"], ["#06b6d4", "FTD (top-left)"]] .map(([col, label]) => (
+          <span key={label} style={{ fontSize: 10, fontWeight: 700, color: col, display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: col, display: "inline-block" }} />
             {label}
           </span>
         ))}
@@ -779,8 +779,13 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   const todayKey  = useMemo(() => toDateKey(today), [today]);
 
   // ── View state ────────────────────────────────────────────────────────────
-  const [viewYear,  setViewYear]  = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewDate, setViewDate] = useState(() => {
+    const d = new Date(today);
+    d.setDate(1);
+    return d;
+  });
+  const viewYear = viewDate.getFullYear();
+  const viewMonth = viewDate.getMonth();
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [viewMode, setViewMode]   = useState<ViewMode>("both");
 
@@ -853,10 +858,22 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
       if (viewMode !== "both" && e.dateType !== viewMode) return false;
       if (categoryFilter.size > 0 && !categoryFilter.has(e._group)) return false;
       if (symbolFilter.size > 0   && !symbolFilter.has(e.symbol))   return false;
-      if (q && !e.symbol.toLowerCase().includes(q) &&
-               !e.productName.toLowerCase().includes(q) &&
-               !e.contractCode.toLowerCase().includes(q) &&
-               !e.exchange.toLowerCase().includes(q)) return false;
+      
+      if (q) {
+        const symbolMatch = e.symbol.toLowerCase().includes(q);
+        const codeMatch   = e.contractCode.toLowerCase().includes(q);
+        
+        if (q.length <= 2) {
+          // For short queries (like "CL"), only match the most relevant identifiers
+          if (!symbolMatch && !codeMatch) return false;
+        } else {
+          // For longer queries, search across all descriptive fields
+          const productMatch  = e.productName.toLowerCase().includes(q);
+          const exchangeMatch = e.exchange.toLowerCase().includes(q);
+          if (!symbolMatch && !codeMatch && !productMatch && !exchangeMatch) return false;
+        }
+      }
+      
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -890,18 +907,27 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   const monthLabel = useMemo(() => new Date(viewYear, viewMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }), [viewYear, viewMonth]);
 
   const handlePrevMonth = useCallback(() => {
-    setViewMonth(m => { if (m === 0) { setViewYear(y => y - 1); return 11; } return m - 1; });
+    setViewDate(prev => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() - 1);
+      return d;
+    });
     setSelectedDateKey(null);
   }, []);
 
   const handleNextMonth = useCallback(() => {
-    setViewMonth(m => { if (m === 11) { setViewYear(y => y + 1); return 0; } return m + 1; });
+    setViewDate(prev => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() + 1);
+      return d;
+    });
     setSelectedDateKey(null);
   }, []);
 
   const handleToday = useCallback(() => {
-    setViewYear(today.getFullYear());
-    setViewMonth(today.getMonth());
+    const d = new Date(today);
+    d.setDate(1);
+    setViewDate(d);
     setSelectedDateKey(todayKey);
   }, [today, todayKey]);
 
@@ -982,14 +1008,14 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
           <button onClick={handlePrevMonth} style={{ padding: 4, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: t.textMuted, display: "flex" }}>
             <ChevronLeft size={15} />
           </button>
-          <span style={{ fontSize: 13, fontWeight: 800, minWidth: 128, textAlign: "center", color: t.textPrimary }}>
+          <span style={{ fontSize: 15, fontWeight: 800, minWidth: 150, textAlign: "center", color: t.textPrimary }}>
             {monthLabel}
           </span>
           <button onClick={handleNextMonth} style={{ padding: 4, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", color: t.textMuted, display: "flex" }}>
-            <ChevronRight size={15} />
+            <ChevronRight size={17} />
           </button>
           <button onClick={handleToday} style={{
-            padding: "3px 9px", fontSize: 11, fontWeight: 700, borderRadius: 6,
+            padding: "4px 11px", fontSize: 12, fontWeight: 700, borderRadius: 6,
             border: `1px solid ${t.border}`, background: t.bgCard,
             color: t.textSec, cursor: "pointer",
             boxShadow: dk ? "none" : "0 1px 2px rgba(0,0,0,0.06)",
@@ -1014,12 +1040,12 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                 {totalInView}
               </span>
               {expTotal > 0 && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(220,38,38,0.12)", color: "#dc2626" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
                   {expTotal} EXP
                 </span>
               )}
               {ftdTotal > 0 && (
-                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(22,163,74,0.12)", color: "#16a34a" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 5, background: "rgba(6,182,212,0.12)", color: "#06b6d4" }}>
                   {ftdTotal} FTD
                 </span>
               )}
@@ -1042,7 +1068,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             <input
               type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search…"
-              style={{ background: "transparent", border: "none", outline: "none", fontSize: 11, flex: 1, fontWeight: 500, color: t.textPrimary, minWidth: 0 }}
+              style={{ background: "transparent", border: "none", outline: "none", fontSize: 12, flex: 1, fontWeight: 500, color: t.textPrimary, minWidth: 0 }}
             />
             {search && (
               <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
@@ -1075,9 +1101,13 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                   <label key={g} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 2px", cursor: "pointer" }}>
                     <CB checked={checked} onChange={() => {
                       setCategoryFilter(prev => {
-                        const next = new Set(prev.size === 0 ? availableGroups : prev);
+                        // If everything is selected (empty set), select ONLY this one
+                        if (prev.size === 0) return new Set([g]);
+                        // Otherwise toggle
+                        const next = new Set(prev);
                         next.has(g) ? next.delete(g) : next.add(g);
-                        return next.size === availableGroups.length ? new Set() : next;
+                        // If we manually toggled all or cleared all, return to empty set (all)
+                        return (next.size === 0 || next.size === availableGroups.length) ? new Set() : next;
                       });
                     }} />
                     <span style={{ fontSize: 12, color: cfg.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, userSelect: "none" }}>
@@ -1115,9 +1145,13 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                   <label key={sym} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 2px", cursor: "pointer" }}>
                     <CB checked={checked} onChange={() => {
                       setSymbolFilter(prev => {
-                        const next = new Set(prev.size === 0 ? availableSymbols : prev);
+                        // If everything is selected (empty set), select ONLY this one
+                        if (prev.size === 0) return new Set([sym]);
+                        // Otherwise toggle
+                        const next = new Set(prev);
                         next.has(sym) ? next.delete(sym) : next.add(sym);
-                        return next.size === availableSymbols.length ? new Set() : next;
+                        // If we manually toggled all or cleared all, return to empty set (all)
+                        return (next.size === 0 || next.size === availableSymbols.length) ? new Set() : next;
                       });
                     }} />
                     <GroupDot group={group} size={6} />
@@ -1171,7 +1205,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                   {sidebarShowAll ? "Month" : "All"}
                 </button>
               </div>
-              <div style={{ fontSize: 9, color: t.textMuted, marginTop: 1 }}>
+              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
                 {upcomingDates.length} dates
               </div>
             </div>
@@ -1196,8 +1230,9 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                     onClick={() => {
                       setSelectedDateKey(prev => prev === key ? null : key);
                       const d = isoToLocal(key);
-                      setViewYear(d.getFullYear());
-                      setViewMonth(d.getMonth());
+                      const vd = new Date(d);
+                      vd.setDate(1);
+                      setViewDate(vd);
                     }}
                   />
                 ))
@@ -1217,10 +1252,10 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             }}>
               {WEEKDAYS.map(d => (
                 <div key={d} style={{
-                  textAlign: "center", fontSize: 9, fontWeight: 800,
+                  textAlign: "center", fontSize: 10, fontWeight: 800,
                   textTransform: "uppercase", letterSpacing: "0.07em",
                   color: d === "Sun" || d === "Sat" ? t.textMuted : t.textSec,
-                  paddingBottom: 4,
+                  paddingBottom: 6,
                 }}>
                   {d}
                 </div>
