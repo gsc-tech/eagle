@@ -14,7 +14,7 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
     ({ className, variant = 'primary', size = 'md', style, onMouseEnter, onMouseLeave, ...props }, ref) => {
         const [isHovered, setIsHovered] = useState(false);
         const baseStyles = "inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none";
-        
+
         const variants = {
             primary: "text-white shadow-sm active:scale-95",
             secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700",
@@ -23,27 +23,27 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
             destructive: "text-white shadow-sm active:scale-95 hover:brightness-110"
         };
         const sizes = {
-            sm: "h-8 px-3 text-xs",
-            md: "h-9 px-4 text-sm"
+            sm: "h-7 px-2 text-[10px]",
+            md: "h-8 px-3 text-[11px]"
         };
-        
+
         const petrolColor = '#00998b';
         const petrolHighlight = '#00b3a2';
-        const redColor = '#ef4444'; 
+        const redColor = '#ef4444';
         const redHighlight = '#ff5a5a';
 
         const finalStyle = {
             ...style,
-            backgroundColor: variant === 'primary' 
-                ? (isHovered ? petrolHighlight : petrolColor) 
-                : variant === 'destructive' 
-                    ? (isHovered ? redHighlight : redColor) 
+            backgroundColor: variant === 'primary'
+                ? (isHovered ? petrolHighlight : petrolColor)
+                : variant === 'destructive'
+                    ? (isHovered ? redHighlight : redColor)
                     : undefined,
             color: variant === 'outline' ? (isHovered ? petrolHighlight : petrolColor) : undefined,
             borderColor: variant === 'outline' ? (isHovered ? `${petrolHighlight}80` : `${petrolColor}40`) : undefined,
             transform: ((variant === 'primary' || variant === 'destructive') && isHovered) ? 'translateY(-1px)' : undefined,
-            boxShadow: ((variant === 'primary' || variant === 'destructive') && isHovered) 
-                ? `0 4px 12px ${variant === 'primary' ? 'rgba(0, 153, 139, 0.25)' : 'rgba(239, 68, 68, 0.25)'}` 
+            boxShadow: ((variant === 'primary' || variant === 'destructive') && isHovered)
+                ? `0 4px 12px ${variant === 'primary' ? 'rgba(0, 153, 139, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
                 : undefined
         };
 
@@ -71,9 +71,9 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
         <input
             ref={ref}
             className={`flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 tlr-no-spinner 
-            ${darkMode 
-                ? 'border-gray-800 bg-gray-900 text-gray-100 placeholder:text-gray-500' 
-                : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400'} 
+            ${darkMode
+                    ? 'border-gray-800 bg-gray-900 text-gray-100 placeholder:text-gray-500'
+                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400'} 
             ${className}`}
             style={{
                 ...props.style,
@@ -91,9 +91,9 @@ const Select = ({ options, value, onChange, placeholder, darkMode, className }: 
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 className={`flex h-9 w-full rounded-md border px-3 pr-8 py-1 text-[11px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 cursor-pointer
-                ${darkMode 
-                    ? 'border-gray-800 bg-gray-900 text-gray-100' 
-                    : 'border-gray-200 bg-white text-gray-900'}`}
+                ${darkMode
+                        ? 'border-gray-800 bg-gray-900 text-gray-100'
+                        : 'border-gray-200 bg-white text-gray-900'}`}
             >
                 <option value="" disabled>{placeholder}</option>
                 {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -122,7 +122,8 @@ type RowStatus = "idle" | "editing" | "submitting" | "success" | "error";
 
 interface RowState {
     status: RowStatus;
-    requestedValue: string;
+    requestedOutrightLimit: string;
+    requestedSpreadLimit: string;
     reason: string;
     message: string;
     draftData?: Record<string, string>;
@@ -145,23 +146,24 @@ interface RowProps {
     readOnly?: boolean;
 }
 
-const TableRow: React.FC<RowProps> = ({ 
-    data, 
-    columns, 
-    darkMode, 
-    resolvedLimitField, 
-    colorizeNumeric, 
-    onSubmit, 
-    isNew, 
-    onRemove, 
-    columnOptions = {}, 
+const TableRow: React.FC<RowProps> = ({
+    data,
+    columns,
+    darkMode,
+    resolvedLimitField,
+    colorizeNumeric,
+    onSubmit,
+    isNew,
+    onRemove,
+    columnOptions = {},
     showRequestCols,
     onStateChange,
     readOnly = false
 }) => {
     const [state, setState] = useState<RowState>(() => ({
         status: isNew ? "editing" : "idle",
-        requestedValue: "",
+        requestedOutrightLimit: "",
+        requestedSpreadLimit: "",
         reason: "",
         message: "",
         draftData: isNew ? columns.reduce((acc, col) => ({ ...acc, [col]: "" }), {}) : undefined
@@ -179,7 +181,8 @@ const TableRow: React.FC<RowProps> = ({
     const handleRequest = () => {
         setState({
             status: "editing",
-            requestedValue: resolvedLimitField ? String(data[resolvedLimitField] || "") : "",
+            requestedOutrightLimit: String(data.outrightLimit || ""),
+            requestedSpreadLimit: String(data.spreadLimit || ""),
             reason: "",
             message: ""
         });
@@ -194,14 +197,14 @@ const TableRow: React.FC<RowProps> = ({
     };
 
     const handleInternalSubmit = async () => {
-        if (!state.requestedValue) return;
-        
+        if (!state.requestedOutrightLimit && !state.requestedSpreadLimit) return;
+
         // Ensure reason is provided
         if (!state.reason || state.reason.trim().length < 5) {
-            setState(prev => ({ 
-                ...prev, 
-                status: "error", 
-                message: "Please provide a valid reason (min 5 chars)" 
+            setState(prev => ({
+                ...prev,
+                status: "error",
+                message: "Please provide a valid reason (min 5 chars)"
             }));
             return;
         }
@@ -246,7 +249,7 @@ const TableRow: React.FC<RowProps> = ({
                     value={state.draftData?.[key] || ""}
                     onChange={e => setState({ ...state, draftData: { ...state.draftData, [key]: e.target.value } })}
                     disabled={state.status === "submitting"}
-                    className="h-9 text-[11px] text-center min-w-[80px]"
+                    className="h-9 text-sm text-center min-w-[80px]"
                     darkMode={darkMode}
                     placeholder={key}
                 />
@@ -254,7 +257,7 @@ const TableRow: React.FC<RowProps> = ({
         }
 
         if (typeof val === "number") {
-            return <span className="tabular-nums">{val.toLocaleString()}</span>;
+            return <span className="tabular-nums font-semibold">{val.toLocaleString()}</span>;
         }
         return <span>{val ?? "—"}</span>;
     };
@@ -271,39 +274,32 @@ const TableRow: React.FC<RowProps> = ({
                     </div>
                 </td>
             ))}
-            
+
             {showRequestCols && (
                 <>
-                    <td className="px-4 py-2 min-w-[180px] text-center whitespace-nowrap">
+                    {/* Request Outright Limit */}
+                    <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
                         {isEditing ? (
                             <div className="flex items-center gap-2 justify-center h-full">
                                 <Input
                                     type="number"
-                                    value={state.requestedValue}
-                                    onChange={e => setState({ ...state, requestedValue: e.target.value })}
+                                    value={state.requestedOutrightLimit}
+                                    onChange={e => setState({ ...state, requestedOutrightLimit: e.target.value })}
                                     disabled={state.status === "submitting"}
-                                    className="h-9 w-24 text-xs text-center"
+                                    className="h-8 w-24 text-sm text-center"
                                     darkMode={darkMode}
                                     autoFocus={!isNew}
-                                    placeholder="Amount"
+                                    placeholder="Outright"
                                 />
-                                {state.requestedValue && resolvedLimitField && !isNew && (
+                                {!isNew && state.requestedOutrightLimit && data.outrightLimit !== undefined && (
                                     <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
-                                        ${Number(state.requestedValue) > Number(data[resolvedLimitField]) 
-                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20' 
-                                            : Number(state.requestedValue) < Number(data[resolvedLimitField])
+                                        ${Number(state.requestedOutrightLimit) > Number(data.outrightLimit)
+                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
+                                            : Number(state.requestedOutrightLimit) < Number(data.outrightLimit)
                                                 ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
                                                 : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
-                                        {Number(state.requestedValue) > Number(data[resolvedLimitField]) ? '+' : ''}
-                                        {Number(state.requestedValue) - Number(data[resolvedLimitField])}
-                                    </div>
-                                )}
-                                {isNew && state.requestedValue && (
-                                    <div 
-                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-[#00998b20]"
-                                        style={{ color: '#00998b', backgroundColor: '#00998b10' }}
-                                    >
-                                        New
+                                        {Number(state.requestedOutrightLimit) > Number(data.outrightLimit) ? '+' : ''}
+                                        {Number(state.requestedOutrightLimit) - Number(data.outrightLimit)}
                                     </div>
                                 )}
                             </div>
@@ -312,6 +308,37 @@ const TableRow: React.FC<RowProps> = ({
                         )}
                     </td>
 
+                    {/* Request Spread Limit */}
+                    <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
+                        {isEditing ? (
+                            <div className="flex items-center gap-2 justify-center h-full">
+                                <Input
+                                    type="number"
+                                    value={state.requestedSpreadLimit}
+                                    onChange={e => setState({ ...state, requestedSpreadLimit: e.target.value })}
+                                    disabled={state.status === "submitting"}
+                                    className="h-8 w-24 text-sm text-center"
+                                    darkMode={darkMode}
+                                    placeholder="Spread"
+                                />
+                                {!isNew && state.requestedSpreadLimit && data.spreadLimit !== undefined && (
+                                    <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
+                                        ${Number(state.requestedSpreadLimit) > Number(data.spreadLimit)
+                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
+                                            : Number(state.requestedSpreadLimit) < Number(data.spreadLimit)
+                                                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                                                : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
+                                        {Number(state.requestedSpreadLimit) > Number(data.spreadLimit) ? '+' : ''}
+                                        {Number(state.requestedSpreadLimit) - Number(data.spreadLimit)}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <span className="text-gray-400 italic text-xs">—</span>
+                        )}
+                    </td>
+
+                    {/* Reason */}
                     <td className="px-4 py-2 min-w-[180px] text-center whitespace-nowrap">
                         {isEditing ? (
                             <div className="flex items-center justify-center">
@@ -320,7 +347,7 @@ const TableRow: React.FC<RowProps> = ({
                                     value={state.reason}
                                     onChange={e => setState({ ...state, reason: e.target.value })}
                                     disabled={state.status === "submitting"}
-                                    className="h-9 text-xs"
+                                    className="h-8 text-sm text-center"
                                     darkMode={darkMode}
                                 />
                             </div>
@@ -332,9 +359,9 @@ const TableRow: React.FC<RowProps> = ({
             )}
 
             {!readOnly && (
-                <td className="px-4 py-2 min-w-[140px] text-right">
-                    <div className="flex flex-col items-end gap-1">
-                        <div className="flex justify-end gap-2 items-center">
+                <td className="px-4 py-2 min-w-[140px] text-center">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                        <div className="flex justify-center gap-2 items-center">
                             {state.status === "idle" && (
                                 <Button variant="outline" size="sm" onClick={handleRequest} className="gap-1">
                                     <Plus size={14} /> Request
@@ -343,13 +370,13 @@ const TableRow: React.FC<RowProps> = ({
 
                             {(state.status === "editing" || state.status === "error") && (
                                 <>
-                                    <Button 
-                                        variant="primary" 
-                                        size="sm" 
-                                        onClick={handleInternalSubmit} 
-                                        className="min-w-[70px]"
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleInternalSubmit}
+                                        className="min-w-[70px] h-8"
                                         disabled={!state.reason || state.reason.trim().length < 5}
-                                        style={{ 
+                                        style={{
                                             opacity: (!state.reason || state.reason.trim().length < 5) ? 0.5 : 1,
                                             cursor: (!state.reason || state.reason.trim().length < 5) ? 'not-allowed' : 'pointer'
                                         }}
@@ -375,13 +402,13 @@ const TableRow: React.FC<RowProps> = ({
                                 </div>
                             )}
                         </div>
-                        
+
                         {state.status === "error" && (
                             <span className="text-[10px] text-red-500 font-bold bg-red-50 dark:bg-red-900/10 px-2 py-0.5 rounded border border-red-100 dark:border-red-900/20">
                                 {state.message}
                             </span>
                         )}
-                        
+
                         {(state.status === "editing") && (!state.reason || state.reason.trim().length < 5) && (
                             <span className="text-[9px] text-gray-400 italic">Reason required *</span>
                         )}
@@ -449,21 +476,20 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                                 const isReasonValid = row.reason && row.reason.trim().length >= 5;
                                 return (
                                     <tr key={idx} className={darkMode ? 'hover:bg-gray-900' : 'hover:bg-gray-50'}>
-                                        <td className="px-4 py-2.5 font-mono text-xs">{row['Account Number']}</td>
-                                        <td className="px-4 py-2.5">{row['Product']}</td>
-                                        <td className="px-4 py-2.5 text-center text-gray-500">{row.CurrentLimit || 0}</td>
+                                        <td className="px-4 py-2.5 font-mono text-xs">{row.account || row['Account Number']}</td>
+                                        <td className="px-4 py-2.5">{row.product || row['Product']}</td>
+                                        <td className="px-4 py-2.5 text-center text-gray-500">{row.currentLimit || 0}</td>
                                         <td className="px-4 py-2.5 text-center">
                                             <div className="flex flex-col items-center gap-0.5">
                                                 <span className={`text-base font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    {row.RequestedLimit.toLocaleString()}
+                                                    {(row.requestedLimit || row.RequestedLimit).toLocaleString()}
                                                 </span>
-                                                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
-                                                    Number(row.RequestedLimit) > Number(row.CurrentLimit || 0) 
-                                                        ? 'text-green-400 bg-green-500/20' 
-                                                        : 'text-red-400 bg-red-500/20'
-                                                }`}>
-                                                    {Number(row.RequestedLimit) > Number(row.CurrentLimit || 0) ? <Plus size={10} strokeWidth={4} /> : <span className="mb-1 text-lg">↓</span>}
-                                                    {Math.abs(Number(row.RequestedLimit) - Number(row.CurrentLimit || 0)).toLocaleString()}
+                                                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedLimit || row.RequestedLimit) > Number(row.currentLimit || 0)
+                                                    ? 'text-green-400 bg-green-500/20'
+                                                    : 'text-red-400 bg-red-500/20'
+                                                    }`}>
+                                                    {Number(row.requestedLimit || row.RequestedLimit) > Number(row.currentLimit || 0) ? <Plus size={10} strokeWidth={4} /> : <span className="mb-1 text-lg">↓</span>}
+                                                    {Math.abs(Number(row.requestedLimit || row.RequestedLimit) - Number(row.currentLimit || 0)).toLocaleString()}
                                                 </span>
                                             </div>
                                         </td>
@@ -500,9 +526,9 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                     </div>
                     <div className="flex items-center gap-3">
                         <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-                        <Button 
-                            variant="primary" 
-                            onClick={onConfirm} 
+                        <Button
+                            variant="primary"
+                            onClick={onConfirm}
                             disabled={isSubmitting || missingReasonsCount > 0}
                             style={{ opacity: (isSubmitting || missingReasonsCount > 0) ? 0.5 : 1 }}
                         >
@@ -543,8 +569,9 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         () => initialWidgetState?.parameters || defaultParams
     );
     const [newRows, setNewRows] = useState<number[]>([]);
+    const [activeTab, setActiveTab] = useState<'Futures' | 'Options'>('Futures');
     const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
-    
+
     // Import/Export States
     const [importData, setImportData] = useState<any[]>([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -566,17 +593,37 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     });
 
     const [limitsData, setLimitsData] = useState<any[]>([]);
-    
+
     useEffect(() => {
         if (rawData && Array.isArray(rawData)) {
-            setLimitsData(rawData);
+            const mapped = rawData.map((item: any) => ({
+                ...item,
+                account: item.account || item['Account Number'] || item['Account'] || '',
+                product: item.product || item['Product'] || '',
+                productName: item.productName || item['Product Name'] || item['product name'] || '',
+                productClass: item.productClass || item['Product Class'] || item['product class'] || '',
+                instrumentType: item.instrumentType || item['Instrument Type'] || item['instrument type'] || item['category'] || '',
+                outrightLimit: item.outrightLimit !== undefined ? item.outrightLimit : (item['Outright Limit'] ?? item['outright limit'] ?? 0),
+                spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0)
+            }));
+            setLimitsData(mapped);
         }
     }, [rawData]);
 
     const dataKeys = useMemo(() => {
-        if (limitsData.length === 0) return [];
-        return Object.keys(limitsData[0]).filter(k => k !== 'RequestedLimit' && k !== 'reason');
-    }, [limitsData]);
+        return ["account", "product", "productName", "outrightLimit", "spreadLimit"];
+    }, []);
+
+    const DISPLAY_NAMES: Record<string, string> = {
+        account: "Account",
+        product: "Product",
+        productName: "Product Name",
+        productClass: "Class",
+        outrightLimit: "Outright Limit",
+        spreadLimit: "Spread Limit",
+        tradingPlatform: "Platform",
+        instrumentType: "Type"
+    };
 
     const resolvedLimitField = useMemo(() => {
         if (limitField) return limitField;
@@ -588,7 +635,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     // Check if any row is actively requesting/editing, filtering for currently visible rows
     const showRequestCols = useMemo(() => {
         if (newRows.length > 0) return true;
-        
+
         return Object.entries(rowStates).some(([id, s]) => {
             // If it's a new row, only count it if it still exists in the newRows list
             if (id.startsWith('new-')) {
@@ -607,11 +654,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         dataKeys.forEach(key => {
             const k = key.toLowerCase();
             if (k.includes("account") || k.includes("number")) {
-                 options[key] = Array.from(new Set(limitsData.map(row => String(row[key])).filter(Boolean))).sort();
+                options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['Account Number'] || '')).filter(Boolean))).sort();
             } else if (k.includes("product")) {
-                options[key] = productOptions.length > 0 ? productOptions : Array.from(new Set(limitsData.map(row => String(row[key])).filter(Boolean))).sort();
-            } else if (k.includes("category")) {
-                 options[key] = Array.from(new Set(limitsData.map(row => String(row[key])).filter(Boolean))).sort();
+                options[key] = productOptions.length > 0 ? productOptions : Array.from(new Set(limitsData.map(row => String(row[key] || row['Product'] || '')).filter(Boolean))).sort();
+            } else if (k.includes("category") || k.includes("type")) {
+                options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['instrumentType'] || row['category'] || '')).filter(Boolean))).sort();
             }
         });
         return options;
@@ -635,7 +682,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         const body = {
             ...row,
             reason: state.reason,
-            RequestedLimit: state.requestedValue !== "" ? Number(state.requestedValue) : null
+            requestedOutrightLimit: state.requestedOutrightLimit !== "" ? Number(state.requestedOutrightLimit) : null,
+            requestedSpreadLimit: state.requestedSpreadLimit !== "" ? Number(state.requestedSpreadLimit) : null
         };
 
         let token: string | undefined;
@@ -659,10 +707,10 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     };
 
     // ─── Export Logic ────────────────────────────────────────────────────────
-    
+
     const handleExport = async () => {
         if (limitsData.length === 0) return;
-        
+
         try {
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet("Trader Limits");
@@ -676,11 +724,15 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
             // Add rows
             const rows = limitsData.map(row => ({
-                ...row,
-                RequestedLimit: row[resolvedLimitField || ""] || 0,
-                reason: "" // Guide user to fill this
+                account: row.account || row['Account Number'],
+                product: row.product || row['Product'],
+                productName: row.productName || row['Product Name'],
+                outrightLimit: row.outrightLimit || row['Outright Limit'] || 0,
+                spreadLimit: row.spreadLimit || row['Spread Limit'] || 0,
+                requestedLimit: 0,
+                reason: ""
             }));
-            
+
             worksheet.addRows(rows);
 
             // Style headers
@@ -696,7 +748,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = window.URL.createObjectURL(blob);
-            
+
             const link = document.createElement("a");
             link.href = url;
             link.download = `trader_limits_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -722,10 +774,10 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 const arrayBuffer = event.target?.result as ArrayBuffer;
                 const workbook = new ExcelJS.Workbook();
                 await workbook.xlsx.load(arrayBuffer);
-                
+
                 const worksheet = workbook.worksheets[0];
                 const results: any[] = [];
-                
+
                 // Map headers to column index
                 const headerRow = worksheet.getRow(1);
                 const colMap: Record<string, number> = {};
@@ -756,8 +808,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     if (!acc || !prod || reqLimit === null || reqLimit === undefined) return;
 
-                    const existing = limitsData.find(l => 
-                        String(l["Account Number"]) === String(acc) && 
+                    const existing = limitsData.find(l =>
+                        String(l["Account Number"]) === String(acc) &&
                         String(l["Product"]) === String(prod)
                     );
 
@@ -766,10 +818,10 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     if (requestedVal !== currentVal) {
                         results.push({
-                            "Account Number": String(acc),
-                            "Product": String(prod),
-                            CurrentLimit: currentVal,
-                            RequestedLimit: requestedVal,
+                            account: String(acc),
+                            product: String(prod),
+                            currentLimit: currentVal,
+                            requestedLimit: requestedVal,
                             reason: String(reason)
                         });
                     }
@@ -785,7 +837,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 console.error("ExcelJS Parse Error:", err);
                 alert("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
             }
-            
+
             if (fileInputRef.current) fileInputRef.current.value = "";
         };
         reader.readAsArrayBuffer(file);
@@ -796,7 +848,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         try {
             // Using the bulk endpoint (simulated on backend)
             const endpoint = `${apiUrl.replace(/\/limits$/, '')}/limits/request/bulk`;
-            
+
             let token: string | undefined;
             if (isTokenRequired && getFirebaseToken) {
                 token = await getFirebaseToken();
@@ -812,7 +864,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             });
 
             if (!res.ok) throw new Error(`Import failed: ${res.statusText}`);
-            
+
             const result = await res.json();
             alert(result.message || "Import successful!");
             setIsImportModalOpen(false);
@@ -863,129 +915,165 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             `}</style>
 
             <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
-                
-                {!readOnly && (
-                    <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
-                        <div className="flex items-center gap-2">
-                            <Info size={14} style={{ color: '#00998b' }} />
-                            <span>Click <span style={{ color: '#00998b', fontWeight: '600' }}>+ Request</span> to modify a limit, or use the <b>Add New Product</b> button to add a commodity.</span>
-                        </div>
-                        
-                        {allowAddingRows && (
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="file" 
-                                    ref={fileInputRef} 
-                                    onChange={handleFileChange} 
-                                    className="hidden" 
-                                    accept=".xlsx, .xls, .csv" 
+
+                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
+                    <div className="flex items-center gap-2">
+                        {!readOnly && (
+                            <>
+                                <Info size={14} style={{ color: '#00998b' }} />
+                                <span>Click <span style={{ color: '#00998b', fontWeight: '600' }}>+ Request</span> to modify a limit, or use the <b>Add New Product</b> button to add a commodity.</span>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {!readOnly && (
+                            <>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    accept=".xlsx, .xls, .csv"
                                 />
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => fileInputRef.current?.click()}
                                     className="h-7 text-[11px] gap-1 px-3"
                                     title="Import limits from Excel/CSV"
                                 >
                                     <Upload size={14} /> Import
                                 </Button>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={handleExport}
-                                    className="h-7 text-[11px] gap-1 px-3"
-                                    title="Export current limits to CSV"
-                                >
-                                    <Download size={14} /> Export
-                                </Button>
-                                <Button 
-                                    variant="primary" 
-                                    size="sm" 
-                                    onClick={handleAddNewRow}
-                                    className="h-7 text-[11px] gap-1 px-3 font-bold"
-                                >
-                                    <Plus size={14} /> Add New Product
-                                </Button>
-                            </div>
+                            </>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleExport}
+                            className="h-7 text-[11px] gap-1 px-3"
+                            title="Export current limits to Excel"
+                        >
+                            <Download size={14} /> Export
+                        </Button>
+                        {!readOnly && allowAddingRows && (
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={handleAddNewRow}
+                                className="h-7 text-[11px] gap-1 px-3 font-bold"
+                            >
+                                <Plus size={14} /> Add New Product
+                            </Button>
                         )}
                     </div>
-                )}
+                </div>
 
-                <ImportPreviewModal 
-                    isOpen={isImportModalOpen} 
-                    onClose={() => setIsImportModalOpen(false)} 
-                    onConfirm={handleConfirmImport} 
-                    data={importData} 
+                <ImportPreviewModal
+                    isOpen={isImportModalOpen}
+                    onClose={() => setIsImportModalOpen(false)}
+                    onConfirm={handleConfirmImport}
+                    data={importData}
                     darkMode={darkMode}
                     isSubmitting={isBulkSubmitting}
                 />
 
+                <div className={`flex items-center gap-1 border-b ${borderColor} px-4`}>
+                    <button
+                        onClick={() => setActiveTab('Futures')}
+                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Futures' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
+                    >
+                        Futures
+                        {activeTab === 'Futures' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Options')}
+                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Options' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
+                    >
+                        Options
+                        {activeTab === 'Options' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
+                    </button>
+                </div>
+
                 <div className="flex-1 overflow-auto">
-                    <table className="w-full border-collapse text-left">
-                        <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
-                            <tr>
-                                {dataKeys.map(key => (
-                                    <th key={key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>
-                                        {key}
-                                    </th>
-                                ))}
-                                {showRequestCols && (
-                                    <>
-                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Requested Limit</th>
-                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
-                                    </>
-                                )}
-                                {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-right ${headerTextColor}`}></th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Existing Rows */}
-                            {limitsData.map((row, idx) => (
-                                <TableRow
-                                    key={`existing-${idx}`}
-                                    data={row}
-                                    columns={dataKeys}
-                                    darkMode={darkMode}
-                                    resolvedLimitField={resolvedLimitField}
-                                    colorizeNumeric={colorizeNumeric}
-                                    onSubmit={handleSubmit}
-                                    showRequestCols={showRequestCols}
-                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
-                                    readOnly={readOnly}
-                                />
-                            ))}
-
-                            {/* New Rows */}
-                            {newRows.map((rid) => (
-                                <TableRow
-                                    key={`new-${rid}`}
-                                    data={{}}
-                                    columns={dataKeys}
-                                    darkMode={darkMode}
-                                    resolvedLimitField={resolvedLimitField}
-                                    colorizeNumeric={colorizeNumeric}
-                                    onSubmit={handleSubmit}
-                                    isNew={true}
-                                    onRemove={() => handleRemoveNewRow(rid)}
-                                    columnOptions={columnOptions}
-                                    showRequestCols={showRequestCols}
-                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
-                                    readOnly={readOnly}
-                                />
-                            ))}
-
-                            {limitsData.length === 0 && newRows.length === 0 && (
+                    {activeTab === 'Futures' ? (
+                        <table className="w-full border-collapse text-left">
+                            <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
                                 <tr>
-                                <td colSpan={dataKeys.length + (showRequestCols ? 2 : 0) + (readOnly ? 0 : 1)} className="px-4 py-20 text-center">
-                                        <div className="flex flex-col items-center gap-2 opacity-40">
-                                            <Loader2 size={24} className="animate-spin" />
-                                            <span className="text-sm font-medium italic">No data available. Add a new product to get started.</span>
-                                        </div>
-                                    </td>
+                                    {dataKeys.map(key => (
+                                        <th key={key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>
+                                            {DISPLAY_NAMES[key] || key}
+                                        </th>
+                                    ))}
+                                    {showRequestCols && (
+                                        <>
+                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Outright</th>
+                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Spread</th>
+                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
+                                        </>
+                                    )}
+                                    {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Actions</th>}
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {/* Existing Rows */}
+                                {limitsData.map((row, idx) => (
+                                    <TableRow
+                                        key={`existing-${idx}`}
+                                        data={row}
+                                        columns={dataKeys}
+                                        darkMode={darkMode}
+                                        resolvedLimitField={resolvedLimitField}
+                                        colorizeNumeric={colorizeNumeric}
+                                        onSubmit={handleSubmit}
+                                        showRequestCols={showRequestCols}
+                                        onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
+                                        readOnly={readOnly}
+                                    />
+                                ))}
+
+                                {/* New Rows */}
+                                {newRows.map((rid) => (
+                                    <TableRow
+                                        key={`new-${rid}`}
+                                        data={{}}
+                                        columns={dataKeys}
+                                        darkMode={darkMode}
+                                        resolvedLimitField={resolvedLimitField}
+                                        colorizeNumeric={colorizeNumeric}
+                                        onSubmit={handleSubmit}
+                                        isNew={true}
+                                        onRemove={() => handleRemoveNewRow(rid)}
+                                        columnOptions={columnOptions}
+                                        showRequestCols={showRequestCols}
+                                        onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
+                                        readOnly={readOnly}
+                                    />
+                                ))}
+
+                                {limitsData.length === 0 && newRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={dataKeys.length + (showRequestCols ? 3 : 0) + (readOnly ? 0 : 1)} className="px-4 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-2 opacity-40">
+                                                <Loader2 size={24} className="animate-spin" />
+                                                <span className="text-sm font-medium italic">No data available. Add a new product to get started.</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full gap-4 opacity-40 py-20 text-center">
+                            <div className="p-6 rounded-full bg-gray-500/10">
+                                <Info size={48} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold uppercase tracking-widest mb-1">Options</h3>
+                                <p className="text-sm italic">No data available for this layout yet.</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </WidgetContainer>
@@ -995,3 +1083,4 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 export const TraderLimitsRequestWidgetDef = {
     component: TraderLimitsRequestWidget,
 };
+

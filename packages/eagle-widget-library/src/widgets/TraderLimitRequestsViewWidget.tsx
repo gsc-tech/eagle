@@ -76,8 +76,8 @@ const InstrumentTypeBadge = ({ type, darkMode }: { type?: InstrumentType; darkMo
             className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm"
             style={{
                 backgroundColor: darkMode ? s.darkBg : s.bg,
-                color:           darkMode ? s.darkText : s.text,
-                borderColor:     darkMode ? s.darkBorder : s.border,
+                color: darkMode ? s.darkText : s.text,
+                borderColor: darkMode ? s.darkBorder : s.border,
             }}
         >
             {type}
@@ -98,7 +98,7 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
     const textColor = darkMode ? "text-gray-300" : "text-gray-700";
     const subText = darkMode ? "text-gray-500" : "text-gray-400";
 
-    const currentLimit   = Number(item.currentLimit || 0);
+    const currentLimit = Number(item.currentLimit || 0);
     const requestedLimit = Number(item.requestedLimit || 0);
     const delta = requestedLimit - currentLimit;
     const deltaColor = delta > 0 ? "text-green-500" : delta < 0 ? "text-red-500" : (darkMode ? "text-gray-500" : "text-gray-400");
@@ -108,7 +108,7 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
             {/* Dynamic Backend Columns */}
             {dynamicKeys.map(key => (
                 <td key={key} className={`px-4 py-3 text-sm text-center ${textColor}`}>
-                    {item[key] ?? <span className={`italic text-[11px] ${subText}`}>—</span>}
+                    {item[key] ?? <span className={`italic text-sm ${subText}`}>—</span>}
                 </td>
             ))}
 
@@ -142,8 +142,8 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
             </td>
 
             {/* Timeline */}
-            <td className={`px-4 py-3 text-[11px] min-w-[160px] ${subText}`}>
-                <div className="flex flex-col gap-0.5">
+            <td className={`px-4 py-3 text-sm text-center min-w-[160px] ${subText}`}>
+                <div className="flex flex-col items-center justify-center gap-0.5">
                     <span>{item.requestedAt || "—"}</span>
                     {item.reviewedAt && (
                         <div className="flex items-center gap-1 mt-0.5">
@@ -155,25 +155,25 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
             </td>
 
             {/* Reviewer / Comments */}
-            <td className={`px-4 py-3 text-xs ${textColor}`}>
+            <td className={`px-4 py-3 text-sm text-center ${textColor}`}>
                 {item.reviewerName ? (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col items-center justify-center gap-1">
                         <div className="flex items-center gap-1.5">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-200"}`}>
                                 <User size={10} className="opacity-50" />
                             </div>
-                            <span className={`font-semibold text-[11px] ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                            <span className={`font-semibold text-sm ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
                                 {item.reviewerName}
                             </span>
                         </div>
                         {item.comments && (
-                            <span className={`italic text-[11px] leading-relaxed ${subText}`}>
+                            <span className={`italic text-sm leading-relaxed ${subText}`}>
                                 "{item.comments}"
                             </span>
                         )}
                     </div>
                 ) : (
-                    <span className={`italic text-[11px] ${subText}`}>—</span>
+                    <span className={`italic text-sm ${subText}`}>—</span>
                 )}
             </td>
         </tr>
@@ -212,13 +212,20 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
 
     const items = useMemo<any[]>(() => {
         if (!rawData || !Array.isArray(rawData)) return [];
-        return rawData;
+        return rawData.map(item => ({
+            ...item,
+            instrumentType: item.instrumentType || item['instrument type'] || item.category || '',
+            currentLimit: Number(item.currentLimit ?? item.currentLevel ?? item.CurrentLimit ?? item.CurrentLevel ?? 0),
+            requestedLimit: Number(item.requestedLimit ?? item.RequestedLimit ?? 0)
+        }));
     }, [rawData]);
 
     // Fields that have special rendering logic and shouldn't be in the dynamic columns
     const specialFields = useMemo(() => new Set([
-        "id", "currentLimit", "requestedLimit", "instrumentType", "status", 
-        "requestedAt", "reviewedAt", "reviewerName", "comments"
+        "id", "currentLimit", "requestedLimit", "instrumentType", "status",
+        "requestedAt", "reviewedAt", "reviewerName", "comments",
+        "currentLevel", "requestedLimit", "instrument type", "category",
+        "CurrentLimit", "RequestedLimit", "CurrentLevel", "status"
     ]), []);
 
     const dynamicKeys = useMemo(() => {
@@ -259,24 +266,28 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                     <table className="w-full border-collapse text-left">
                         <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
                             <tr>
-                                {dynamicKeys.map(key => (
-                                    <th key={key} className={thClass}>{key.replace(/([A-Z])/g, ' $1').trim()}</th>
-                                ))}
+                                {dynamicKeys.map(key => {
+                                    const label = key === 'productName' ? 'Product Name' :
+                                        key === 'productClass' ? 'Class' :
+                                            key === 'tradingPlatform' ? 'Platform' :
+                                                key.replace(/([A-Z])/g, ' $1').trim();
+                                    return <th key={key} className={thClass}>{label}</th>;
+                                })}
                                 <th className={thClass}>Current</th>
                                 <th className={thClass}>Requested</th>
                                 <th className={thClass}>Instrument</th>
                                 <th className={thClass}>Status</th>
-                                <th className={`${thClass} text-left`}>Timeline</th>
-                                <th className={`${thClass} text-left`}>Reviewer / Comments</th>
+                                <th className={thClass}>Timeline</th>
+                                <th className={thClass}>Reviewer / Comments</th>
                             </tr>
                         </thead>
                         <tbody>
                             {items.map((item) => (
-                                <TableRow 
-                                    key={item.id} 
-                                    item={item} 
-                                    dynamicKeys={dynamicKeys} 
-                                    darkMode={darkMode} 
+                                <TableRow
+                                    key={item.id}
+                                    item={item}
+                                    dynamicKeys={dynamicKeys}
+                                    darkMode={darkMode}
                                 />
                             ))}
 
