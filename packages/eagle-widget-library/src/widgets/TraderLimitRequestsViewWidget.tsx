@@ -5,138 +5,180 @@ import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { Clock, CheckCircle2, XCircle, ArrowRight, User } from "lucide-react";
+import { Clock, ArrowRight, User, Loader2, Info } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface MyLimitRequestsViewWidgetProps extends BaseWidgetProps {
     darkMode?: boolean;
     pollInterval?: number;
-    limitHistoryApiUrl?: string; // Optional specific API for history
+    limitHistoryApiUrl?: string;
 }
 
 type RequestStatus = "Pending" | "Approved" | "Rejected" | "Acknowledged";
-
 type InstrumentType = "Future" | "Option";
 
-interface LimitRequestHistory {
-    id: string;
-    limitType: string;
-    instrumentType?: InstrumentType;
-    currentLimit: number;
-    requestedLimit: number;
-    status: RequestStatus;
-    requestedAt: string;
-    reviewedAt?: string;
-    reviewerName?: string;
-    comments?: string;
-}
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 
-// ─── Sub-components ─────────────────────────────────────────────────────────
+const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; border: string; darkBg: string; darkText: string; darkBorder: string }> = {
+    Pending: {
+        bg: "#fffbeb", text: "#92400e", border: "#fcd34d",
+        darkBg: "rgba(245,158,11,0.12)", darkText: "#fbbf24", darkBorder: "rgba(245,158,11,0.3)",
+    },
+    Approved: {
+        bg: "#d1fae5", text: "#065f46", border: "#6ee7b7",
+        darkBg: "rgba(16,185,129,0.15)", darkText: "#6ee7b7", darkBorder: "rgba(16,185,129,0.35)",
+    },
+    Rejected: {
+        bg: "#fee2e2", text: "#991b1b", border: "#fca5a5",
+        darkBg: "rgba(239,68,68,0.15)", darkText: "#fca5a5", darkBorder: "rgba(239,68,68,0.35)",
+    },
+    Acknowledged: {
+        bg: "#fff7ed", text: "#9a3412", border: "#fdba74",
+        darkBg: "rgba(249,115,22,0.12)", darkText: "#fb923c", darkBorder: "rgba(249,115,22,0.3)",
+    },
+};
 
-const StatusBadge = ({ status, darkMode }: { status: RequestStatus, darkMode: boolean }) => {
-    const styles: Record<RequestStatus, string> = {
-        Pending: darkMode
-            ? "bg-amber-400/20 text-amber-300 border-amber-400/30"
-            : "bg-yellow-400 text-yellow-900 border-yellow-500",
-        Approved: darkMode
-            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-            : "bg-green-500 text-white border-green-600",
-        Rejected: darkMode
-            ? "bg-red-500/20 text-red-300 border-red-500/30"
-            : "bg-red-500 text-white border-red-600",
-        Acknowledged: darkMode
-            ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
-            : "bg-orange-500 text-white border-orange-600",
-    };
-
+const StatusBadge = ({ status, darkMode }: { status: RequestStatus; darkMode: boolean }) => {
+    const s = STATUS_STYLES[status];
     return (
-        <span className={`px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider border shadow-sm ${styles[status]}`}>
+        <span
+            className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border"
+            style={{
+                backgroundColor: darkMode ? s.darkBg : s.bg,
+                color: darkMode ? s.darkText : s.text,
+                borderColor: darkMode ? s.darkBorder : s.border,
+            }}
+        >
             {status}
         </span>
     );
 };
 
-const InstrumentTypeBadge = ({ type, darkMode }: { type?: InstrumentType, darkMode: boolean }) => {
-    if (!type) return <span className={`text-xs italic ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}>—</span>;
+// ─── Instrument Type Badge ────────────────────────────────────────────────────
 
-    const styles: Record<InstrumentType, string> = {
-        Future: darkMode
-            ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-            : "bg-blue-100 text-blue-700 border-blue-300",
-        Option: darkMode
-            ? "bg-violet-500/20 text-violet-300 border-violet-500/30"
-            : "bg-violet-100 text-violet-700 border-violet-300",
-    };
+const INSTRUMENT_STYLES: Record<InstrumentType, { bg: string; text: string; border: string; darkBg: string; darkText: string; darkBorder: string }> = {
+    Future: {
+        bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe",
+        darkBg: "rgba(59,130,246,0.15)", darkText: "#93c5fd", darkBorder: "rgba(59,130,246,0.3)",
+    },
+    Option: {
+        bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe",
+        darkBg: "rgba(139,92,246,0.15)", darkText: "#c4b5fd", darkBorder: "rgba(139,92,246,0.3)",
+    },
+};
 
+const InstrumentTypeBadge = ({ type, darkMode }: { type?: InstrumentType; darkMode: boolean }) => {
+    if (!type) return <span className={`text-[11px] italic ${darkMode ? "text-gray-600" : "text-gray-400"}`}>—</span>;
+    const s = INSTRUMENT_STYLES[type];
     return (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider border shadow-sm ${styles[type]}`}>
+        <span
+            className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm"
+            style={{
+                backgroundColor: darkMode ? s.darkBg : s.bg,
+                color:           darkMode ? s.darkText : s.text,
+                borderColor:     darkMode ? s.darkBorder : s.border,
+            }}
+        >
             {type}
         </span>
     );
 };
 
-const TableRow = ({ item, darkMode }: { item: LimitRequestHistory, darkMode: boolean }) => {
-    const textColor = darkMode ? "text-gray-300" : "text-gray-700";
-    const subTextColor = darkMode ? "text-gray-500" : "text-gray-400";
+// ─── Table Row ────────────────────────────────────────────────────────────────
+
+interface RowProps {
+    item: any;
+    dynamicKeys: string[];
+    darkMode: boolean;
+}
+
+const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
+    const textColor = darkMode ? "text-gray-300" : "text-gray-700";
+    const subText = darkMode ? "text-gray-500" : "text-gray-400";
+
+    const currentLimit   = Number(item.currentLimit || 0);
+    const requestedLimit = Number(item.requestedLimit || 0);
+    const delta = requestedLimit - currentLimit;
+    const deltaColor = delta > 0 ? "text-green-500" : delta < 0 ? "text-red-500" : (darkMode ? "text-gray-500" : "text-gray-400");
 
     return (
-        <tr className={`border-b ${borderColor} transition-colors ${darkMode ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50/50'}`}>
-            <td className={`px-6 py-4 text-sm font-semibold ${textColor}`}>
-                {item.limitType}
+        <tr className={`group transition-colors ${darkMode ? "hover:bg-gray-800/50" : "hover:bg-gray-50/50"} border-b ${borderColor}`}>
+            {/* Dynamic Backend Columns */}
+            {dynamicKeys.map(key => (
+                <td key={key} className={`px-4 py-3 text-sm text-center ${textColor}`}>
+                    {item[key] ?? <span className={`italic text-[11px] ${subText}`}>—</span>}
+                </td>
+            ))}
+
+            {/* Current Limit */}
+            <td className={`px-4 py-3 text-sm text-center tabular-nums ${textColor}`}>
+                {currentLimit.toLocaleString()}
             </td>
-            <td className={`px-6 py-4 text-sm text-center tabular-nums ${textColor}`}>
-                {item.currentLimit.toLocaleString()}
-            </td>
-            <td className="px-6 py-4 text-center">
-                <div className="inline-flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded border text-sm font-medium tabular-nums shadow-sm
-                        ${darkMode ? 'bg-gray-900 border-gray-800 text-gray-100' : 'bg-gray-50 border-gray-200 text-gray-900'}`}>
-                        {item.requestedLimit.toLocaleString()}
+
+            {/* Requested Limit + delta */}
+            <td className="px-4 py-3 text-center">
+                <div className="flex flex-col items-center gap-0.5">
+                    <span className={`tabular-nums text-sm font-medium ${textColor}`}>
+                        {requestedLimit.toLocaleString()}
                     </span>
-                    {item.status === 'Approved' && <CheckCircle2 size={14} className="text-emerald-500" />}
+                    {delta !== 0 && (
+                        <span className={`text-[10px] font-bold tabular-nums ${deltaColor}`}>
+                            {delta > 0 ? "+" : ""}{delta.toLocaleString()}
+                        </span>
+                    )}
                 </div>
             </td>
-            <td className="px-6 py-4 text-center">
+
+            {/* Instrument Type */}
+            <td className="px-4 py-3 text-center">
                 <InstrumentTypeBadge type={item.instrumentType} darkMode={darkMode} />
             </td>
-            <td className="px-6 py-4 text-center">
+
+            {/* Status */}
+            <td className="px-4 py-3 text-center">
                 <StatusBadge status={item.status} darkMode={darkMode} />
             </td>
-            <td className={`px-6 py-4 text-[11px] min-w-[180px] ${subTextColor}`}>
+
+            {/* Timeline */}
+            <td className={`px-4 py-3 text-[11px] min-w-[160px] ${subText}`}>
                 <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5 leading-none">
-                        <span>{item.requestedAt}</span>
-                    </div>
+                    <span>{item.requestedAt || "—"}</span>
                     {item.reviewedAt && (
-                        <div className="flex items-center gap-1.5 leading-none mt-1">
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <ArrowRight size={9} className="opacity-40" />
                             <span>{item.reviewedAt}</span>
-                            <ArrowRight size={10} className="mt-0.5" />
                         </div>
                     )}
                 </div>
             </td>
-            <td className={`px-6 py-4 text-xs ${textColor}`}>
-                {item.reviewerName && (
+
+            {/* Reviewer / Comments */}
+            <td className={`px-4 py-3 text-xs ${textColor}`}>
+                {item.reviewerName ? (
                     <div className="flex flex-col gap-1">
-                        <span className="font-bold flex items-center gap-1">
-                            {item.reviewerName}
-                        </span>
-                        <span className={`italic ${subTextColor}`}>{item.comments || "No comments provided."}</span>
+                        <div className="flex items-center gap-1.5">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-200"}`}>
+                                <User size={10} className="opacity-50" />
+                            </div>
+                            <span className={`font-semibold text-[11px] ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                                {item.reviewerName}
+                            </span>
+                        </div>
+                        {item.comments && (
+                            <span className={`italic text-[11px] leading-relaxed ${subText}`}>
+                                "{item.comments}"
+                            </span>
+                        )}
                     </div>
+                ) : (
+                    <span className={`italic text-[11px] ${subText}`}>—</span>
                 )}
             </td>
         </tr>
     );
 };
-
-const StatusDot = ({ color, label, darkMode }: { color: string, label: string, darkMode: boolean }) => (
-    <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-        <span className={`text-[10px] font-bold uppercase tracking-wide ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{label}</span>
-    </div>
-);
 
 // ─── Main Widget ───────────────────────────────────────────────────────────────
 
@@ -168,14 +210,31 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
         getFirebaseToken,
     });
 
-    const items = useMemo<LimitRequestHistory[]>(() => {
+    const items = useMemo<any[]>(() => {
         if (!rawData || !Array.isArray(rawData)) return [];
-        return rawData as LimitRequestHistory[];
+        return rawData;
     }, [rawData]);
 
-    const textColor = darkMode ? "text-gray-400" : "text-gray-500";
+    // Fields that have special rendering logic and shouldn't be in the dynamic columns
+    const specialFields = useMemo(() => new Set([
+        "id", "currentLimit", "requestedLimit", "instrumentType", "status", 
+        "requestedAt", "reviewedAt", "reviewerName", "comments"
+    ]), []);
+
+    const dynamicKeys = useMemo(() => {
+        if (items.length === 0) return [];
+        // Extract keys from first item that aren't special
+        return Object.keys(items[0]).filter(k => !specialFields.has(k));
+    }, [items, specialFields]);
+
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const headerBg = darkMode ? "bg-gray-900/40" : "bg-gray-50/50";
+    const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
+    const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
+
+    const thClass = `px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`;
+
+    // Total columns = dynamic keys + fixed specials (Current, Requested, Instrument, Status, Timeline, Comments)
+    const totalCols = dynamicKeys.length + 6;
 
     return (
         <WidgetContainer
@@ -187,52 +246,52 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >
-            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
+            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? "bg-gray-950 text-gray-100" : "bg-white text-gray-900"}`}>
 
-                {/* Header Legend */}
-                <div className={`flex items-center justify-end gap-5 px-6 py-3 border-b ${borderColor}`}>
-                    <StatusDot color="#facc15" label="Pending" darkMode={darkMode} />
-                    <StatusDot color="#22c55e" label="Approved" darkMode={darkMode} />
-                    <StatusDot color="#ef4444" label="Rejected" darkMode={darkMode} />
-                    <StatusDot color="#f97316" label="Acknowledged" darkMode={darkMode} />
+                {/* Info bar */}
+                <div className={`flex items-center gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
+                    <Info size={14} style={{ color: "#00998b" }} />
+                    <span>View the status of your submitted limit requests.</span>
                 </div>
 
-                {/* Table Area */}
+                {/* Table */}
                 <div className="flex-1 overflow-auto">
                     <table className="w-full border-collapse text-left">
-                        <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-md border-b ${borderColor}`}>
+                        <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
                             <tr>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider ${textColor}`}>Limit Type</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider text-center ${textColor}`}>Current Limit</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider text-center ${textColor}`}>Requested Limit</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider text-center ${textColor}`}>Instrument Type</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider text-center ${textColor}`}>Status</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider ${textColor}`}>Requested At / Reviewed At</th>
-                                <th className={`px-6 py-4 text-xs font-bold uppercase tracking-wider ${textColor}`}>Comments</th>
+                                {dynamicKeys.map(key => (
+                                    <th key={key} className={thClass}>{key.replace(/([A-Z])/g, ' $1').trim()}</th>
+                                ))}
+                                <th className={thClass}>Current</th>
+                                <th className={thClass}>Requested</th>
+                                <th className={thClass}>Instrument</th>
+                                <th className={thClass}>Status</th>
+                                <th className={`${thClass} text-left`}>Timeline</th>
+                                <th className={`${thClass} text-left`}>Reviewer / Comments</th>
                             </tr>
                         </thead>
                         <tbody>
                             {items.map((item) => (
-                                <TableRow key={item.id} item={item} darkMode={darkMode} />
+                                <TableRow 
+                                    key={item.id} 
+                                    item={item} 
+                                    dynamicKeys={dynamicKeys} 
+                                    darkMode={darkMode} 
+                                />
                             ))}
 
-                            {items.length === 0 && !loading && (
+                            {/* Empty / loading state */}
+                            {(items.length === 0) && (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-24 text-center">
-                                        <div className="flex flex-col items-center gap-3 opacity-30">
-                                            <Clock size={32} />
-                                            <span className="text-sm font-medium italic">No request history found.</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-
-                            {loading && (
-                                <tr>
-                                    <td colSpan={7} className="px-6 py-32 text-center">
-                                        <div className="flex flex-col items-center gap-3 opacity-50">
-                                            <Loader2 size={32} className="animate-spin text-indigo-500" />
-                                            <span className="text-sm font-medium animate-pulse">Fetching request history...</span>
+                                    <td colSpan={totalCols} className="px-4 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-2 opacity-40">
+                                            {loading
+                                                ? <Loader2 size={24} className="animate-spin" />
+                                                : <Clock size={24} />
+                                            }
+                                            <span className="text-sm font-medium italic">
+                                                {loading ? "Fetching request history..." : "No request history found."}
+                                            </span>
                                         </div>
                                     </td>
                                 </tr>
@@ -248,19 +307,3 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
 export const TraderLimitRequestsViewWidgetDef = {
     component: TraderLimitRequestsViewWidget,
 };
-
-const Loader2 = ({ size, className }: { size: number, className?: string }) => (
-    <svg
-        width={size}
-        height={size}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={className}
-    >
-        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-);
