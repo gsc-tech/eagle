@@ -1,11 +1,12 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import ExcelJS from "exceljs";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown } from "lucide-react";
+import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet } from "lucide-react";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export interface TraderLimitsRequestWidgetProps extends BaseWidgetProps {
     colorizeNumeric?: boolean;
     allowAddingRows?: boolean;
     productOptions?: string[];
+    readOnly?: boolean;
 }
 
 type RowStatus = "idle" | "editing" | "submitting" | "success" | "error";
@@ -140,6 +142,7 @@ interface RowProps {
     columnOptions?: Record<string, string[]>;
     showRequestCols: boolean;
     onStateChange?: (state: RowState) => void;
+    readOnly?: boolean;
 }
 
 const TableRow: React.FC<RowProps> = ({ 
@@ -153,7 +156,8 @@ const TableRow: React.FC<RowProps> = ({
     onRemove, 
     columnOptions = {}, 
     showRequestCols,
-    onStateChange 
+    onStateChange,
+    readOnly = false
 }) => {
     const [state, setState] = useState<RowState>(() => ({
         status: isNew ? "editing" : "idle",
@@ -163,11 +167,14 @@ const TableRow: React.FC<RowProps> = ({
         draftData: isNew ? columns.reduce((acc, col) => ({ ...acc, [col]: "" }), {}) : undefined
     }));
 
-    useEffect(() => {
-        onStateChange?.(state);
-    }, [state, onStateChange]);
+    const onStateChangeRef = useRef(onStateChange);
+    onStateChangeRef.current = onStateChange;
 
-    const isEditing = state.status === "editing" || state.status === "submitting";
+    useEffect(() => {
+        onStateChangeRef.current?.(state);
+    }, [state]);
+
+    const isEditing = state.status === "editing" || state.status === "submitting" || state.status === "error";
 
     const handleRequest = () => {
         setState({
@@ -188,6 +195,17 @@ const TableRow: React.FC<RowProps> = ({
 
     const handleInternalSubmit = async () => {
         if (!state.requestedValue) return;
+        
+        // Ensure reason is provided
+        if (!state.reason || state.reason.trim().length < 5) {
+            setState(prev => ({ 
+                ...prev, 
+                status: "error", 
+                message: "Please provide a valid reason (min 5 chars)" 
+            }));
+            return;
+        }
+
         setState(prev => ({ ...prev, status: "submitting" }));
         try {
             const submissionData = isNew ? { ...state.draftData } : data;
@@ -313,37 +331,189 @@ const TableRow: React.FC<RowProps> = ({
                 </>
             )}
 
-            <td className="px-4 py-2 min-w-[140px] text-right">
-                <div className="flex justify-end gap-2 items-center">
-                    {state.status === "idle" && (
-                        <Button variant="outline" size="sm" onClick={handleRequest} className="gap-1">
-                            <Plus size={14} /> Request
-                        </Button>
-                    )}
+            {!readOnly && (
+                <td className="px-4 py-2 min-w-[140px] text-right">
+                    <div className="flex flex-col items-end gap-1">
+                        <div className="flex justify-end gap-2 items-center">
+                            {state.status === "idle" && (
+                                <Button variant="outline" size="sm" onClick={handleRequest} className="gap-1">
+                                    <Plus size={14} /> Request
+                                </Button>
+                            )}
 
-                    {(state.status === "editing" || state.status === "error") && (
-                        <>
-                            <Button variant="primary" size="sm" onClick={handleInternalSubmit} className="min-w-[70px]">Submit</Button>
-                            <Button variant="destructive" size="sm" onClick={handleCancel} className="w-8 h-8 px-0 flex items-center justify-center font-bold">
-                                X
-                            </Button>
-                        </>
-                    )}
+                            {(state.status === "editing" || state.status === "error") && (
+                                <>
+                                    <Button 
+                                        variant="primary" 
+                                        size="sm" 
+                                        onClick={handleInternalSubmit} 
+                                        className="min-w-[70px]"
+                                        disabled={!state.reason || state.reason.trim().length < 5}
+                                        style={{ 
+                                            opacity: (!state.reason || state.reason.trim().length < 5) ? 0.5 : 1,
+                                            cursor: (!state.reason || state.reason.trim().length < 5) ? 'not-allowed' : 'pointer'
+                                        }}
+                                        title={(!state.reason || state.reason.trim().length < 5) ? "Reason required (min 5 chars)" : "Submit request"}
+                                    >
+                                        Submit
+                                    </Button>
+                                    <Button variant="destructive" size="sm" onClick={handleCancel} className="w-8 h-8 px-0 flex items-center justify-center font-bold">
+                                        X
+                                    </Button>
+                                </>
+                            )}
 
-                    {state.status === "submitting" && (
-                        <div className="flex items-center gap-2 text-xs font-medium px-3 py-1" style={{ color: '#00998b' }}>
-                            <Loader2 size={14} className="animate-spin" /> Submitting...
+                            {state.status === "submitting" && (
+                                <div className="flex items-center gap-2 text-xs font-medium px-3 py-1" style={{ color: '#00998b' }}>
+                                    <Loader2 size={14} className="animate-spin" /> Submitting...
+                                </div>
+                            )}
+
+                            {state.status === "success" && (
+                                <div className="flex items-center gap-1.5 text-green-500 text-xs font-bold bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-900/30">
+                                    <Check size={14} /> {state.message}
+                                </div>
+                            )}
                         </div>
-                    )}
-
-                    {state.status === "success" && (
-                        <div className="flex items-center gap-1.5 text-green-500 text-xs font-bold bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-900/30">
-                            <Check size={14} /> {state.message}
-                        </div>
-                    )}
-                </div>
-            </td>
+                        
+                        {state.status === "error" && (
+                            <span className="text-[10px] text-red-500 font-bold bg-red-50 dark:bg-red-900/10 px-2 py-0.5 rounded border border-red-100 dark:border-red-900/20">
+                                {state.message}
+                            </span>
+                        )}
+                        
+                        {(state.status === "editing") && (!state.reason || state.reason.trim().length < 5) && (
+                            <span className="text-[9px] text-gray-400 italic">Reason required *</span>
+                        )}
+                    </div>
+                </td>
+            )}
         </tr>
+    );
+};
+
+// ─── Import Preview Modal ───────────────────────────────────────────────────
+
+interface ImportPreviewModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    data: any[];
+    darkMode: boolean;
+    isSubmitting: boolean;
+}
+
+const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose, onConfirm, data, darkMode, isSubmitting }) => {
+    if (!isOpen) return null;
+
+    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
+    const headerBg = darkMode ? "bg-gray-900" : "bg-gray-50";
+
+    const missingReasonsCount = data.filter(r => !r.reason || r.reason.trim().length < 5).length;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`w-full max-w-5xl max-h-[85vh] flex flex-col rounded-xl shadow-2xl overflow-hidden border ${borderColor} ${darkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}>
+                {/* Header */}
+                <div className={`flex items-center justify-between px-6 py-4 border-b ${borderColor} ${headerBg}`}>
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-[#00998b]/10 text-[#00998b]">
+                            <FileSpreadsheet size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-lg">Review Import Changes</h3>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {data.length} rows identified with limit changes.
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors">
+                        <LucideX size={20} />
+                    </button>
+                </div>
+
+                {/* Table */}
+                <div className="flex-1 overflow-auto p-4">
+                    <table className="w-full text-sm border-collapse">
+                        <thead className={`sticky top-0 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} z-10 shadow-sm`}>
+                            <tr className={`border-b ${borderColor}`}>
+                                <th className="px-4 py-3 text-left font-semibold">Account</th>
+                                <th className="px-4 py-3 text-left font-semibold">Product</th>
+                                <th className="px-4 py-3 text-center font-semibold">Current Limit</th>
+                                <th className="px-4 py-3 text-center font-semibold text-[#00998b]">New Limit</th>
+                                <th className="px-4 py-3 text-left font-semibold">Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {data.map((row, idx) => {
+                                const isReasonValid = row.reason && row.reason.trim().length >= 5;
+                                return (
+                                    <tr key={idx} className={darkMode ? 'hover:bg-gray-900' : 'hover:bg-gray-50'}>
+                                        <td className="px-4 py-2.5 font-mono text-xs">{row['Account Number']}</td>
+                                        <td className="px-4 py-2.5">{row['Product']}</td>
+                                        <td className="px-4 py-2.5 text-center text-gray-500">{row.CurrentLimit || 0}</td>
+                                        <td className="px-4 py-2.5 text-center">
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <span className={`text-base font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                    {row.RequestedLimit.toLocaleString()}
+                                                </span>
+                                                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${
+                                                    Number(row.RequestedLimit) > Number(row.CurrentLimit || 0) 
+                                                        ? 'text-green-400 bg-green-500/20' 
+                                                        : 'text-red-400 bg-red-500/20'
+                                                }`}>
+                                                    {Number(row.RequestedLimit) > Number(row.CurrentLimit || 0) ? <Plus size={10} strokeWidth={4} /> : <span className="mb-1 text-lg">↓</span>}
+                                                    {Math.abs(Number(row.RequestedLimit) - Number(row.CurrentLimit || 0)).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2.5">
+                                            {isReasonValid ? (
+                                                <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} italic text-xs`}>{row.reason}</span>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 text-red-500 font-bold text-[10px] animate-pulse">
+                                                    <AlertCircle size={12} /> Missing Reason
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Footer */}
+                <div className={`px-6 py-4 border-t ${borderColor} flex items-center justify-between ${headerBg}`}>
+                    <div className="flex items-center gap-2">
+                        {missingReasonsCount > 0 ? (
+                            <div className="text-red-500 flex items-center gap-2 text-xs font-bold bg-red-50 dark:bg-red-900/10 px-3 py-2 rounded-md border border-red-200 dark:border-red-900/30">
+                                <AlertCircle size={14} />
+                                <span>{missingReasonsCount} rows are missing a reason in Excel. Please fix and re-import.</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 font-medium">
+                                <Check size={14} />
+                                <span>All justifications verified. Ready to submit.</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+                        <Button 
+                            variant="primary" 
+                            onClick={onConfirm} 
+                            disabled={isSubmitting || missingReasonsCount > 0}
+                            style={{ opacity: (isSubmitting || missingReasonsCount > 0) ? 0.5 : 1 }}
+                        >
+                            {isSubmitting ? (
+                                <><Loader2 size={16} className="animate-spin mr-2" /> Submitting...</>
+                            ) : `Confirm & Submit (${data.length} rows)`}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -362,6 +532,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     colorizeNumeric = true,
     allowAddingRows = true,
     productOptions = [],
+    readOnly = false,
     onGroupedParametersChange,
     groupedParametersValues,
     isTokenRequired,
@@ -373,10 +544,19 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     );
     const [newRows, setNewRows] = useState<number[]>([]);
     const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+    
+    // Import/Export States
+    const [importData, setImportData] = useState<any[]>([]);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const onWidgetStateChangeRef = useRef(onWidgetStateChange);
+    onWidgetStateChangeRef.current = onWidgetStateChange;
 
     useEffect(() => {
-        onWidgetStateChange?.({ parameters: currentParams });
-    }, [currentParams, onWidgetStateChange]);
+        onWidgetStateChangeRef.current?.({ parameters: currentParams });
+    }, [currentParams]);
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         pollInterval,
@@ -478,6 +658,173 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         }
     };
 
+    // ─── Export Logic ────────────────────────────────────────────────────────
+    
+    const handleExport = async () => {
+        if (limitsData.length === 0) return;
+        
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet("Trader Limits");
+
+            // Define columns
+            worksheet.columns = [
+                ...dataKeys.map(key => ({ header: key, key: key, width: 20 })),
+                { header: "Requested Limit", key: "RequestedLimit", width: 20 },
+                { header: "Reason", key: "reason", width: 30 }
+            ];
+
+            // Add rows
+            const rows = limitsData.map(row => ({
+                ...row,
+                RequestedLimit: row[resolvedLimitField || ""] || 0,
+                reason: "" // Guide user to fill this
+            }));
+            
+            worksheet.addRows(rows);
+
+            // Style headers
+            worksheet.getRow(1).font = { bold: true };
+            worksheet.getRow(1).fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF00998B' } // Petrol color
+            };
+            worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+            // Generate buffer
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `trader_limits_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Export Error:", error);
+            alert("Failed to generate Excel file.");
+        }
+    };
+
+    // ─── Import Logic ────────────────────────────────────────────────────────
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const arrayBuffer = event.target?.result as ArrayBuffer;
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                
+                const worksheet = workbook.worksheets[0];
+                const results: any[] = [];
+                
+                // Map headers to column index
+                const headerRow = worksheet.getRow(1);
+                const colMap: Record<string, number> = {};
+                headerRow.eachCell((cell, colNumber) => {
+                    if (cell.value) colMap[String(cell.value).trim().toLowerCase()] = colNumber;
+                });
+
+                const getCellVal = (row: ExcelJS.Row, ...keys: string[]) => {
+                    for (const k of keys) {
+                        const idx = colMap[k.toLowerCase()];
+                        if (idx) {
+                            const val = row.getCell(idx).value;
+                            // ExcelJS can return objects for formulas/hyperlinks
+                            if (val && typeof val === 'object' && 'result' in val) return val.result;
+                            return val;
+                        }
+                    }
+                    return null;
+                };
+
+                worksheet.eachRow((row, rowNumber) => {
+                    if (rowNumber === 1) return; // Skip header
+
+                    const acc = getCellVal(row, "Account Number", "Account", "Account ID");
+                    const prod = getCellVal(row, "Product", "Symbol", "Instrument");
+                    const reqLimit = getCellVal(row, "Requested Limit", "New Limit", "Limit");
+                    const reason = getCellVal(row, "Reason", "Comments", "Remark");
+
+                    if (!acc || !prod || reqLimit === null || reqLimit === undefined) return;
+
+                    const existing = limitsData.find(l => 
+                        String(l["Account Number"]) === String(acc) && 
+                        String(l["Product"]) === String(prod)
+                    );
+
+                    const currentVal = existing ? Number(existing[resolvedLimitField || "Current Limit"]) : 0;
+                    const requestedVal = Number(reqLimit);
+
+                    if (requestedVal !== currentVal) {
+                        results.push({
+                            "Account Number": String(acc),
+                            "Product": String(prod),
+                            CurrentLimit: currentVal,
+                            RequestedLimit: requestedVal,
+                            reason: String(reason)
+                        });
+                    }
+                });
+
+                if (results.length > 0) {
+                    setImportData(results);
+                    setIsImportModalOpen(true);
+                } else {
+                    alert("No limit changes detected. All values match current database state.");
+                }
+            } catch (err: any) {
+                console.error("ExcelJS Parse Error:", err);
+                alert("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
+            }
+            
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleConfirmImport = async () => {
+        setIsBulkSubmitting(true);
+        try {
+            // Using the bulk endpoint (simulated on backend)
+            const endpoint = `${apiUrl.replace(/\/limits$/, '')}/limits/request/bulk`;
+            
+            let token: string | undefined;
+            if (isTokenRequired && getFirebaseToken) {
+                token = await getFirebaseToken();
+            }
+
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(importData),
+            });
+
+            if (!res.ok) throw new Error(`Import failed: ${res.statusText}`);
+            
+            const result = await res.json();
+            alert(result.message || "Import successful!");
+            setIsImportModalOpen(false);
+            setImportData([]);
+        } catch (error: any) {
+            console.error("Bulk Import Error:", error);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsBulkSubmitting(false);
+        }
+    };
+
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
     const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
@@ -517,23 +864,61 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
             <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
                 
-                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
-                    <div className="flex items-center gap-2">
-                        <Info size={14} style={{ color: '#00998b' }} />
-                        <span>Click <span style={{ color: '#00998b', fontWeight: '600' }}>+ Request</span> to modify a limit, or use the <b>Add New Product</b> button to add a commodity.</span>
+                {!readOnly && (
+                    <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
+                        <div className="flex items-center gap-2">
+                            <Info size={14} style={{ color: '#00998b' }} />
+                            <span>Click <span style={{ color: '#00998b', fontWeight: '600' }}>+ Request</span> to modify a limit, or use the <b>Add New Product</b> button to add a commodity.</span>
+                        </div>
+                        
+                        {allowAddingRows && (
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFileChange} 
+                                    className="hidden" 
+                                    accept=".xlsx, .xls, .csv" 
+                                />
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="h-7 text-[11px] gap-1 px-3"
+                                    title="Import limits from Excel/CSV"
+                                >
+                                    <Upload size={14} /> Import
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleExport}
+                                    className="h-7 text-[11px] gap-1 px-3"
+                                    title="Export current limits to CSV"
+                                >
+                                    <Download size={14} /> Export
+                                </Button>
+                                <Button 
+                                    variant="primary" 
+                                    size="sm" 
+                                    onClick={handleAddNewRow}
+                                    className="h-7 text-[11px] gap-1 px-3 font-bold"
+                                >
+                                    <Plus size={14} /> Add New Product
+                                </Button>
+                            </div>
+                        )}
                     </div>
-                    
-                    {allowAddingRows && (
-                        <Button 
-                            variant="primary" 
-                            size="sm" 
-                            onClick={handleAddNewRow}
-                            className="h-7 text-[11px] gap-1 px-3 font-bold"
-                        >
-                            <Plus size={14} /> Add New Product
-                        </Button>
-                    )}
-                </div>
+                )}
+
+                <ImportPreviewModal 
+                    isOpen={isImportModalOpen} 
+                    onClose={() => setIsImportModalOpen(false)} 
+                    onConfirm={handleConfirmImport} 
+                    data={importData} 
+                    darkMode={darkMode}
+                    isSubmitting={isBulkSubmitting}
+                />
 
                 <div className="flex-1 overflow-auto">
                     <table className="w-full border-collapse text-left">
@@ -550,7 +935,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                         <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
                                     </>
                                 )}
-                                <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-right ${headerTextColor}`}></th>
+                                {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-right ${headerTextColor}`}></th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -566,6 +951,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     onSubmit={handleSubmit}
                                     showRequestCols={showRequestCols}
                                     onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
+                                    readOnly={readOnly}
                                 />
                             ))}
 
@@ -584,12 +970,13 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     columnOptions={columnOptions}
                                     showRequestCols={showRequestCols}
                                     onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
+                                    readOnly={readOnly}
                                 />
                             ))}
 
                             {limitsData.length === 0 && newRows.length === 0 && (
                                 <tr>
-                                    <td colSpan={dataKeys.length + (showRequestCols ? 3 : 1)} className="px-4 py-20 text-center">
+                                <td colSpan={dataKeys.length + (showRequestCols ? 2 : 0) + (readOnly ? 0 : 1)} className="px-4 py-20 text-center">
                                         <div className="flex flex-col items-center gap-2 opacity-40">
                                             <Loader2 size={24} className="animate-spin" />
                                             <span className="text-sm font-medium italic">No data available. Add a new product to get started.</span>
