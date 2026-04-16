@@ -99,7 +99,7 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
         />
     )
 );
- 
+
 const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement> & { darkMode?: boolean }>(
     ({ className, darkMode, ...props }, ref) => (
         <textarea
@@ -129,7 +129,7 @@ export interface TraderLimitsApprovalWidgetProps extends BaseWidgetProps {
     readOnly?: boolean;
 }
 
-type RequestStatus = "Pending" | "Approved" | "Rejected" | "Acknowledged";
+type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACKNOWLEDGED";
 
 interface LimitApprovalRequest {
     id: string;
@@ -158,7 +158,7 @@ const DISPLAY_COLUMNS = [
     { key: 'product', label: 'Product' },
     { key: 'productName', label: 'Product Name' },
     { key: 'productClass', label: 'Class' },
-    { key: 'instrumentType', label: 'Type' },
+    { key: 'instrumentType', label: 'Instrument' },
     { key: 'requestedAt', label: 'Requested At' },
     { key: 'limitType', label: 'Limit Type' },
 ];
@@ -222,7 +222,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const toggleSelectAll = () => {
-        const selectableIds = requests.filter(r => r.status === "Pending" || r.status === "Acknowledged").map(r => r.id);
+        const selectableIds = requests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED").map(r => r.id);
         if (selectedIds.size === selectableIds.length && selectableIds.length > 0) {
             setSelectedIds(new Set());
         } else {
@@ -231,7 +231,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     };
 
     const toggleSelect = (id: string, status: string) => {
-        if (status !== "Pending" && status !== "Acknowledged") return;
+        if (status !== "PENDING" && status !== "ACKNOWLEDGED") return;
         const next = new Set(selectedIds);
         if (next.has(id)) {
             next.delete(id);
@@ -245,7 +245,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
         setRemarks(prev => ({ ...prev, [id]: val }));
     };
 
-    const handleAction = async (action: "Approve" | "Reject" | "Acknowledge", singleId?: string) => {
+    const handleAction = async (action: "APPROVED" | "REJECTED" | "ACKNOWLEDGED", singleId?: string) => {
         const targetIds = singleId ? [singleId] : Array.from(selectedIds);
         if (targetIds.length === 0) return;
 
@@ -263,10 +263,19 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             }
 
             const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
 
-            console.log("Submitting bulk action:", payload);
-            alert(`Successfully processed ${targetIds.length} request(s) as ${action}`);
+            console.log("body", payload);
+
+            const response = await fetch(actionApiUrl + `?token=${token}`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API error: ${response.status} ${errorText}`);
+            }
 
             const nextSelected = new Set(selectedIds);
             targetIds.forEach(id => nextSelected.delete(id));
@@ -325,7 +334,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
         }
     };
 
-    const selectableRequests = requests.filter(r => r.status === "Pending" || r.status === "Acknowledged");
+    const selectableRequests = requests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED");
     const isAllSelected = selectedIds.size > 0 && selectedIds.size === selectableRequests.length;
 
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
@@ -404,7 +413,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                             size="sm"
                             darkMode={darkMode}
                             disabled={selectedIds.size === 0 || isSubmitting}
-                            onClick={() => handleAction("Approve")}
+                            onClick={() => handleAction("APPROVED")}
                             className="gap-1 px-3"
                         >
                             <Check size={14} /> Approve Selected
@@ -414,7 +423,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                             size="sm"
                             darkMode={darkMode}
                             disabled={selectedIds.size === 0 || isSubmitting}
-                            onClick={() => handleAction("Reject")}
+                            onClick={() => handleAction("REJECTED")}
                             className="gap-1 px-3"
                         >
                             <LucideX size={14} /> Reject Selected
@@ -424,7 +433,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                             size="sm"
                             darkMode={darkMode}
                             disabled={selectedIds.size === 0 || isSubmitting}
-                            onClick={() => handleAction("Acknowledge")}
+                            onClick={() => handleAction("ACKNOWLEDGED")}
                             className="gap-1 px-3"
                         >
                             <AlertCircle size={14} /> Acknowledge Selected
@@ -450,7 +459,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                     if (col.key === 'product' || col.key === 'account' || col.key === 'clearer' || col.key === 'tradingPlatform' || col.key === 'productClass' || col.key === 'instrumentType') widthClass = "w-[70px] min-w-[70px]";
                                     if (col.key === 'requestedAt') widthClass = "w-[120px] min-w-[120px]";
                                     if (col.key === 'productName' || col.key === 'trader' || col.key === 'limitType') widthClass = "w-[120px] min-w-[120px]";
-                                    
+
                                     return (
                                         <th key={col.key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} ${widthClass} truncate`}>
                                             {col.label}
@@ -466,7 +475,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                         <tbody>
                             {requests.map(req => {
                                 const isSelected = selectedIds.has(req.id);
-                                const isSelectable = req.status === "Pending" || req.status === "Acknowledged";
+                                const isSelectable = req.status === "PENDING" || req.status === "ACKNOWLEDGED";
 
                                 return (
                                     <tr
@@ -555,14 +564,14 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                         <td className="px-4 py-3 min-w-[100px] text-center">
                                             {isSelectable ? (
                                                 <div className="flex justify-center gap-1.5 items-center">
-                                                    <Button variant="success" size="sm" darkMode={darkMode} onClick={() => handleAction("Approve", req.id)} className="h-8 w-8 p-0" title="Approve Request">
+                                                    <Button variant="success" size="sm" darkMode={darkMode} onClick={() => handleAction("APPROVED", req.id)} className="h-8 w-8 p-0" title="Approve Request">
                                                         <Check size={16} />
                                                     </Button>
-                                                    <Button variant="destructive" size="sm" darkMode={darkMode} onClick={() => handleAction("Reject", req.id)} className="h-8 w-8 p-0" title="Reject Request">
+                                                    <Button variant="destructive" size="sm" darkMode={darkMode} onClick={() => handleAction("REJECTED", req.id)} className="h-8 w-8 p-0" title="Reject Request">
                                                         <LucideX size={16} />
                                                     </Button>
-                                                    {req.status !== "Acknowledged" && (
-                                                        <Button variant="warning" size="sm" darkMode={darkMode} onClick={() => handleAction("Acknowledge", req.id)} className="h-8 w-8 p-0" title="Acknowledge Request">
+                                                    {req.status !== "ACKNOWLEDGED" && (
+                                                        <Button variant="warning" size="sm" darkMode={darkMode} onClick={() => handleAction("ACKNOWLEDGED", req.id)} className="h-8 w-8 p-0" title="Acknowledge Request">
                                                             <AlertCircle size={16} />
                                                         </Button>
                                                     )}
@@ -570,9 +579,9 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                             ) : (
                                                 <div className="flex justify-center">
                                                     <span className={`text-[10px] font-bold uppercase tracking-wider block px-2 py-0.5 rounded border`}
-                                                        style={req.status === 'Approved'
+                                                        style={req.status === 'APPROVED'
                                                             ? { color: '#065f46', backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#d1fae5', borderColor: '#6ee7b7' }
-                                                            : req.status === 'Rejected'
+                                                            : req.status === 'REJECTED'
                                                                 ? { color: '#991b1b', backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fee2e2', borderColor: '#fca5a5' }
                                                                 : { color: '#9a3412', backgroundColor: darkMode ? 'rgba(249,115,22,0.1)' : '#fff7ed', borderColor: '#fdba74' }
                                                         }

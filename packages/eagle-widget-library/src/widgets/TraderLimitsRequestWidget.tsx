@@ -181,8 +181,8 @@ const TableRow: React.FC<RowProps> = ({
     const handleRequest = () => {
         setState({
             status: "editing",
-            requestedOutrightLimit: String(data.outrightLimit || ""),
-            requestedSpreadLimit: String(data.spreadLimit || ""),
+            requestedOutrightLimit: "",
+            requestedSpreadLimit: "",
             reason: "",
             message: ""
         });
@@ -200,11 +200,11 @@ const TableRow: React.FC<RowProps> = ({
         if (!state.requestedOutrightLimit && !state.requestedSpreadLimit) return;
 
         // Ensure reason is provided
-        if (!state.reason || state.reason.trim().length < 5) {
+        if (!state.reason || state.reason.trim().length < 2) {
             setState(prev => ({
                 ...prev,
                 status: "error",
-                message: "Please provide a valid reason (min 5 chars)"
+                message: "Please provide a valid reason (min 2 chars)"
             }));
             return;
         }
@@ -466,8 +466,8 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                             <tr className={`border-b ${borderColor}`}>
                                 <th className="px-4 py-3 text-left font-semibold">Account</th>
                                 <th className="px-4 py-3 text-left font-semibold">Product</th>
-                                <th className="px-4 py-3 text-center font-semibold">Current Limit</th>
-                                <th className="px-4 py-3 text-center font-semibold text-[#00998b]">New Limit</th>
+                                <th className="px-4 py-3 text-center font-semibold">Outright (New)</th>
+                                <th className="px-4 py-3 text-center font-semibold">Spread (New)</th>
                                 <th className="px-4 py-3 text-left font-semibold">Reason</th>
                             </tr>
                         </thead>
@@ -476,21 +476,46 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                                 const isReasonValid = row.reason && row.reason.trim().length >= 5;
                                 return (
                                     <tr key={idx} className={darkMode ? 'hover:bg-gray-900' : 'hover:bg-gray-50'}>
-                                        <td className="px-4 py-2.5 font-mono text-xs">{row.account || row['Account Number']}</td>
-                                        <td className="px-4 py-2.5">{row.product || row['Product']}</td>
-                                        <td className="px-4 py-2.5 text-center text-gray-500">{row.currentLimit || 0}</td>
+                                        <td className="px-4 py-2.5 font-mono text-xs">{row.account}</td>
+                                        <td className="px-4 py-2.5">{row.product}</td>
                                         <td className="px-4 py-2.5 text-center">
                                             <div className="flex flex-col items-center gap-0.5">
-                                                <span className={`text-base font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                    {(row.requestedLimit || row.RequestedLimit).toLocaleString()}
-                                                </span>
-                                                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedLimit || row.RequestedLimit) > Number(row.currentLimit || 0)
-                                                    ? 'text-green-400 bg-green-500/20'
-                                                    : 'text-red-400 bg-red-500/20'
-                                                    }`}>
-                                                    {Number(row.requestedLimit || row.RequestedLimit) > Number(row.currentLimit || 0) ? <Plus size={10} strokeWidth={4} /> : <span className="mb-1 text-lg">↓</span>}
-                                                    {Math.abs(Number(row.requestedLimit || row.RequestedLimit) - Number(row.currentLimit || 0)).toLocaleString()}
-                                                </span>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500 text-[10px] tabular-nums">{row.outrightLimit?.toLocaleString() || 0}</span>
+                                                    <span className="text-gray-400">→</span>
+                                                    <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                        {row.requestedOutrightLimit?.toLocaleString() || 0}
+                                                    </span>
+                                                </div>
+                                                {row.requestedOutrightLimit !== row.outrightLimit && (
+                                                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedOutrightLimit) > Number(row.outrightLimit)
+                                                        ? 'text-green-400 bg-green-500/20'
+                                                        : 'text-red-400 bg-red-500/20'
+                                                        }`}>
+                                                        {Number(row.requestedOutrightLimit) > Number(row.outrightLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
+                                                        {Math.abs(Number(row.requestedOutrightLimit) - Number(row.outrightLimit)).toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-center">
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500 text-[10px] tabular-nums">{row.spreadLimit?.toLocaleString() || 0}</span>
+                                                    <span className="text-gray-400">→</span>
+                                                    <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                        {row.requestedSpreadLimit?.toLocaleString() || 0}
+                                                    </span>
+                                                </div>
+                                                {row.requestedSpreadLimit !== row.spreadLimit && (
+                                                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedSpreadLimit) > Number(row.spreadLimit)
+                                                        ? 'text-green-400 bg-green-500/20'
+                                                        : 'text-red-400 bg-red-500/20'
+                                                        }`}>
+                                                        {Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
+                                                        {Math.abs(Number(row.requestedSpreadLimit) - Number(row.spreadLimit)).toLocaleString()}
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-2.5">
@@ -597,12 +622,9 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     useEffect(() => {
         if (rawData && Array.isArray(rawData)) {
             const mapped = rawData.map((item: any) => ({
-                ...item,
-                account: item.account || item['Account Number'] || item['Account'] || '',
-                product: item.product || item['Product'] || '',
-                productName: item.productName || item['Product Name'] || item['product name'] || '',
-                productClass: item.productClass || item['Product Class'] || item['product class'] || '',
-                instrumentType: item.instrumentType || item['Instrument Type'] || item['instrument type'] || item['category'] || '',
+                account: item.accountId,
+                product: item.product,
+                productName: item.productName,
                 outrightLimit: item.outrightLimit !== undefined ? item.outrightLimit : (item['Outright Limit'] ?? item['outright limit'] ?? 0),
                 spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0)
             }));
@@ -679,9 +701,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     const handleSubmit = async (row: any, state: RowState) => {
         const endpoint = requestApiUrl || apiUrl;
+        console.log("row", row);
         const body = {
             ...row,
             reason: state.reason,
+            instrumentType: activeTab.toUpperCase().replace(/S$/, ""),
             requestedOutrightLimit: state.requestedOutrightLimit !== "" ? Number(state.requestedOutrightLimit) : null,
             requestedSpreadLimit: state.requestedSpreadLimit !== "" ? Number(state.requestedSpreadLimit) : null
         };
@@ -692,9 +716,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         }
 
         const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch(endpoint as string, {
+        console.log("body", body);
+        const res = await fetch(endpoint + `?token=${token}`, {
             method: "POST",
             headers,
             body: JSON.stringify(body),
@@ -718,18 +741,20 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             // Define columns
             worksheet.columns = [
                 ...dataKeys.map(key => ({ header: key, key: key, width: 20 })),
-                { header: "Requested Limit", key: "RequestedLimit", width: 20 },
+                { header: "Requested outright Limit", key: "requestedOutrightLimit", width: 25 },
+                { header: "Requested spread Limit", key: "requestedSpreadLimit", width: 25 },
                 { header: "Reason", key: "reason", width: 30 }
             ];
 
             // Add rows
             const rows = limitsData.map(row => ({
-                account: row.account || row['Account Number'],
-                product: row.product || row['Product'],
-                productName: row.productName || row['Product Name'],
-                outrightLimit: row.outrightLimit || row['Outright Limit'] || 0,
-                spreadLimit: row.spreadLimit || row['Spread Limit'] || 0,
-                requestedLimit: 0,
+                account: row.account,
+                product: row.product,
+                productName: row.productName,
+                outrightLimit: row.outrightLimit || 0,
+                spreadLimit: row.spreadLimit || 0,
+                requestedOutrightLimit: row.outrightLimit || 0,
+                requestedSpreadLimit: row.spreadLimit || 0,
                 reason: ""
             }));
 
@@ -803,25 +828,28 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     const acc = getCellVal(row, "Account Number", "Account", "Account ID");
                     const prod = getCellVal(row, "Product", "Symbol", "Instrument");
-                    const reqLimit = getCellVal(row, "Requested Limit", "New Limit", "Limit");
+                    const reqOutrightLimit = getCellVal(row, "Requested Outright Limit", "New Outright Limit", "Outright Limit");
+                    const reqSpreadLimit = getCellVal(row, "Requested Spread Limit", "New Spread Limit", "Spread Limit");
                     const reason = getCellVal(row, "Reason", "Comments", "Remark");
 
-                    if (!acc || !prod || reqLimit === null || reqLimit === undefined) return;
+                    if (!acc || !prod || reqOutrightLimit === null || reqOutrightLimit === undefined || reqSpreadLimit === null || reqSpreadLimit === undefined) return;
 
                     const existing = limitsData.find(l =>
                         String(l["Account Number"]) === String(acc) &&
                         String(l["Product"]) === String(prod)
                     );
 
-                    const currentVal = existing ? Number(existing[resolvedLimitField || "Current Limit"]) : 0;
-                    const requestedVal = Number(reqLimit);
+                    const currentOutrightLimit = existing ? Number(existing["Outright Limit"]) : 0;
+                    const currentSpreadLimit = existing ? Number(existing["Spread Limit"]) : 0;
 
-                    if (requestedVal !== currentVal) {
+                    if (reqOutrightLimit !== currentOutrightLimit || reqSpreadLimit !== currentSpreadLimit) {
                         results.push({
                             account: String(acc),
                             product: String(prod),
-                            currentLimit: currentVal,
-                            requestedLimit: requestedVal,
+                            outrightLimit: currentOutrightLimit,
+                            spreadLimit: currentSpreadLimit,
+                            requestedOutrightLimit: reqOutrightLimit,
+                            requestedSpreadLimit: reqSpreadLimit,
                             reason: String(reason)
                         });
                     }
@@ -854,12 +882,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 token = await getFirebaseToken();
             }
 
-            const headers: Record<string, string> = { "Content-Type": "application/json" };
-            if (token) headers["Authorization"] = `Bearer ${token}`;
+            console.log("import data", importData);
 
-            const res = await fetch(endpoint, {
+            const res = await fetch(endpoint + `?token=${token}`, {
                 method: "POST",
-                headers,
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(importData),
             });
 
@@ -1083,4 +1110,6 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 export const TraderLimitsRequestWidgetDef = {
     component: TraderLimitsRequestWidget,
 };
+
+
 

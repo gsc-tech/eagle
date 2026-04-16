@@ -5,7 +5,7 @@ import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { Clock, ArrowRight, User, Loader2, Info } from "lucide-react";
+import { Clock, Loader2, Info } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -13,27 +13,28 @@ export interface MyLimitRequestsViewWidgetProps extends BaseWidgetProps {
     darkMode?: boolean;
     pollInterval?: number;
     limitHistoryApiUrl?: string;
+    auditTrailApiUrl?: string;
 }
 
-type RequestStatus = "Pending" | "Approved" | "Rejected" | "Acknowledged";
-type InstrumentType = "Future" | "Option";
+type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACKNOWLEDGED";
+type InstrumentType = "FUTURE" | "OPTION";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; border: string; darkBg: string; darkText: string; darkBorder: string }> = {
-    Pending: {
+    PENDING: {
         bg: "#fffbeb", text: "#92400e", border: "#fcd34d",
         darkBg: "rgba(245,158,11,0.12)", darkText: "#fbbf24", darkBorder: "rgba(245,158,11,0.3)",
     },
-    Approved: {
+    APPROVED: {
         bg: "#d1fae5", text: "#065f46", border: "#6ee7b7",
         darkBg: "rgba(16,185,129,0.15)", darkText: "#6ee7b7", darkBorder: "rgba(16,185,129,0.35)",
     },
-    Rejected: {
+    REJECTED: {
         bg: "#fee2e2", text: "#991b1b", border: "#fca5a5",
         darkBg: "rgba(239,68,68,0.15)", darkText: "#fca5a5", darkBorder: "rgba(239,68,68,0.35)",
     },
-    Acknowledged: {
+    ACKNOWLEDGED: {
         bg: "#fff7ed", text: "#9a3412", border: "#fdba74",
         darkBg: "rgba(249,115,22,0.12)", darkText: "#fb923c", darkBorder: "rgba(249,115,22,0.3)",
     },
@@ -58,11 +59,11 @@ const StatusBadge = ({ status, darkMode }: { status: RequestStatus; darkMode: bo
 // ─── Instrument Type Badge ────────────────────────────────────────────────────
 
 const INSTRUMENT_STYLES: Record<InstrumentType, { bg: string; text: string; border: string; darkBg: string; darkText: string; darkBorder: string }> = {
-    Future: {
+    FUTURE: {
         bg: "#eff6ff", text: "#1d4ed8", border: "#bfdbfe",
         darkBg: "rgba(59,130,246,0.15)", darkText: "#93c5fd", darkBorder: "rgba(59,130,246,0.3)",
     },
-    Option: {
+    OPTION: {
         bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe",
         darkBg: "rgba(139,92,246,0.15)", darkText: "#c4b5fd", darkBorder: "rgba(139,92,246,0.3)",
     },
@@ -91,9 +92,10 @@ interface RowProps {
     item: any;
     dynamicKeys: string[];
     darkMode: boolean;
+    onInfoClick: (item: any) => void;
 }
 
-const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
+const TableRow = ({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const textColor = darkMode ? "text-gray-300" : "text-gray-700";
     const subText = darkMode ? "text-gray-500" : "text-gray-400";
@@ -112,10 +114,6 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
                 </td>
             ))}
 
-            {/* Current Limit */}
-            <td className={`px-4 py-3 text-sm text-center tabular-nums ${textColor}`}>
-                {currentLimit.toLocaleString()}
-            </td>
 
             {/* Requested Limit + delta */}
             <td className="px-4 py-3 text-center">
@@ -123,11 +121,6 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
                     <span className={`tabular-nums text-sm font-medium ${textColor}`}>
                         {requestedLimit.toLocaleString()}
                     </span>
-                    {delta !== 0 && (
-                        <span className={`text-[10px] font-bold tabular-nums ${deltaColor}`}>
-                            {delta > 0 ? "+" : ""}{delta.toLocaleString()}
-                        </span>
-                    )}
                 </div>
             </td>
 
@@ -136,45 +129,28 @@ const TableRow = ({ item, dynamicKeys, darkMode }: RowProps) => {
                 <InstrumentTypeBadge type={item.instrumentType} darkMode={darkMode} />
             </td>
 
+            {/* Limit Type */}
+            <td className="px-4 py-3 text-center">
+                <span className={`tabular-nums text-sm font-medium ${textColor}`}>
+                    {item.limitType}
+                </span>
+            </td>
+
             {/* Status */}
             <td className="px-4 py-3 text-center">
                 <StatusBadge status={item.status} darkMode={darkMode} />
             </td>
 
-            {/* Timeline */}
-            <td className={`px-4 py-3 text-sm text-center min-w-[160px] ${subText}`}>
-                <div className="flex flex-col items-center justify-center gap-0.5">
-                    <span>{item.requestedAt || "—"}</span>
-                    {item.reviewedAt && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                            <ArrowRight size={9} className="opacity-40" />
-                            <span>{item.reviewedAt}</span>
-                        </div>
-                    )}
-                </div>
-            </td>
-
-            {/* Reviewer / Comments */}
-            <td className={`px-4 py-3 text-sm text-center ${textColor}`}>
-                {item.reviewerName ? (
-                    <div className="flex flex-col items-center justify-center gap-1">
-                        <div className="flex items-center gap-1.5">
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-200"}`}>
-                                <User size={10} className="opacity-50" />
-                            </div>
-                            <span className={`font-semibold text-sm ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                                {item.reviewerName}
-                            </span>
-                        </div>
-                        {item.comments && (
-                            <span className={`italic text-sm leading-relaxed ${subText}`}>
-                                "{item.comments}"
-                            </span>
-                        )}
-                    </div>
-                ) : (
-                    <span className={`italic text-sm ${subText}`}>—</span>
-                )}
+            <td className="px-4 py-3 text-center">
+                <button
+                    onClick={() => onInfoClick(item)}
+                    className={`p-2 rounded-md transition ${darkMode
+                        ? "hover:bg-gray-800 text-gray-400 hover:text-gray-200"
+                        : "hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                        }`}
+                >
+                    <Info size={16} />
+                </button>
             </td>
         </tr>
     );
@@ -186,6 +162,8 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     initialWidgetState,
     onWidgetStateChange,
     apiUrl = "http://localhost:8080/api/limits/history",
+    limitHistoryApiUrl,
+    auditTrailApiUrl,
     parameters,
     darkMode = false,
     pollInterval = 60000,
@@ -198,6 +176,29 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
         () => initialWidgetState?.parameters || defaultParams
     );
+
+    const [auditTrailData, setAuditTrailData] = useState(null);
+
+    const handleInfoClick = async (item: any) => {
+        try {
+            console.log(auditTrailApiUrl + "?id=" + item.id);
+            let token = "";
+            if (isTokenRequired && getFirebaseToken) {
+                token = await getFirebaseToken();
+            }
+            const response = await fetch(auditTrailApiUrl + "?id=" + item.id + "&token=" + token, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                }
+            });
+            const data = await response.json();
+            console.log(data);
+            setAuditTrailData(data);
+        } catch (error) {
+            console.log(error);
+        }
+    };
 
     useEffect(() => {
         onWidgetStateChange?.({ parameters: currentParams });
@@ -241,7 +242,7 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     const thClass = `px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`;
 
     // Total columns = dynamic keys + fixed specials (Current, Requested, Instrument, Status, Timeline, Comments)
-    const totalCols = dynamicKeys.length + 6;
+    const totalCols = dynamicKeys.length + 5;
 
     return (
         <WidgetContainer
@@ -273,12 +274,11 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                                                 key.replace(/([A-Z])/g, ' $1').trim();
                                     return <th key={key} className={thClass}>{label}</th>;
                                 })}
-                                <th className={thClass}>Current</th>
                                 <th className={thClass}>Requested</th>
                                 <th className={thClass}>Instrument</th>
+                                <th className={thClass}>Limit Type</th>
                                 <th className={thClass}>Status</th>
-                                <th className={thClass}>Timeline</th>
-                                <th className={thClass}>Reviewer / Comments</th>
+                                <th className={thClass}>Info</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -288,6 +288,7 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                                     item={item}
                                     dynamicKeys={dynamicKeys}
                                     darkMode={darkMode}
+                                    onInfoClick={handleInfoClick}
                                 />
                             ))}
 
@@ -311,6 +312,25 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                     </table>
                 </div>
             </div>
+            {auditTrailData && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div className={`w-[600px] max-h-[80vh] overflow-auto rounded-lg p-4 ${darkMode ? "bg-gray-900 text-white" : "bg-white text-black"
+                        }`}>
+                        <h2 className="text-lg font-semibold mb-3">Audit Trail</h2>
+
+                        <pre className="text-xs whitespace-pre-wrap">
+                            {JSON.stringify(auditTrailData, null, 2)}
+                        </pre>
+
+                        <button
+                            onClick={() => setAuditTrailData(null)}
+                            className="mt-4 px-3 py-1 rounded bg-blue-500 text-white"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
         </WidgetContainer>
     );
 };
