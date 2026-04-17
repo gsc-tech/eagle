@@ -5,6 +5,8 @@ import ExcelJS from "exceljs";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
+import { useWidgetEvents } from "../hooks/useWidgetEvents";
+import { WIDGET_EVENTS } from "../store/widgetEventBus";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet, Search } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
@@ -193,6 +195,7 @@ export interface TraderLimitsRequestWidgetProps extends BaseWidgetProps {
     allowAddingRows?: boolean;
     productOptions?: any[];
     readOnly?: boolean;
+    // eventSubscriptions inherited from BaseWidgetProps
 }
 
 type RowStatus = "idle" | "editing" | "submitting" | "success" | "error";
@@ -713,6 +716,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     groupedParametersValues,
     isTokenRequired,
     getFirebaseToken,
+    eventSubscriptions,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
@@ -735,7 +739,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         onWidgetStateChangeRef.current?.({ parameters: currentParams });
     }, [currentParams]);
 
-    const { data: rawData } = useWidgetData(apiUrl as string, {
+    const { data: rawData, refetch } = useWidgetData(apiUrl as string, {
         pollInterval,
         parameters: {
             ...currentParams,
@@ -743,6 +747,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         },
         isTokenRequired,
         getFirebaseToken,
+    });
+
+    const { emit } = useWidgetEvents({
+        subscriptions: eventSubscriptions,
+        actions: { refetch },
     });
 
     const [limitsData, setLimitsData] = useState<any[]>([]);
@@ -871,6 +880,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             const text = await res.text().catch(() => "");
             throw new Error(text || `HTTP ${res.status}`);
         }
+
+        emit(WIDGET_EVENTS.LIMIT_REQUEST_SUBMITTED, { row });
     };
 
     // ─── Export Logic ────────────────────────────────────────────────────────

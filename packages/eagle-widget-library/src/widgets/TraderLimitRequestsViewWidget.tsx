@@ -6,6 +6,8 @@ import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { Clock, Loader2, Info, CheckCircle, Play, FileText, X, User, ThumbsUp, Eye, AlertCircle } from "lucide-react";
+import { useWidgetEvents } from "../hooks/useWidgetEvents";
+import { WIDGET_EVENTS } from "../store/widgetEventBus";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +16,7 @@ export interface MyLimitRequestsViewWidgetProps extends BaseWidgetProps {
     pollInterval?: number;
     limitHistoryApiUrl?: string;
     auditTrailApiUrl?: string;
+    // eventSubscriptions inherited from BaseWidgetProps
 }
 
 type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACKNOWLEDGED";
@@ -147,7 +150,7 @@ const FALLBACK_ACTION_CONFIG: ActionConfig = {
 
 const formatAuditDate = (iso: string) => {
     const d = new Date(iso);
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = months[d.getMonth()];
     const day = d.getDate();
     const year = d.getFullYear();
@@ -343,6 +346,7 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     groupedParametersValues,
     isTokenRequired,
     getFirebaseToken,
+    eventSubscriptions,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
@@ -376,11 +380,18 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
         onWidgetStateChange?.({ parameters: currentParams });
     }, [currentParams, onWidgetStateChange]);
 
-    const { data: rawData, loading } = useWidgetData(apiUrl as string, {
+    const { data: rawData, loading, refetch } = useWidgetData(apiUrl as string, {
         pollInterval,
         parameters: currentParams,
         isTokenRequired,
         getFirebaseToken,
+    });
+
+    console.log("eventSubscriptions", eventSubscriptions);
+
+    useWidgetEvents({
+        subscriptions: eventSubscriptions,
+        actions: { refetch },
     });
 
     const items = useMemo<any[]>(() => {

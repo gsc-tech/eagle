@@ -9,6 +9,8 @@ import { Check, X as LucideX, Loader2, CheckSquare, Square, Info, UserCheck, Ale
 import ExcelJS from "exceljs";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { useWidgetEvents } from "../hooks/useWidgetEvents";
+import { WIDGET_EVENTS } from "../store/widgetEventBus";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -221,6 +223,8 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
         }));
     }, [rawData]);
 
+    const { emit } = useWidgetEvents();
+
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [remarks, setRemarks] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -285,6 +289,12 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             if (result.success) {
                 toast.success(result.message || `Successfully processed ${targetIds.length} action(s)`);
                 refetch();
+                const eventType = action === 'APPROVED'
+                    ? WIDGET_EVENTS.LIMIT_REQUEST_APPROVED
+                    : action === 'REJECTED'
+                        ? WIDGET_EVENTS.LIMIT_REQUEST_REJECTED
+                        : WIDGET_EVENTS.LIMIT_REQUEST_ACKNOWLEDGED;
+                emit(eventType, { ids: targetIds, action });
             } else if (result.errors && result.errors.length > 0) {
                 toast.warning(`${result.message}. Some actions failed.`);
                 refetch();

@@ -16,6 +16,13 @@ export interface ParameterValues {
     [key: string]: any;
 }
 
+// Defines a single event subscription: listen for `eventType` and run `action`.
+// Currently supports 'refetch'; extend the union as new actions are needed.
+export interface WidgetEventSubscription {
+    eventType: string;
+    action: 'refetch';
+}
+
 export interface BaseWidgetProps {
     id?: string;
     apiUrl?: string;
@@ -29,6 +36,9 @@ export interface BaseWidgetProps {
     onWidgetStateChange?: (state: any) => void;
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
+    // Cross-widget event subscriptions. When a subscribed event fires, the
+    // widget performs the specified action (e.g. refetch its data).
+    eventSubscriptions?: WidgetEventSubscription[];
 }
 
 export interface NormalizationConfig {
