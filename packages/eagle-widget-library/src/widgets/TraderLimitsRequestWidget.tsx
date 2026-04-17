@@ -6,7 +6,9 @@ import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
-import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet, Search } from "lucide-react";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -85,22 +87,97 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
 );
 
 const Select = ({ options, value, onChange, placeholder, darkMode, className }: { options: string[], value: string, onChange: (val: string) => void, placeholder: string, darkMode: boolean, className?: string }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const containerRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const filteredOptions = useMemo(() => {
+        if (!search) return options;
+        const lowSearch = search.toLowerCase();
+        return options.filter(opt => opt.toLowerCase().includes(lowSearch));
+    }, [options, search]);
+
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            // Using preventScroll to stop the browser from jumping when focusing
+            inputRef.current.focus({ preventScroll: true });
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const petrolColor = '#00998b';
+
     return (
-        <div className={`relative w-full min-w-[120px] ${className}`}>
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className={`flex h-9 w-full rounded-md border px-3 pr-8 py-1 text-[11px] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 cursor-pointer
+        <div className={`relative w-full min-w-[140px] ${className}`} ref={containerRef}>
+            <div
+                onClick={() => {
+                    setIsOpen(!isOpen);
+                    setSearch("");
+                }}
+                className={`flex h-9 items-center justify-between rounded-md border px-3 py-1 text-[11px] shadow-sm cursor-pointer transition-all
                 ${darkMode
-                        ? 'border-gray-800 bg-gray-900 text-gray-100'
-                        : 'border-gray-200 bg-white text-gray-900'}`}
+                        ? 'border-gray-800 bg-gray-900 text-gray-100 hover:bg-gray-800'
+                        : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'}`}
+                style={{ borderColor: isOpen ? petrolColor : undefined }}
             >
-                <option value="" disabled>{placeholder}</option>
-                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none opacity-50">
-                <ChevronDown size={14} />
+                <span className={!value ? 'opacity-50 truncate pr-2' : 'truncate pr-2'}>{value || placeholder}</span>
+                <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </div>
+
+            {isOpen && (
+                <div className={`absolute z-[110] mt-1 w-full rounded-md border shadow-xl overflow-hidden animate-in fade-in zoom-in duration-150
+                    ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+
+                    <div className={`flex items-center gap-2 px-2 py-1.5 border-b ${darkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+                        <Search size={12} className="opacity-40" />
+                        <input
+                            ref={inputRef}
+                            className={`w-full bg-transparent border-none focus:outline-none text-[11px] ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}
+                            placeholder="Search..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+
+                    <div
+                        className="overflow-y-auto py-1 custom-scrollbar"
+                        style={{ maxHeight: '240px' }}
+                    >
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.map(opt => (
+                                <div
+                                    key={opt}
+                                    onClick={() => {
+                                        onChange(opt);
+                                        setIsOpen(false);
+                                    }}
+                                    className={`px-3 py-2 text-[11px] cursor-pointer flex items-center justify-between
+                                        ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
+                                        ${value === opt ? (darkMode ? 'bg-gray-800 text-[#00998b]' : 'bg-gray-50 text-[#00998b]') : ''}`}
+                                >
+                                    <span className="truncate pr-2">{opt}</span>
+                                    {value === opt && <Check size={12} className="shrink-0" />}
+                                </div>
+                            ))
+                        ) : (
+                            <div className="px-3 py-4 text-center text-[10px] opacity-40 italic">
+                                No results found
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -114,7 +191,7 @@ export interface TraderLimitsRequestWidgetProps extends BaseWidgetProps {
     limitField?: string;
     colorizeNumeric?: boolean;
     allowAddingRows?: boolean;
-    productOptions?: string[];
+    productOptions?: any[];
     readOnly?: boolean;
 }
 
@@ -127,6 +204,7 @@ interface RowState {
     reason: string;
     message: string;
     draftData?: Record<string, string>;
+    activeTab?: 'Futures' | 'Options';
 }
 
 // ─── Sub-component for each Row ──────────────────────────────────────────────
@@ -144,6 +222,8 @@ interface RowProps {
     showRequestCols: boolean;
     onStateChange?: (state: RowState) => void;
     readOnly?: boolean;
+    productOptions?: any[];
+    activeTab: 'Future' | 'Option';
 }
 
 const TableRow: React.FC<RowProps> = ({
@@ -158,7 +238,9 @@ const TableRow: React.FC<RowProps> = ({
     columnOptions = {},
     showRequestCols,
     onStateChange,
-    readOnly = false
+    readOnly = false,
+    productOptions = [],
+    activeTab
 }) => {
     const [state, setState] = useState<RowState>(() => ({
         status: isNew ? "editing" : "idle",
@@ -199,6 +281,18 @@ const TableRow: React.FC<RowProps> = ({
     const handleInternalSubmit = async () => {
         if (!state.requestedOutrightLimit && !state.requestedSpreadLimit) return;
 
+        // Validate non-negative limits
+        if ((state.requestedOutrightLimit && Number(state.requestedOutrightLimit) < 0) || 
+            (state.requestedSpreadLimit && Number(state.requestedSpreadLimit) < 0)) {
+            setState(prev => ({
+                ...prev,
+                status: "error",
+                message: "Limits cannot be negative"
+            }));
+            toast.error("Limits cannot be negative");
+            return;
+        }
+
         // Ensure reason is provided
         if (!state.reason || state.reason.trim().length < 2) {
             setState(prev => ({
@@ -214,6 +308,7 @@ const TableRow: React.FC<RowProps> = ({
             const submissionData = isNew ? { ...state.draftData } : data;
             await onSubmit(submissionData, state);
             setState(prev => ({ ...prev, status: "success", message: "Submitted" }));
+            toast.success("Limit request submitted successfully");
             setTimeout(() => {
                 if (isNew && onRemove) {
                     onRemove();
@@ -223,6 +318,7 @@ const TableRow: React.FC<RowProps> = ({
             }, 3000);
         } catch (err: any) {
             setState(prev => ({ ...prev, status: "error", message: err.message || "Failed" }));
+            toast.error(err.message || "Failed to submit limit request");
         }
     };
 
@@ -233,12 +329,34 @@ const TableRow: React.FC<RowProps> = ({
             }
 
             if (columnOptions[key]) {
+                const handleDraftChange = (val: string) => {
+                    let newDraft = { ...state.draftData, [key]: val };
+
+                    // 1:1 Mapping logic for Product and Product Name
+                    if (productOptions && productOptions.length > 0 && typeof productOptions[0] === 'object') {
+                        const lowKey = key.toLowerCase();
+                        if (lowKey === "product") {
+                            const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
+                            if (match) {
+                                newDraft["productName"] = match.instrument || match.productName || "";
+                            }
+                        } else if (lowKey === "productname") {
+                            const match = productOptions.find(p => (p.instrument || p.productName) === val);
+                            if (match) {
+                                newDraft["product"] = match.metadata_sym || match.product || "";
+                            }
+                        }
+                    }
+
+                    setState({ ...state, draftData: newDraft });
+                };
+
                 return (
                     <Select
                         placeholder={`Select ${key}`}
                         options={columnOptions[key]}
                         value={state.draftData?.[key] || ""}
-                        onChange={val => setState({ ...state, draftData: { ...state.draftData, [key]: val } })}
+                        onChange={handleDraftChange}
                         darkMode={darkMode}
                     />
                 );
@@ -309,34 +427,36 @@ const TableRow: React.FC<RowProps> = ({
                     </td>
 
                     {/* Request Spread Limit */}
-                    <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
-                        {isEditing ? (
-                            <div className="flex items-center gap-2 justify-center h-full">
-                                <Input
-                                    type="number"
-                                    value={state.requestedSpreadLimit}
-                                    onChange={e => setState({ ...state, requestedSpreadLimit: e.target.value })}
-                                    disabled={state.status === "submitting"}
-                                    className="h-8 w-24 text-sm text-center"
-                                    darkMode={darkMode}
-                                    placeholder="Spread"
-                                />
-                                {!isNew && state.requestedSpreadLimit && data.spreadLimit !== undefined && (
-                                    <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
-                                        ${Number(state.requestedSpreadLimit) > Number(data.spreadLimit)
-                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
-                                            : Number(state.requestedSpreadLimit) < Number(data.spreadLimit)
-                                                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                                                : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
-                                        {Number(state.requestedSpreadLimit) > Number(data.spreadLimit) ? '+' : ''}
-                                        {Number(state.requestedSpreadLimit) - Number(data.spreadLimit)}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <span className="text-gray-400 italic text-xs">—</span>
-                        )}
-                    </td>
+                    {activeTab === 'Future' && (
+                        <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
+                            {isEditing ? (
+                                <div className="flex items-center gap-2 justify-center h-full">
+                                    <Input
+                                        type="number"
+                                        value={state.requestedSpreadLimit}
+                                        onChange={e => setState({ ...state, requestedSpreadLimit: e.target.value })}
+                                        disabled={state.status === "submitting"}
+                                        className="h-8 w-24 text-sm text-center"
+                                        darkMode={darkMode}
+                                        placeholder="Spread"
+                                    />
+                                    {!isNew && state.requestedSpreadLimit && data.spreadLimit !== undefined && (
+                                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
+                                            ${Number(state.requestedSpreadLimit) > Number(data.spreadLimit)
+                                                ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
+                                                : Number(state.requestedSpreadLimit) < Number(data.spreadLimit)
+                                                    ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                                                    : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
+                                            {Number(state.requestedSpreadLimit) > Number(data.spreadLimit) ? '+' : ''}
+                                            {Number(state.requestedSpreadLimit) - Number(data.spreadLimit)}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <span className="text-gray-400 italic text-xs">—</span>
+                            )}
+                        </td>
+                    )}
 
                     {/* Reason */}
                     <td className="px-4 py-2 min-w-[180px] text-center whitespace-nowrap">
@@ -428,9 +548,10 @@ interface ImportPreviewModalProps {
     data: any[];
     darkMode: boolean;
     isSubmitting: boolean;
+    activeTab: 'Future' | 'Option';
 }
 
-const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose, onConfirm, data, darkMode, isSubmitting }) => {
+const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose, onConfirm, data, darkMode, isSubmitting, activeTab }) => {
     if (!isOpen) return null;
 
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
@@ -466,8 +587,9 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                             <tr className={`border-b ${borderColor}`}>
                                 <th className="px-4 py-3 text-left font-semibold">Account</th>
                                 <th className="px-4 py-3 text-left font-semibold">Product</th>
+                                <th className="px-4 py-3 text-left font-semibold">Product Name</th>
                                 <th className="px-4 py-3 text-center font-semibold">Outright (New)</th>
-                                <th className="px-4 py-3 text-center font-semibold">Spread (New)</th>
+                                {activeTab === 'Future' && <th className="px-4 py-3 text-center font-semibold">Spread (New)</th>}
                                 <th className="px-4 py-3 text-left font-semibold">Reason</th>
                             </tr>
                         </thead>
@@ -478,6 +600,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                                     <tr key={idx} className={darkMode ? 'hover:bg-gray-900' : 'hover:bg-gray-50'}>
                                         <td className="px-4 py-2.5 font-mono text-xs">{row.account}</td>
                                         <td className="px-4 py-2.5">{row.product}</td>
+                                        <td className="px-4 py-2.5 text-xs text-gray-400">{row.productName}</td>
                                         <td className="px-4 py-2.5 text-center">
                                             <div className="flex flex-col items-center gap-0.5">
                                                 <div className="flex items-center gap-1">
@@ -498,26 +621,28 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-2.5 text-center">
-                                            <div className="flex flex-col items-center gap-0.5">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500 text-[10px] tabular-nums">{row.spreadLimit?.toLocaleString() || 0}</span>
-                                                    <span className="text-gray-400">→</span>
-                                                    <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                        {row.requestedSpreadLimit?.toLocaleString() || 0}
-                                                    </span>
+                                        {activeTab === 'Future' && (
+                                            <td className="px-4 py-2.5 text-center">
+                                                <div className="flex flex-col items-center gap-0.5">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-gray-500 text-[10px] tabular-nums">{row.spreadLimit?.toLocaleString() || 0}</span>
+                                                        <span className="text-gray-400">→</span>
+                                                        <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                                            {row.requestedSpreadLimit?.toLocaleString() || 0}
+                                                        </span>
+                                                    </div>
+                                                    {row.requestedSpreadLimit !== row.spreadLimit && (
+                                                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedSpreadLimit) > Number(row.spreadLimit)
+                                                            ? 'text-green-400 bg-green-500/20'
+                                                            : 'text-red-400 bg-red-500/20'
+                                                            }`}>
+                                                            {Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
+                                                            {Math.abs(Number(row.requestedSpreadLimit) - Number(row.spreadLimit)).toLocaleString()}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                {row.requestedSpreadLimit !== row.spreadLimit && (
-                                                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedSpreadLimit) > Number(row.spreadLimit)
-                                                        ? 'text-green-400 bg-green-500/20'
-                                                        : 'text-red-400 bg-red-500/20'
-                                                        }`}>
-                                                        {Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
-                                                        {Math.abs(Number(row.requestedSpreadLimit) - Number(row.spreadLimit)).toLocaleString()}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
+                                            </td>
+                                        )}
                                         <td className="px-4 py-2.5">
                                             {isReasonValid ? (
                                                 <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} italic text-xs`}>{row.reason}</span>
@@ -594,7 +719,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         () => initialWidgetState?.parameters || defaultParams
     );
     const [newRows, setNewRows] = useState<number[]>([]);
-    const [activeTab, setActiveTab] = useState<'Futures' | 'Options'>('Futures');
+    const [activeTab, setActiveTab] = useState<'Future' | 'Option'>('Future');
     const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
     // Import/Export States
@@ -612,7 +737,10 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     const { data: rawData } = useWidgetData(apiUrl as string, {
         pollInterval,
-        parameters: currentParams,
+        parameters: {
+            ...currentParams,
+            instrumentType: activeTab.toLowerCase().replace(/s$/, '')
+        },
         isTokenRequired,
         getFirebaseToken,
     });
@@ -624,7 +752,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             const mapped = rawData.map((item: any) => ({
                 account: item.accountId,
                 product: item.product,
-                productName: item.productName,
+                productName: item.productName || item.product_name || "",
                 outrightLimit: item.outrightLimit !== undefined ? item.outrightLimit : (item['Outright Limit'] ?? item['outright limit'] ?? 0),
                 spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0)
             }));
@@ -633,8 +761,12 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     }, [rawData]);
 
     const dataKeys = useMemo(() => {
-        return ["account", "product", "productName", "outrightLimit", "spreadLimit"];
-    }, []);
+        const base = ["account", "product", "productName", "outrightLimit"];
+        if (activeTab === 'Future') {
+            base.push("spreadLimit");
+        }
+        return base;
+    }, [activeTab]);
 
     const DISPLAY_NAMES: Record<string, string> = {
         account: "Account",
@@ -677,8 +809,18 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             const k = key.toLowerCase();
             if (k.includes("account") || k.includes("number")) {
                 options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['Account Number'] || '')).filter(Boolean))).sort();
-            } else if (k.includes("product")) {
-                options[key] = productOptions.length > 0 ? productOptions : Array.from(new Set(limitsData.map(row => String(row[key] || row['Product'] || '')).filter(Boolean))).sort();
+            } else if (k === "product") {
+                if (productOptions.length > 0) {
+                    options[key] = Array.from(new Set(productOptions.map(p => (typeof p === 'object' ? (p.metadata_sym || p.product || '') : p)).filter(Boolean))).sort();
+                } else {
+                    options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['Product'] || '')).filter(Boolean))).sort();
+                }
+            } else if (k === "productname") {
+                if (productOptions.length > 0) {
+                    options[key] = Array.from(new Set(productOptions.map(p => (typeof p === 'object' ? (p.instrument || p.productName || '') : p)).filter(Boolean))).sort();
+                } else {
+                    options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['productName'] || row['product_name'] || '')).filter(Boolean))).sort();
+                }
             } else if (k.includes("category") || k.includes("type")) {
                 options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['instrumentType'] || row['category'] || '')).filter(Boolean))).sort();
             }
@@ -704,6 +846,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         console.log("row", row);
         const body = {
             ...row,
+            outrightLimit: Number(row.outrightLimit || 0),
+            spreadLimit: Number(row.spreadLimit || 0),
             reason: state.reason,
             instrumentType: activeTab.toUpperCase().replace(/S$/, ""),
             requestedOutrightLimit: state.requestedOutrightLimit !== "" ? Number(state.requestedOutrightLimit) : null,
@@ -739,12 +883,19 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             const worksheet = workbook.addWorksheet("Trader Limits");
 
             // Define columns
-            worksheet.columns = [
-                ...dataKeys.map(key => ({ header: key, key: key, width: 20 })),
-                { header: "Requested outright Limit", key: "requestedOutrightLimit", width: 25 },
-                { header: "Requested spread Limit", key: "requestedSpreadLimit", width: 25 },
-                { header: "Reason", key: "reason", width: 30 }
+            const columns = [
+                ...dataKeys.map(key => ({ header: DISPLAY_NAMES[key] || key, key: key, width: 20 })),
             ];
+
+            if (!readOnly) {
+                columns.push(
+                    { header: "Requested Outright Limit", key: "requestedOutrightLimit", width: 25 },
+                    { header: "Requested Spread Limit", key: "requestedSpreadLimit", width: 25 },
+                    { header: "Reason", key: "reason", width: 30 }
+                );
+            }
+
+            worksheet.columns = columns;
 
             // Add rows
             const rows = limitsData.map(row => ({
@@ -753,9 +904,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 productName: row.productName,
                 outrightLimit: row.outrightLimit || 0,
                 spreadLimit: row.spreadLimit || 0,
-                requestedOutrightLimit: row.outrightLimit || 0,
-                requestedSpreadLimit: row.spreadLimit || 0,
-                reason: ""
+                ...(!readOnly ? {
+                    requestedOutrightLimit: row.outrightLimit || 0,
+                    requestedSpreadLimit: row.spreadLimit || 0,
+                    reason: ""
+                } : {})
             }));
 
             worksheet.addRows(rows);
@@ -828,29 +981,36 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     const acc = getCellVal(row, "Account Number", "Account", "Account ID");
                     const prod = getCellVal(row, "Product", "Symbol", "Instrument");
+                    const prodName = getCellVal(row, "Product Name", "ProductName");
                     const reqOutrightLimit = getCellVal(row, "Requested Outright Limit", "New Outright Limit", "Outright Limit");
-                    const reqSpreadLimit = getCellVal(row, "Requested Spread Limit", "New Spread Limit", "Spread Limit");
+                    const reqSpreadLimit = activeTab === 'Future' ? getCellVal(row, "Requested Spread Limit", "New Spread Limit", "Spread Limit") : null;
                     const reason = getCellVal(row, "Reason", "Comments", "Remark");
 
-                    if (!acc || !prod || reqOutrightLimit === null || reqOutrightLimit === undefined || reqSpreadLimit === null || reqSpreadLimit === undefined) return;
+                    if (!acc || !prod || reqOutrightLimit === null || reqOutrightLimit === undefined) return;
+                    if (activeTab === 'Future' && (reqSpreadLimit === null || reqSpreadLimit === undefined)) return;
 
                     const existing = limitsData.find(l =>
-                        String(l["Account Number"]) === String(acc) &&
-                        String(l["Product"]) === String(prod)
+                        String(l.account) === String(acc) &&
+                        String(l.product) === String(prod)
                     );
 
-                    const currentOutrightLimit = existing ? Number(existing["Outright Limit"]) : 0;
-                    const currentSpreadLimit = existing ? Number(existing["Spread Limit"]) : 0;
+                    const currentOutrightLimit = existing ? Number(existing.outrightLimit) : 0;
+                    const currentSpreadLimit = existing ? Number(existing.spreadLimit) : 0;
 
-                    if (reqOutrightLimit !== currentOutrightLimit || reqSpreadLimit !== currentSpreadLimit) {
+                    const hasOutrightChange = Number(reqOutrightLimit) !== currentOutrightLimit;
+                    const hasSpreadChange = activeTab === 'Future' && Number(reqSpreadLimit) !== currentSpreadLimit;
+
+                    if (hasOutrightChange || hasSpreadChange) {
                         results.push({
                             account: String(acc),
                             product: String(prod),
+                            productName: String(prodName || (existing?.productName) || ""),
                             outrightLimit: currentOutrightLimit,
                             spreadLimit: currentSpreadLimit,
-                            requestedOutrightLimit: reqOutrightLimit,
-                            requestedSpreadLimit: reqSpreadLimit,
-                            reason: String(reason)
+                            requestedOutrightLimit: Number(reqOutrightLimit),
+                            requestedSpreadLimit: activeTab === 'Future' ? Number(reqSpreadLimit) : null,
+                            reason: String(reason || ""),
+                            instrumentType: activeTab.toUpperCase()
                         });
                     }
                 });
@@ -859,11 +1019,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     setImportData(results);
                     setIsImportModalOpen(true);
                 } else {
-                    alert("No limit changes detected. All values match current database state.");
+              toast.warning("No limit changes detected. All values match current database state.");
                 }
             } catch (err: any) {
                 console.error("ExcelJS Parse Error:", err);
-                alert("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
+              toast.error("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
             }
 
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -893,12 +1053,19 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             if (!res.ok) throw new Error(`Import failed: ${res.statusText}`);
 
             const result = await res.json();
-            alert(result.message || "Import successful!");
+            if (result.success) {
+                toast.success(result.message || "Import successful!");
+            } else if (result.errors && result.errors.length > 0) {
+                toast.warning(`${result.message}. Some items failed.`);
+            } else {
+                toast.error(result.message || "Import failed");
+            }
+            
             setIsImportModalOpen(false);
             setImportData([]);
         } catch (error: any) {
             console.error("Bulk Import Error:", error);
-            alert(`Error: ${error.message}`);
+            toast.error(`Import Error: ${error.message}`);
         } finally {
             setIsBulkSubmitting(false);
         }
@@ -917,6 +1084,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
+            isTokenRequired={isTokenRequired}
+            getFirebaseToken={getFirebaseToken}
         >
             <style>{`
                 /* KILL ALL DEFAULT SELECT ARROWS */
@@ -938,6 +1107,20 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 }
                 .tlr-no-spinner {
                     -moz-appearance: textfield;
+                }
+
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 5px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #00998b50;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #00998b;
                 }
             `}</style>
 
@@ -1003,106 +1186,110 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     data={importData}
                     darkMode={darkMode}
                     isSubmitting={isBulkSubmitting}
+                    activeTab={activeTab}
                 />
 
                 <div className={`flex items-center gap-1 border-b ${borderColor} px-4`}>
                     <button
-                        onClick={() => setActiveTab('Futures')}
-                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Futures' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
+                        onClick={() => setActiveTab('Future')}
+                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Future' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
                     >
-                        Futures
-                        {activeTab === 'Futures' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
+                        Future
+                        {activeTab === 'Future' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
                     </button>
                     <button
-                        onClick={() => setActiveTab('Options')}
-                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Options' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
+                        onClick={() => setActiveTab('Option')}
+                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Option' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
                     >
-                        Options
-                        {activeTab === 'Options' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
+                        Option
+                        {activeTab === 'Option' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
                     </button>
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                    {activeTab === 'Futures' ? (
-                        <table className="w-full border-collapse text-left">
-                            <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
-                                <tr>
-                                    {dataKeys.map(key => (
-                                        <th key={key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>
-                                            {DISPLAY_NAMES[key] || key}
-                                        </th>
-                                    ))}
-                                    {showRequestCols && (
-                                        <>
-                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Outright</th>
-                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Spread</th>
-                                            <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
-                                        </>
-                                    )}
-                                    {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Actions</th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {/* Existing Rows */}
-                                {limitsData.map((row, idx) => (
-                                    <TableRow
-                                        key={`existing-${idx}`}
-                                        data={row}
-                                        columns={dataKeys}
-                                        darkMode={darkMode}
-                                        resolvedLimitField={resolvedLimitField}
-                                        colorizeNumeric={colorizeNumeric}
-                                        onSubmit={handleSubmit}
-                                        showRequestCols={showRequestCols}
-                                        onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
-                                        readOnly={readOnly}
-                                    />
+                    <table className="w-full border-collapse text-left">
+                        <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
+                            <tr>
+                                {dataKeys.map(key => (
+                                    <th key={key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>
+                                        {DISPLAY_NAMES[key] || key}
+                                    </th>
                                 ))}
-
-                                {/* New Rows */}
-                                {newRows.map((rid) => (
-                                    <TableRow
-                                        key={`new-${rid}`}
-                                        data={{}}
-                                        columns={dataKeys}
-                                        darkMode={darkMode}
-                                        resolvedLimitField={resolvedLimitField}
-                                        colorizeNumeric={colorizeNumeric}
-                                        onSubmit={handleSubmit}
-                                        isNew={true}
-                                        onRemove={() => handleRemoveNewRow(rid)}
-                                        columnOptions={columnOptions}
-                                        showRequestCols={showRequestCols}
-                                        onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
-                                        readOnly={readOnly}
-                                    />
-                                ))}
-
-                                {limitsData.length === 0 && newRows.length === 0 && (
-                                    <tr>
-                                        <td colSpan={dataKeys.length + (showRequestCols ? 3 : 0) + (readOnly ? 0 : 1)} className="px-4 py-20 text-center">
-                                            <div className="flex flex-col items-center gap-2 opacity-40">
-                                                <Loader2 size={24} className="animate-spin" />
-                                                <span className="text-sm font-medium italic">No data available. Add a new product to get started.</span>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                {showRequestCols && (
+                                    <>
+                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Outright</th>
+                                        {activeTab === 'Future' && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Spread</th>}
+                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
+                                    </>
                                 )}
-                            </tbody>
-                        </table>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-4 opacity-40 py-20 text-center">
-                            <div className="p-6 rounded-full bg-gray-500/10">
-                                <Info size={48} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold uppercase tracking-widest mb-1">Options</h3>
-                                <p className="text-sm italic">No data available for this layout yet.</p>
-                            </div>
-                        </div>
-                    )}
+                                {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Actions</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {/* Existing Rows */}
+                            {limitsData.map((row, idx) => (
+                                <TableRow
+                                    key={`existing-${idx}`}
+                                    data={row}
+                                    columns={dataKeys}
+                                    darkMode={darkMode}
+                                    resolvedLimitField={resolvedLimitField}
+                                    colorizeNumeric={colorizeNumeric}
+                                    onSubmit={handleSubmit}
+                                    showRequestCols={showRequestCols}
+                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
+                                    readOnly={readOnly}
+                                    activeTab={activeTab}
+                                />
+                            ))}
+
+                            {/* New Rows */}
+                            {newRows.map((rid) => (
+                                <TableRow
+                                    key={`new-${rid}`}
+                                    data={{}}
+                                    columns={dataKeys}
+                                    darkMode={darkMode}
+                                    resolvedLimitField={resolvedLimitField}
+                                    colorizeNumeric={colorizeNumeric}
+                                    onSubmit={handleSubmit}
+                                    isNew={true}
+                                    onRemove={() => handleRemoveNewRow(rid)}
+                                    columnOptions={columnOptions}
+                                    showRequestCols={showRequestCols}
+                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
+                                    readOnly={readOnly}
+                                    productOptions={productOptions}
+                                    activeTab={activeTab}
+                                />
+                            ))}
+
+                            {limitsData.length === 0 && newRows.length === 0 && (
+                                <tr>
+                                    <td colSpan={dataKeys.length + (showRequestCols ? (activeTab === 'Future' ? 3 : 2) : 0) + (readOnly ? 0 : 1)} className="px-4 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-2 opacity-40">
+                                            <Loader2 size={24} className="animate-spin" />
+                                            <span className="text-sm font-medium italic">No data available. Add a new product to get started.</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
+            <ToastContainer
+                position="bottom-right"
+                autoClose={4000}
+                hideProgressBar={false}
+                newestOnTop
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme={darkMode ? "dark" : "light"}
+            />
         </WidgetContainer>
     );
 };

@@ -6,6 +6,7 @@ export interface ParameterDefinition {
     type: ParameterType;
     defaultValue?: any;
     options?: { label: string; value: any }[]; // For select type
+    optionsApiUrl?: string;                   // Optional URL to fetch options dynamically
     required?: boolean;
     placeholder?: string;
     groupId?: string;

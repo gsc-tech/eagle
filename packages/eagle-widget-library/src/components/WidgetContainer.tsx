@@ -11,6 +11,8 @@ interface WidgetContainerProps {
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     initialParameterValues?: Record<string, string>;
     headerRight?: React.ReactNode;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
 
 export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boolean }> = ({
@@ -23,6 +25,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
     onGroupedParametersChange,
     initialParameterValues,
     headerRight,
+    isTokenRequired,
+    getFirebaseToken,
 }) => {
     const hasTitleOrParams = title || (parameters && parameters.length > 0 && onParametersChange) || headerRight;
     return (
@@ -48,6 +52,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                 groupedParametersValues={groupedParametersValues}
                                 onGroupedParametersChange={onGroupedParametersChange}
                                 initialParameterValues={initialParameterValues}
+                                isTokenRequired={isTokenRequired}
+                                getFirebaseToken={getFirebaseToken}
                             />
                         )}
                         {headerRight && (

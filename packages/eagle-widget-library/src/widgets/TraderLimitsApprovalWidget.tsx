@@ -7,6 +7,8 @@ import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { Check, X as LucideX, Loader2, CheckSquare, Square, Info, UserCheck, AlertCircle, Download, FileSpreadsheet } from "lucide-react";
 import ExcelJS from "exceljs";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ export interface TraderLimitsApprovalWidgetProps extends BaseWidgetProps {
     pollInterval?: number;
     actionApiUrl?: string;
     readOnly?: boolean;
+    showAcknowledgeAction?: boolean;
 }
 
 type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACKNOWLEDGED";
@@ -178,6 +181,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     groupedParametersValues,
     isTokenRequired,
     getFirebaseToken,
+    showAcknowledgeAction = true,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
@@ -188,7 +192,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
         onWidgetStateChange?.({ parameters: currentParams });
     }, [currentParams, onWidgetStateChange]);
 
-    const { data: rawData, loading } = useWidgetData(apiUrl as string, {
+    const { data: rawData, loading, refetch } = useWidgetData(apiUrl as string, {
         pollInterval,
         parameters: currentParams,
         isTokenRequired,
@@ -277,12 +281,23 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                 throw new Error(`API error: ${response.status} ${errorText}`);
             }
 
+            const result = await response.json();
+            if (result.success) {
+                toast.success(result.message || `Successfully processed ${targetIds.length} action(s)`);
+                refetch();
+            } else if (result.errors && result.errors.length > 0) {
+                toast.warning(`${result.message}. Some actions failed.`);
+                refetch();
+            } else {
+                toast.error(result.message || "Action failed");
+            }
+
             const nextSelected = new Set(selectedIds);
             targetIds.forEach(id => nextSelected.delete(id));
             setSelectedIds(nextSelected);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert("Failed to perform action");
+            toast.error(err.message || "Failed to perform action");
         } finally {
             setIsSubmitting(false);
         }
@@ -297,24 +312,39 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
 
             // Define columns
             worksheet.columns = [
-                ...DISPLAY_COLUMNS.map(col => ({ header: col.label, key: col.key, width: 20 })),
-                { header: "Requested Limit", key: "requestedLimit", width: 20 },
-                { header: "Reason", key: "reason", width: 30 },
+                ...DISPLAY_COLUMNS.map(col => ({ header: col.label, key: col.key, width: 22 })),
+                { header: "Current Limit", key: "currentLimit", width: 18 },
+                { header: "Requested Limit", key: "requestedLimit", width: 18 },
+                { header: "Reason for Request", key: "reason", width: 35 },
                 { header: "Status", key: "status", width: 15 },
-                { header: "Remarks", key: "remark", width: 30 }
+                { header: "Reviewer Remarks", key: "remark", width: 35 }
             ];
 
-            // Add rows
-            worksheet.addRows(requests);
+            // Add rows with formatted data
+            const rowsToExport = requests.map(req => ({
+                ...req,
+                requestedAt: req.requestedAt ? new Date(req.requestedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : "—"
+            }));
+
+            worksheet.addRows(rowsToExport);
 
             // Style headers
-            worksheet.getRow(1).font = { bold: true };
+            worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
             worksheet.getRow(1).fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FF00998B' } // Petrol color
             };
-            worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            worksheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Alignment for numeric and status columns
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return;
+                row.alignment = { vertical: 'middle' };
+                row.getCell('currentLimit').alignment = { horizontal: 'right' };
+                row.getCell('requestedLimit').alignment = { horizontal: 'right' };
+                row.getCell('status').alignment = { horizontal: 'center' };
+            });
 
             // Generate buffer
             const buffer = await workbook.xlsx.writeBuffer();
@@ -330,7 +360,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error("Export Error:", error);
-            alert("Failed to generate Excel file.");
+            toast.error("Failed to generate Excel file.");
         }
     };
 
@@ -428,16 +458,18 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                         >
                             <LucideX size={14} /> Reject Selected
                         </Button>
-                        <Button
-                            variant="warning"
-                            size="sm"
-                            darkMode={darkMode}
-                            disabled={selectedIds.size === 0 || isSubmitting}
-                            onClick={() => handleAction("ACKNOWLEDGED")}
-                            className="gap-1 px-3"
-                        >
-                            <AlertCircle size={14} /> Acknowledge Selected
-                        </Button>
+                        {showAcknowledgeAction && (
+                            <Button
+                                variant="warning"
+                                size="sm"
+                                darkMode={darkMode}
+                                disabled={selectedIds.size === 0 || isSubmitting}
+                                onClick={() => handleAction("ACKNOWLEDGED")}
+                                className="gap-1 px-3"
+                            >
+                                <AlertCircle size={14} /> Acknowledge Selected
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -570,7 +602,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                                     <Button variant="destructive" size="sm" darkMode={darkMode} onClick={() => handleAction("REJECTED", req.id)} className="h-8 w-8 p-0" title="Reject Request">
                                                         <LucideX size={16} />
                                                     </Button>
-                                                    {req.status !== "ACKNOWLEDGED" && (
+                                                    {showAcknowledgeAction && req.status !== "ACKNOWLEDGED" && (
                                                         <Button variant="warning" size="sm" darkMode={darkMode} onClick={() => handleAction("ACKNOWLEDGED", req.id)} className="h-8 w-8 p-0" title="Acknowledge Request">
                                                             <AlertCircle size={16} />
                                                         </Button>
@@ -619,6 +651,18 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                         </tbody>
                     </table>
                 </div>
+                <ToastContainer
+                    position="bottom-right"
+                    autoClose={4000}
+                    hideProgressBar={false}
+                    newestOnTop
+                    closeOnClick
+                    rtl={false}
+                    pauseOnFocusLoss
+                    draggable
+                    pauseOnHover
+                    theme={darkMode ? "dark" : "light"}
+                />
             </div>
         </WidgetContainer>
     );
