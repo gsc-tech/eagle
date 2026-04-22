@@ -29,6 +29,7 @@ import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
 import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidget";
 import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
 import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
+import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
 
 export const widgetLibrary = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -61,4 +62,5 @@ export const widgetLibrary = {
     TraderLimitsRequestWidget: TraderLimitsRequestWidgetDef,
     TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
     TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,
+    TraderLimitsApprovalStagesViewWidget: TraderLimitsApprovalStagesViewWidgetDef,
 }
