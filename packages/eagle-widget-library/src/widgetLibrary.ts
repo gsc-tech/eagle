@@ -26,6 +26,7 @@ import { WorldMapWidgetDef } from "./widgets/WorldMapWidget";
 import { WatchListWidgetDef } from "./widgets/WatchListWidget";
 import { SheetWidgetDef } from "./widgets/SheetWidget";
 import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
+import { ExpiryCalendarWidgetDef } from "./widgets/ExpiryCalendarWidget";
 
 export const widgetLibrary = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -55,4 +56,5 @@ export const widgetLibrary = {
     WatchListWidget: WatchListWidgetDef,
     SheetWidget: SheetWidgetDef,
     CartesianHeatmapWidget: CartesianHeatmapWidgetDef,
+    ExpiryCalendarWidget: ExpiryCalendarWidgetDef,
 }

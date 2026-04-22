@@ -26,3 +26,4 @@ export * from "./widgets/WorldMapWidget";
 export * from "./widgets/WatchListWidget";
 export * from "./widgets/SheetWidget";
 export * from "./widgets/CartesianHeatmapWidget";
+export * from "./widgets/ExpiryCalendarWidget";

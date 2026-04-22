@@ -19,6 +19,7 @@ import {
     TextFilterModule,
     NumberFilterModule,
     CustomFilterModule,
+    RowStyleModule,
     type Module
 } from "ag-grid-community";
 
@@ -36,6 +37,7 @@ ModuleRegistry.registerModules([
     TextFilterModule as unknown as Module,
     NumberFilterModule as unknown as Module,
     CustomFilterModule as unknown as Module,
+    RowStyleModule as unknown as Module,
 ]);
 
 // ─── Themes ────────────────────────────────────────────────────────────────────
