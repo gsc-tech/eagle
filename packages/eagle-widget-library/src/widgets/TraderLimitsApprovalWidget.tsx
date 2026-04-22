@@ -7,10 +7,10 @@ import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { Check, X as LucideX, Loader2, CheckSquare, Square, Info, UserCheck, AlertCircle, Download, FileSpreadsheet } from "lucide-react";
 import ExcelJS from "exceljs";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 import { useWidgetEvents } from "../hooks/useWidgetEvents";
 import { WIDGET_EVENTS } from "../store/widgetEventBus";
+import { TablePagination } from "../components/TablePagination";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -132,6 +132,7 @@ export interface TraderLimitsApprovalWidgetProps extends BaseWidgetProps {
     actionApiUrl?: string;
     readOnly?: boolean;
     showAcknowledgeAction?: boolean;
+    showRefreshButton?: boolean;
 }
 
 type RequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ACKNOWLEDGED";
@@ -144,9 +145,10 @@ interface LimitApprovalRequest {
     tradingPlatform: string;
     product: string;
     productName: string;
+    exchange: string;
     productClass: string;
     instrumentType: string;
-    currentLimit: number;
+    previousLimit: number;
     requestedLimit: number;
     status: RequestStatus;
     requestedAt?: string;
@@ -160,12 +162,13 @@ const DISPLAY_COLUMNS = [
     { key: 'trader', label: 'Trader' },
     { key: 'clearer', label: 'Clearer' },
     { key: 'tradingPlatform', label: 'Platform' },
+    { key: 'productClass', label: 'Asset Class' },
+    { key: 'instrumentType', label: 'Instrument' },
     { key: 'product', label: 'Product' },
     { key: 'productName', label: 'Product Name' },
-    { key: 'productClass', label: 'Class' },
-    { key: 'instrumentType', label: 'Instrument' },
-    { key: 'requestedAt', label: 'Requested At' },
+    { key: 'exchange', label: 'Exchange' },
     { key: 'limitType', label: 'Limit Type' },
+    { key: 'requestedAt', label: 'Requested At' },
 ];
 
 // ─── Main Widget ───────────────────────────────────────────────────────────────
@@ -184,6 +187,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     isTokenRequired,
     getFirebaseToken,
     showAcknowledgeAction = true,
+    showRefreshButton = false,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
@@ -211,10 +215,11 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             tradingPlatform: item.tradingPlatform || item['trading platform'] || '',
             product: item.product || '',
             productName: item.productName || item['product name'] || '',
+            exchange: item.exchange || '',
             productClass: item.productClass || item['product class'] || '',
             instrumentType: item.instrumentType || item['instrument type'] || item.category || '',
-            currentLimit: Number(item.currentLimit ?? item.currentLevel ?? item.CurrentLimit ?? item.CurrentLevel ?? 0),
-            requestedLimit: Number(item.requestedLimit ?? item.RequestedLimit ?? 0),
+            previousLimit: Number(item.previousLimit ?? 0),
+            requestedLimit: Number(item.requestedLimit ?? 0),
             status: item.status || 'Pending',
             requestedAt: item.requestedAt || item.created_at || '',
             reason: item.reason || '',
@@ -228,13 +233,31 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [remarks, setRemarks] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+
+    const totalPages = Math.max(1, Math.ceil(requests.length / pageSize));
+
+    const paginatedRequests = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return requests.slice(start, start + pageSize);
+    }, [requests, currentPage, pageSize]);
+
+    useEffect(() => { setCurrentPage(1); }, [currentParams]);
+
+    const selectablePageRequests = paginatedRequests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED");
 
     const toggleSelectAll = () => {
-        const selectableIds = requests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED").map(r => r.id);
-        if (selectedIds.size === selectableIds.length && selectableIds.length > 0) {
-            setSelectedIds(new Set());
+        const pageIds = selectablePageRequests.map(r => r.id);
+        const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
+        if (allPageSelected) {
+            const next = new Set(selectedIds);
+            pageIds.forEach(id => next.delete(id));
+            setSelectedIds(next);
         } else {
-            setSelectedIds(new Set(selectableIds));
+            const next = new Set(selectedIds);
+            pageIds.forEach(id => next.add(id));
+            setSelectedIds(next);
         }
     };
 
@@ -375,7 +398,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     };
 
     const selectableRequests = requests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED");
-    const isAllSelected = selectedIds.size > 0 && selectedIds.size === selectableRequests.length;
+    const isAllSelected = selectablePageRequests.length > 0 && selectablePageRequests.every(r => selectedIds.has(r.id));
 
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
@@ -417,6 +440,10 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
+            isTokenRequired={isTokenRequired}
+            getFirebaseToken={getFirebaseToken}
+            showRefreshButton={showRefreshButton}
+            onRefresh={refetch}
         >
             <style>{`
                 .tlr-no-spinner::-webkit-inner-spin-button,
@@ -515,7 +542,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                             </tr>
                         </thead>
                         <tbody>
-                            {requests.map(req => {
+                            {paginatedRequests.map(req => {
                                 const isSelected = selectedIds.has(req.id);
                                 const isSelectable = req.status === "PENDING" || req.status === "ACKNOWLEDGED";
 
@@ -553,25 +580,39 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
 
                                         <td className="px-4 py-3 w-[100px] min-w-[100px] text-center whitespace-nowrap">
                                             {isSelectable ? (
-                                                <div className="flex items-center gap-1.5 justify-center h-full">
+                                                <div className="flex items-center gap-1 justify-center h-full">
                                                     <span className={`text-sm font-bold tabular-nums ${textColor}`}>
                                                         {req.requestedLimit.toLocaleString()}
                                                     </span>
-                                                    <span className={`text-sm font-bold tabular-nums`}
-                                                        style={req.requestedLimit > req.currentLimit
-                                                            ? { color: '#22c55e' }
-                                                            : req.requestedLimit < req.currentLimit
-                                                                ? { color: '#ef4444' }
-                                                                : { color: darkMode ? '#9ca3af' : '#6b7280' }
-                                                        }
-                                                    >
-                                                        {req.requestedLimit > req.currentLimit ? '(+' : '('}
-                                                        {(req.requestedLimit - req.currentLimit).toLocaleString()})
+                                                    {req.previousLimit !== 0 && (
+                                                        <span className="text-sm font-bold tabular-nums"
+                                                            style={req.requestedLimit > req.previousLimit
+                                                                ? { color: '#22c55e' }
+                                                                : req.requestedLimit < req.previousLimit
+                                                                    ? { color: '#ef4444' }
+                                                                    : { color: darkMode ? '#9ca3af' : '#6b7280' }
+                                                            }
+                                                        >
+                                                            {req.requestedLimit > req.previousLimit ? '(+' : '('}
+                                                            {(req.requestedLimit - req.previousLimit).toLocaleString()})
+                                                        </span>
+                                                    )}
+                                                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm text-[8px] font-bold shrink-0 ${req.previousLimit === 0
+                                                        ? (darkMode ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'bg-violet-100 text-violet-700 border border-violet-300')
+                                                        : (darkMode ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-amber-100 text-amber-700 border border-amber-300')
+                                                    }`}>
+                                                        {req.previousLimit === 0 ? 'N' : 'C'}
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center justify-center">
+                                                <div className="flex items-center gap-1 justify-center">
                                                     <span className={`tabular-nums ${subTextColor}`}>{req.requestedLimit.toLocaleString()}</span>
+                                                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm text-[8px] font-bold shrink-0 ${req.previousLimit === 0
+                                                        ? (darkMode ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-violet-50 text-violet-500 border border-violet-200')
+                                                        : (darkMode ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-200')
+                                                    }`}>
+                                                        {req.previousLimit === 0 ? 'N' : 'C'}
+                                                    </span>
                                                 </div>
                                             )}
                                         </td>
@@ -661,17 +702,14 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                         </tbody>
                     </table>
                 </div>
-                <ToastContainer
-                    position="bottom-right"
-                    autoClose={4000}
-                    hideProgressBar={false}
-                    newestOnTop
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                    theme={darkMode ? "dark" : "light"}
+                <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={requests.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    darkMode={darkMode}
                 />
             </div>
         </WidgetContainer>

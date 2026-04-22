@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import ExcelJS from "exceljs";
 import { AgGridReact } from "ag-grid-react";
 import type {
     ColDef,
@@ -538,7 +539,36 @@ const MultiSelectFilter = (props: any) => {
 
 // ─── Column builder ─────────────────────────────────────────────────────────────
 
-function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, colConfigs?: Record<string, any>): (ColDef | ColGroupDef)[] {
+const BADGE_VARIANTS = {
+    success: {
+        bg: '#d1fae5', text: '#065f46', border: '#6ee7b7',
+        darkBg: 'rgba(16,185,129,0.15)', darkText: '#6ee7b7', darkBorder: 'rgba(16,185,129,0.35)',
+    },
+    danger: {
+        bg: '#fee2e2', text: '#991b1b', border: '#fca5a5',
+        darkBg: 'rgba(239,68,68,0.15)', darkText: '#fca5a5', darkBorder: 'rgba(239,68,68,0.35)',
+    },
+    warning: {
+        bg: '#fff7ed', text: '#9a3412', border: '#fdba74',
+        darkBg: 'rgba(249,115,22,0.12)', darkText: '#fb923c', darkBorder: 'rgba(249,115,22,0.3)',
+    },
+    info: {
+        bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe',
+        darkBg: 'rgba(59,130,246,0.15)', darkText: '#93c5fd', darkBorder: 'rgba(59,130,246,0.3)',
+    },
+    neutral: {
+        bg: '#f3f4f6', text: '#374151', border: '#d1d5db',
+        darkBg: 'rgba(107,114,128,0.15)', darkText: '#9ca3af', darkBorder: 'rgba(107,114,128,0.3)',
+    },
+    pending: {
+        bg: '#fffbeb', text: '#92400e', border: '#fcd34d',
+        darkBg: 'rgba(245,158,11,0.12)', darkText: '#fbbf24', darkBorder: 'rgba(245,158,11,0.3)',
+    },
+} as const;
+
+type BadgeVariant = keyof typeof BADGE_VARIANTS;
+
+function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, colConfigs?: Record<string, any>, colorPositiveNegative = true): (ColDef | ColGroupDef)[] {
     if (!data || data.length === 0) return [];
 
     const keys = Object.keys(data[0]).filter(key => !key.endsWith("_breakdown"));
@@ -589,16 +619,37 @@ function buildColDefs(data: any[], hiddenCols: Set<string>, darkMode: boolean, c
                 return typeof params.value === "number" ? params.value.toLocaleString() : (params.value ?? "—");
             },
             cellRenderer: (params: any) => {
-                const val = Number(params.value);
-                const isNum = !isNaN(val) && params.value !== "" && params.value !== null;
+                const rawVal = params.value;
+                const displayVal = params.valueFormatted ?? rawVal ?? "—";
+
+                if (config.badge) {
+                    const variant = (config.badge[String(rawVal)] ?? 'neutral') as BadgeVariant;
+                    const s = BADGE_VARIANTS[variant] ?? BADGE_VARIANTS.neutral;
+                    return (
+                        <span style={{
+                            display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap',
+                            padding: '2px 10px', borderRadius: 999, fontSize: 10,
+                            fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                            border: `1px solid ${darkMode ? s.darkBorder : s.border}`,
+                            backgroundColor: darkMode ? s.darkBg : s.bg,
+                            color: darkMode ? s.darkText : s.text,
+                            lineHeight: '16px',
+                        }}>
+                            {displayVal}
+                        </span>
+                    );
+                }
+
+                const val = Number(rawVal);
+                const isNum = !isNaN(val) && rawVal !== "" && rawVal !== null;
                 let textColor = "inherit";
                 let weight = "inherit";
-                if (isNum && val > 0) { textColor = "#22c55e"; weight = "600"; }
-                else if (isNum && val < 0) { textColor = "#ef4444"; weight = "600"; }
+                if (colorPositiveNegative && isNum && val > 0) { textColor = "#22c55e"; weight = "600"; }
+                else if (colorPositiveNegative && isNum && val < 0) { textColor = "#ef4444"; weight = "600"; }
 
                 return (
                     <span className={isNum ? "tabular-nums" : ""} style={{ color: textColor, fontWeight: weight }}>
-                        {params.valueFormatted ?? params.value ?? "—"}
+                        {displayVal}
                     </span>
                 );
             }
@@ -657,9 +708,9 @@ interface AgTableProps {
     hiddenCols: Set<string>;
 }
 
-function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { widgetConfig?: any }) {
+function AgTable({ data, darkMode, hiddenCols, widgetConfig, colorPositiveNegative }: AgTableProps & { widgetConfig?: any; colorPositiveNegative?: boolean }) {
     const keysStr = data && data.length > 0 ? Object.keys(data[0]).sort().join(",") : "";
-    const colDefs = useMemo(() => buildColDefs(data, hiddenCols, darkMode, widgetConfig), [keysStr, hiddenCols, darkMode, widgetConfig]);
+    const colDefs = useMemo(() => buildColDefs(data, hiddenCols, darkMode, widgetConfig, colorPositiveNegative), [keysStr, hiddenCols, darkMode, widgetConfig, colorPositiveNegative]);
     const defaultColDef = useMemo(() => ({ cellStyle: { textAlign: 'center' }, headerClass: 'centered-header', tooltipComponent: CustomTooltip, resizable: true }), []);
     const autoSizeStrategy = useMemo(() => ({ type: 'fitCellContents' as const, includeHeader: true }), []);
 
@@ -698,6 +749,10 @@ function AgTable({ data, darkMode, hiddenCols, widgetConfig }: AgTableProps & { 
 export interface DataTableWidgetProps extends BaseWidgetProps {
     darkMode?: boolean;
     pollInterval?: number;
+    colorPositiveNegative?: boolean;
+    showColumnVisibilityToggle?: boolean;
+    showExportButton?: boolean;
+    showRefreshButton?: boolean;
     columnConfig?: Record<string, {
         filter?: boolean | string;
         freeze?: boolean;
@@ -707,6 +762,7 @@ export interface DataTableWidgetProps extends BaseWidgetProps {
             rowValue?: any;
             rowIndex?: number;
         };
+        badge?: Record<string, BadgeVariant>;
         [key: string]: any;
     }>;
 }
@@ -714,12 +770,15 @@ export interface DataTableWidgetProps extends BaseWidgetProps {
 export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     initialWidgetState,
     onWidgetStateChange,
-    id,
     apiUrl = "http://localhost:8080/api/data",
     title,
     parameters,
     darkMode = false,
     pollInterval = 30000,
+    colorPositiveNegative = true,
+    showColumnVisibilityToggle = true,
+    showExportButton = false,
+    showRefreshButton = false,
     onGroupedParametersChange,
     groupedParametersValues,
     isTokenRequired,
@@ -747,7 +806,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
 
     const handleParametersChange = (values: ParameterValues) => setCurrentParams(values);
 
-    const { data: rawData } = useWidgetData(apiUrl as string, {
+    const { data: rawData, refetch } = useWidgetData(apiUrl as string, {
         pollInterval: pollInterval,
         parameters: currentParams,
         isTokenRequired,
@@ -798,17 +857,74 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
         });
     }, []);
 
-    const hierarchicalDefsForToolbar = useMemo(() => buildColDefs(activeData, new Set(), darkMode, propColumnConfig), [activeData, darkMode, propColumnConfig]);
+    const hierarchicalDefsForToolbar = useMemo(() => buildColDefs(activeData, new Set(), darkMode, propColumnConfig, colorPositiveNegative), [activeData, darkMode, propColumnConfig, colorPositiveNegative]);
 
-    const toolbar = hierarchicalDefsForToolbar.length > 0 ? (
-        <ColVisibilityToolbar
-            colDefs={hierarchicalDefsForToolbar}
-            hiddenCols={hiddenCols}
-            onToggle={handleToggleCol}
-            onToggleGroup={handleToggleGroup}
-            darkMode={darkMode}
-        />
-    ) : null;
+    const handleExport = useCallback(async () => {
+        if (!activeData || activeData.length === 0) return;
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const sheetName = activeTab ?? "Data";
+            const worksheet = workbook.addWorksheet(sheetName);
+
+            const visibleLeaves = flattenLeaves(hierarchicalDefsForToolbar).filter(c => c.field && !hiddenCols.has(c.field!));
+            worksheet.columns = visibleLeaves.map(c => ({
+                header: c.headerName ?? c.field ?? "",
+                key: c.field!,
+                width: 20,
+            }));
+
+            activeData.forEach(row => {
+                const exportRow: Record<string, any> = {};
+                visibleLeaves.forEach(c => { exportRow[c.field!] = row[c.field!] ?? ""; });
+                worksheet.addRow(exportRow);
+            });
+
+            worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+            worksheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1f2836" } };
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${sheetName}_${new Date().toISOString().split("T")[0]}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Export error:", err);
+        }
+    }, [activeData, activeTab, hierarchicalDefsForToolbar, hiddenCols]);
+
+    const toolbar = (
+        <div className="flex items-center gap-2">
+            {showExportButton && activeData.length > 0 && (
+                <button
+                    onClick={handleExport}
+                    className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md border shadow-sm transition-all duration-200 ${darkMode
+                        ? 'border-gray-600 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:border-gray-500'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                    }`}
+                    title="Export to Excel"
+                >
+                    <svg className="w-3.5 h-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Export</span>
+                </button>
+            )}
+            {showColumnVisibilityToggle && hierarchicalDefsForToolbar.length > 0 && (
+                <ColVisibilityToolbar
+                    colDefs={hierarchicalDefsForToolbar}
+                    hiddenCols={hiddenCols}
+                    onToggle={handleToggleCol}
+                    onToggleGroup={handleToggleGroup}
+                    darkMode={darkMode}
+                />
+            )}
+        </div>
+    );
 
     return (
         <WidgetContainer
@@ -819,6 +935,10 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
             initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
+            isTokenRequired={isTokenRequired}
+            getFirebaseToken={getFirebaseToken}
+            showRefreshButton={showRefreshButton}
+            onRefresh={refetch}
         >
             <div className="flex flex-col h-full overflow-hidden">
                 <style>{`
@@ -862,7 +982,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
                     activeTab={activeTab ?? ""}
                     onTabChange={setActiveTab}
                     darkMode={darkMode}
-                    toolbar={toolbar}
+                    toolbar={tabs.length > 0 ? toolbar : null}
                 />
                 <div className={`overflow-auto flex-1 ${darkMode ? "bg-transparent" : "bg-white"}`}>
                     {tabs.length === 0 ? (
@@ -870,7 +990,7 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
                             No data available
                         </div>
                     ) : (
-                        <AgTable data={activeData} darkMode={darkMode} hiddenCols={hiddenCols} widgetConfig={propColumnConfig} />
+                        <AgTable data={activeData} darkMode={darkMode} hiddenCols={hiddenCols} widgetConfig={propColumnConfig} colorPositiveNegative={colorPositiveNegative} />
                     )}
                 </div>
             </div>

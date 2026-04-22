@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
@@ -8,6 +8,7 @@ import { WidgetContainer } from "../components/WidgetContainer";
 import { Clock, Loader2, Info, CheckCircle, Play, FileText, X, User, ThumbsUp, Eye, AlertCircle } from "lucide-react";
 import { useWidgetEvents } from "../hooks/useWidgetEvents";
 import { WIDGET_EVENTS } from "../store/widgetEventBus";
+import { TablePagination } from "../components/TablePagination";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,8 @@ export interface MyLimitRequestsViewWidgetProps extends BaseWidgetProps {
     pollInterval?: number;
     limitHistoryApiUrl?: string;
     auditTrailApiUrl?: string;
+    productOptions?: any[];
+    showRefreshButton?: boolean;
     // eventSubscriptions inherited from BaseWidgetProps
 }
 
@@ -270,18 +273,31 @@ interface RowProps {
     onInfoClick: (item: any) => void;
 }
 
-const TableRow = ({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
+const TableRow = React.memo(({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const textColor = darkMode ? "text-gray-300" : "text-gray-700";
     const subText = darkMode ? "text-gray-500" : "text-gray-400";
 
-    const currentLimit = Number(item.currentLimit || 0);
     const requestedLimit = Number(item.requestedLimit || 0);
-    const delta = requestedLimit - currentLimit;
+    const previousLimit = Number(item.previousLimit || 0);
+    const delta = requestedLimit - previousLimit;
     const deltaColor = delta > 0 ? "text-green-500" : delta < 0 ? "text-red-500" : (darkMode ? "text-gray-500" : "text-gray-400");
+    const deltaPrefix = delta > 0 ? "+" : "";
 
     return (
         <tr className={`group transition-colors ${darkMode ? "hover:bg-gray-800/50" : "hover:bg-gray-50/50"} border-b ${borderColor}`}>
+            <td className={`${textColor} px-4 py-3 text-center text-sm font-mono`}>
+                {item.account}
+            </td>
+            <td className={`${textColor} px-4 py-3 text-center text-sm font-bold`}>
+                {item.product}
+            </td>
+            <td className={`${textColor} px-4 py-3 text-center text-sm`}>
+                {item.productName}
+            </td>
+            <td className={`${textColor} px-4 py-3 text-center text-sm`}>
+                {item.exchange || <span className={`italic text-sm ${subText}`}>—</span>}
+            </td>
             {/* Dynamic Backend Columns */}
             {dynamicKeys.map(key => (
                 <td key={key} className={`px-4 py-3 text-sm text-center ${textColor}`}>
@@ -291,10 +307,13 @@ const TableRow = ({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
 
 
             {/* Requested Limit + delta */}
-            <td className="px-4 py-3 text-center">
-                <div className="flex flex-col items-center gap-0.5">
-                    <span className={`tabular-nums text-sm font-medium ${textColor}`}>
+            <td className="px-4 py-3 text-center whitespace-nowrap">
+                <div className="flex items-center gap-1 justify-center">
+                    <span className={`tabular-nums text-sm font-bold ${textColor}`}>
                         {requestedLimit.toLocaleString()}
+                    </span>
+                    <span className={`tabular-nums text-sm font-bold ${deltaColor}`}>
+                        ({deltaPrefix}{delta.toLocaleString()})
                     </span>
                 </div>
             </td>
@@ -316,6 +335,32 @@ const TableRow = ({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
                 <StatusBadge status={item.status} darkMode={darkMode} />
             </td>
 
+            {/* Review Details */}
+            <td className="px-4 py-3 text-center">
+                <div className="flex flex-col items-center gap-0.5 min-w-[140px]">
+                    {item.reviewer ? (
+                        <>
+                            <div className="flex items-center gap-1 text-xs font-bold" style={{ color: "#00998b" }}>
+                                <User size={11} />
+                                <span>{item.reviewer}</span>
+                            </div>
+                            {item.remarks && (
+                                <span className={`text-[11px] italic ${subText} truncate max-w-[180px]`} title={item.remarks}>
+                                    "{item.remarks}"
+                                </span>
+                            )}
+                            {item.reviewDate && (
+                                <span className={`text-[11px] ${subText} font-mono opacity-70`}>
+                                    {new Date(item.reviewDate).toLocaleDateString()} {new Date(item.reviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <span className={`text-xs italic ${subText} opacity-40`}>Pending Review</span>
+                    )}
+                </div>
+            </td>
+
             <td className="px-4 py-3 text-center">
                 <button
                     onClick={() => onInfoClick(item)}
@@ -329,7 +374,7 @@ const TableRow = ({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
             </td>
         </tr>
     );
-};
+});
 
 // ─── Main Widget ───────────────────────────────────────────────────────────────
 
@@ -347,6 +392,8 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     isTokenRequired,
     getFirebaseToken,
     eventSubscriptions,
+    productOptions = [],
+    showRefreshButton = false,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
@@ -354,8 +401,10 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     );
 
     const [auditTrailData, setAuditTrailData] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
 
-    const handleInfoClick = async (item: any) => {
+    const handleInfoClick = useCallback(async (item: any) => {
         try {
             console.log(auditTrailApiUrl + "?id=" + item.id);
             let token = "";
@@ -374,7 +423,61 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
         } catch (error) {
             console.log(error);
         }
-    };
+    }, [auditTrailApiUrl, isTokenRequired, getFirebaseToken]);
+
+    const handleParametersChange = useCallback((newParams: ParameterValues) => {
+        const updated = { ...newParams };
+
+        // 1:1 Mapping logic for Product and Product Name filters
+        if (productOptions && productOptions.length > 0) {
+            const oldProducts = currentParams.products || currentParams.product;
+            const newProducts = newParams.products || newParams.product;
+            const oldProductNames = currentParams.product_names || currentParams.productName || currentParams.product_name;
+            const newProductNames = newParams.product_names || newParams.productName || newParams.product_name;
+            const exchKey = newParams.exchange !== undefined ? "exchange" : newParams.exchanges !== undefined ? "exchanges" : null;
+
+            if (newProducts !== oldProducts) {
+                const match = productOptions.find(p => (p.metadata_sym || p.product) === newProducts);
+                if (match) {
+                    const nameKey = newParams.product_names !== undefined ? "product_names" :
+                        newParams.productName !== undefined ? "productName" : "product_name";
+                    updated[nameKey] = match.instrument || match.productName || "";
+                } else if (!newProducts) {
+                    const nameKey = newParams.product_names !== undefined ? "product_names" :
+                        newParams.productName !== undefined ? "productName" : "product_name";
+                    updated[nameKey] = "";
+                }
+            } else if (newProductNames !== oldProductNames) {
+                const match = productOptions.find(p => (p.instrument || p.productName) === newProductNames);
+                if (match) {
+                    const prodKey = newParams.products !== undefined ? "products" : "product";
+                    updated[prodKey] = match.metadata_sym || match.product || "";
+                } else if (!newProductNames) {
+                    const prodKey = newParams.products !== undefined ? "products" : "product";
+                    updated[prodKey] = "";
+                }
+            }
+
+            // Exchange auto-fill: if product+productName combo resolves to a single exchange, auto-apply it
+            if (exchKey && (newProducts !== oldProducts || newProductNames !== oldProductNames)) {
+                const resolvedProduct = (updated[newParams.products !== undefined ? "products" : "product"] || newProducts || "") as string;
+                const resolvedProductName = (updated[newParams.product_names !== undefined ? "product_names" : newParams.productName !== undefined ? "productName" : "product_name"] || newProductNames || "") as string;
+                if (resolvedProduct && resolvedProductName) {
+                    const matchingExchanges = Array.from(new Set(
+                        productOptions
+                            .filter(p => (p.metadata_sym || p.product) === resolvedProduct && (p.instrument || p.productName) === resolvedProductName)
+                            .map(p => p.exchange)
+                            .filter(Boolean)
+                    ));
+                    updated[exchKey] = matchingExchanges.length === 1 ? matchingExchanges[0] : "";
+                } else {
+                    updated[exchKey] = "";
+                }
+            }
+        }
+
+        setCurrentParams(updated);
+    }, [currentParams, productOptions]);
 
     useEffect(() => {
         onWidgetStateChange?.({ parameters: currentParams });
@@ -398,18 +501,70 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
         if (!rawData || !Array.isArray(rawData)) return [];
         return rawData.map(item => ({
             ...item,
-            instrumentType: item.instrumentType || item['instrument type'] || item.category || '',
-            currentLimit: Number(item.currentLimit ?? item.currentLevel ?? item.CurrentLimit ?? item.CurrentLevel ?? 0),
-            requestedLimit: Number(item.requestedLimit ?? item.RequestedLimit ?? 0)
+            id: item.id,
+            account: item.account || item.account_id || item['account_id'] || '',
+            product: item.product || '',
+            productName: item.productName || item.product_name || item['product_name'] || '',
+            exchange: item.exchange || '',
+            instrumentType: item.instrumentType || item.instrument_type || item['instrument_type'] || item['instrument type'] || item.category || '',
+            requestedLimit: Number(item.requestedLimit ?? item.requested_limit ?? item['requested_limit'] ?? item.RequestedLimit ?? 0),
+            previousLimit: Number(item.previousLimit ?? item.previous_limit ?? item['previous_limit'] ?? item.PreviousLimit ?? 0),
+            limitType: item.limitType || item.limit_type || item['limit_type'] || item.LimitType || '',
+            status: item.status || 'PENDING',
+            reviewer: item.reviewer || item.reviewerName || '',
+            remarks: item.remarks || item.comments || '',
+            reviewDate: item.reviewDate || item.reviewedAt || ''
         }));
     }, [rawData]);
 
+    const enrichedParameters = useMemo(() => {
+        if (!parameters || parameters.length === 0) return parameters;
+        return parameters.map(param => {
+            const nameLower = param.name.toLowerCase();
+            if (nameLower === 'products' || nameLower === 'product') {
+                const opts = Array.from(new Set(items.map(r => String(r.product || r.Product || '')).filter(Boolean))).sort();
+                return { ...param, options: opts.map(v => ({ label: v, value: v })), optionsApiUrl: undefined };
+            }
+            if (nameLower === 'product_names' || nameLower === 'productname' || nameLower === 'product_name') {
+                const opts = Array.from(new Set(items.map(r => String(r.productName || r['Product Name'] || '')).filter(Boolean))).sort();
+                return { ...param, options: opts.map(v => ({ label: v, value: v })), optionsApiUrl: undefined };
+            }
+            if (nameLower === 'exchange' || nameLower === 'exchanges') {
+                if (productOptions && productOptions.length > 0) {
+                    const currentProduct = (currentParams.products || currentParams.product || "") as string;
+                    const currentProductName = (currentParams.product_names || currentParams.productName || currentParams.product_name || "") as string;
+                    let exchanges: string[];
+                    if (currentProduct && currentProductName) {
+                        exchanges = Array.from(new Set(
+                            productOptions
+                                .filter(p => (p.metadata_sym || p.product) === currentProduct && (p.instrument || p.productName) === currentProductName)
+                                .map(p => p.exchange)
+                                .filter(Boolean)
+                        )).sort();
+                    } else if (currentProduct) {
+                        exchanges = Array.from(new Set(
+                            productOptions
+                                .filter(p => (p.metadata_sym || p.product) === currentProduct)
+                                .map(p => p.exchange)
+                                .filter(Boolean)
+                        )).sort();
+                    } else {
+                        exchanges = Array.from(new Set(productOptions.map(p => p.exchange).filter(Boolean))).sort();
+                    }
+                    return { ...param, options: exchanges.map(v => ({ label: v, value: v })), optionsApiUrl: undefined };
+                }
+            }
+            return param;
+        });
+    }, [parameters, items, productOptions, currentParams]);
+
     // Fields that have special rendering logic and shouldn't be in the dynamic columns
     const specialFields = useMemo(() => new Set([
-        "id", "currentLimit", "requestedLimit", "instrumentType", "status",
+        "id", "currentLimit", "requestedLimit", "previousLimit", "instrumentType", "status",
         "requestedAt", "reviewedAt", "reviewerName", "comments",
-        "currentLevel", "requestedLimit", "instrument type", "category",
-        "CurrentLimit", "RequestedLimit", "CurrentLevel", "status"
+        "currentLevel", "instrument type", "category", "requested_limit", "previous_limit",
+        "CurrentLimit", "RequestedLimit", "PreviousLimit", "CurrentLevel", "limitType", "limit_type", "LimitType",
+        "reviewer", "remarks", "reviewDate", "account", "product", "productName", "account_id", "exchange"
     ]), []);
 
     const dynamicKeys = useMemo(() => {
@@ -418,6 +573,8 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
         return Object.keys(items[0]).filter(k => !specialFields.has(k));
     }, [items, specialFields]);
 
+    useEffect(() => { setCurrentPage(1); }, [currentParams]);
+
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
     const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
@@ -425,24 +582,37 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
     const thClass = `px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`;
 
     // Total columns = dynamic keys + fixed specials (Current, Requested, Instrument, Status, Timeline, Comments)
-    const totalCols = dynamicKeys.length + 5;
+    const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return items.slice(start, start + pageSize);
+    }, [items, currentPage, pageSize]);
+
+    const totalCols = dynamicKeys.length + 10;
 
     return (
         <WidgetContainer
             title="My Limit Requests"
-            parameters={parameters}
-            onParametersChange={setCurrentParams}
+            parameters={enrichedParameters}
+            onParametersChange={handleParametersChange}
             darkMode={darkMode}
             initialParameterValues={currentParams}
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
+            isTokenRequired={isTokenRequired}
+            getFirebaseToken={getFirebaseToken}
+            showRefreshButton={showRefreshButton}
+            onRefresh={refetch}
         >
             <div className={`relative flex flex-col h-full w-full overflow-hidden ${darkMode ? "bg-gray-950 text-gray-100" : "bg-white text-gray-900"}`}>
 
                 {/* Info bar */}
-                <div className={`flex items-center gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
-                    <Info size={14} style={{ color: "#00998b" }} />
-                    <span>View the status of your submitted limit requests.</span>
+                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
+                    <div className="flex items-center gap-2">
+                        <Info size={14} style={{ color: "#00998b" }} />
+                        <span>View the status of your submitted limit requests.</span>
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -457,15 +627,20 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                                                 key.replace(/([A-Z])/g, ' $1').trim();
                                     return <th key={key} className={thClass}>{label}</th>;
                                 })}
+                                <th className={thClass}>Account</th>
+                                <th className={thClass}>Product</th>
+                                <th className={thClass}>Product Name</th>
+                                <th className={thClass}>Exchange</th>
                                 <th className={thClass}>Requested</th>
                                 <th className={thClass}>Instrument</th>
                                 <th className={thClass}>Limit Type</th>
                                 <th className={thClass}>Status</th>
-                                <th className={thClass}>Info</th>
+                                <th className={thClass}>Review Details</th>
+                                <th className={thClass}>Timeline</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {items.map((item) => (
+                            {paginatedItems.map((item) => (
                                 <TableRow
                                     key={item.id}
                                     item={item}
@@ -494,6 +669,16 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
                         </tbody>
                     </table>
                 </div>
+
+                <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={items.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    darkMode={darkMode}
+                />
 
                 {auditTrailData && (
                     <AuditTrailModal

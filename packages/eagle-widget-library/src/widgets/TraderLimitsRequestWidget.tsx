@@ -8,9 +8,9 @@ import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { useWidgetEvents } from "../hooks/useWidgetEvents";
 import { WIDGET_EVENTS } from "../store/widgetEventBus";
 import { WidgetContainer } from "../components/WidgetContainer";
+import { TablePagination } from "../components/TablePagination";
 import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet, Search } from "lucide-react";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-toastify";
 
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
@@ -193,8 +193,10 @@ export interface TraderLimitsRequestWidgetProps extends BaseWidgetProps {
     limitField?: string;
     colorizeNumeric?: boolean;
     allowAddingRows?: boolean;
-    productOptions?: any[];
+    productOptionsFutures?: any[];
+    productOptionsOptions?: any[];
     readOnly?: boolean;
+    showRefreshButton?: boolean;
     // eventSubscriptions inherited from BaseWidgetProps
 }
 
@@ -285,7 +287,7 @@ const TableRow: React.FC<RowProps> = ({
         if (!state.requestedOutrightLimit && !state.requestedSpreadLimit) return;
 
         // Validate non-negative limits
-        if ((state.requestedOutrightLimit && Number(state.requestedOutrightLimit) < 0) || 
+        if ((state.requestedOutrightLimit && Number(state.requestedOutrightLimit) < 0) ||
             (state.requestedSpreadLimit && Number(state.requestedSpreadLimit) < 0)) {
             setState(prev => ({
                 ...prev,
@@ -335,18 +337,47 @@ const TableRow: React.FC<RowProps> = ({
                 const handleDraftChange = (val: string) => {
                     let newDraft = { ...state.draftData, [key]: val };
 
-                    // 1:1 Mapping logic for Product and Product Name
                     if (productOptions && productOptions.length > 0 && typeof productOptions[0] === 'object') {
                         const lowKey = key.toLowerCase();
                         if (lowKey === "product") {
-                            const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
-                            if (match) {
-                                newDraft["productName"] = match.instrument || match.productName || "";
+                            if (activeTab === 'Future') {
+                                // 1:1 mapping for futures
+                                const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
+                                if (match) {
+                                    newDraft["productName"] = match.instrument || match.productName || "";
+                                }
+                            } else {
+                                // Options: one product → many instruments, so reset productName selection
+                                newDraft["productName"] = "";
                             }
-                        } else if (lowKey === "productname") {
+                        } else if (lowKey === "productname" && activeTab === 'Future') {
+                            // 1:1 reverse mapping only for futures
                             const match = productOptions.find(p => (p.instrument || p.productName) === val);
                             if (match) {
                                 newDraft["product"] = match.metadata_sym || match.product || "";
+                            }
+                        } else if (lowKey === "productname" && activeTab === 'Option') {
+                            // Options: productName is the main identifier, clear product
+                            const match = productOptions.find(p => (p.instrument || p.productName) === val);
+                            if (match) {
+                                newDraft["product"] = match.metadata_sym || match.product || "";
+                            }
+                        }
+
+                        // Exchange auto-fill: after product+productName are resolved, check if exchange is unambiguous
+                        if (lowKey === "product" || lowKey === "productname") {
+                            const resolvedProduct = newDraft["product"] || "";
+                            const resolvedProductName = newDraft["productName"] || "";
+                            if (resolvedProduct && resolvedProductName) {
+                                const matchingExchanges = Array.from(new Set(
+                                    productOptions
+                                        .filter(p => (p.metadata_sym || p.product) === resolvedProduct && (p.instrument || p.productName) === resolvedProductName)
+                                        .map(p => p.exchange)
+                                        .filter(Boolean)
+                                ));
+                                newDraft["exchange"] = matchingExchanges.length === 1 ? matchingExchanges[0] : "";
+                            } else {
+                                newDraft["exchange"] = "";
                             }
                         }
                     }
@@ -354,10 +385,42 @@ const TableRow: React.FC<RowProps> = ({
                     setState({ ...state, draftData: newDraft });
                 };
 
+                // For Options tab: filter productName dropdown to only show instruments for the selected product
+                let effectiveOptions = columnOptions[key];
+                if (key.toLowerCase() === 'productname' && activeTab === 'Option' && productOptions.length > 0) {
+                    const selectedProduct = state.draftData?.["product"];
+                    if (selectedProduct) {
+                        effectiveOptions = productOptions
+                            .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct)
+                            .map((p: any) => p.instrument || p.productName || '')
+                            .filter(Boolean);
+                    }
+                }
+                // Filter exchange dropdown based on selected product+productName combination
+                if (key.toLowerCase() === 'exchange' && productOptions.length > 0) {
+                    const selectedProduct = state.draftData?.["product"];
+                    const selectedProductName = state.draftData?.["productName"];
+                    if (selectedProduct && selectedProductName) {
+                        effectiveOptions = Array.from(new Set(
+                            productOptions
+                                .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct && (p.instrument || p.productName) === selectedProductName)
+                                .map((p: any) => p.exchange)
+                                .filter(Boolean)
+                        ));
+                    } else if (selectedProduct) {
+                        effectiveOptions = Array.from(new Set(
+                            productOptions
+                                .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct)
+                                .map((p: any) => p.exchange)
+                                .filter(Boolean)
+                        ));
+                    }
+                }
+
                 return (
                     <Select
                         placeholder={`Select ${key}`}
-                        options={columnOptions[key]}
+                        options={effectiveOptions}
                         value={state.draftData?.[key] || ""}
                         onChange={handleDraftChange}
                         darkMode={darkMode}
@@ -710,18 +773,48 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     limitField,
     colorizeNumeric = true,
     allowAddingRows = true,
-    productOptions = [],
+    productOptionsFutures = [],
+    productOptionsOptions = [],
     readOnly = false,
     onGroupedParametersChange,
     groupedParametersValues,
     isTokenRequired,
     getFirebaseToken,
     eventSubscriptions,
+    showRefreshButton = false,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(
         () => initialWidgetState?.parameters || defaultParams
     );
+    // Fetch account options from parameters if available
+    const [accountNumbersOptions, setAccountNumbersOptions] = useState<string[]>([]);
+
+    useEffect(() => {
+        const fetchAccountOptions = async () => {
+            const accParam = parameters?.find(p => p.name === "account_numbers" || p.name.toLowerCase().includes("account"));
+            if (accParam?.optionsApiUrl) {
+                try {
+                    let url = accParam.optionsApiUrl;
+                    if (getFirebaseToken) {
+                        const token = await getFirebaseToken();
+                        if (token) {
+                            url += (url.includes('?') ? '&' : '?') + `token=${token}`;
+                        }
+                    }
+                    const resp = await fetch(url);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        setAccountNumbersOptions(data.map((o: any) => String(o.value || o)));
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch account options for widget dropdown:", err);
+                }
+            }
+        };
+        fetchAccountOptions();
+    }, [parameters, getFirebaseToken]);
+
     const [newRows, setNewRows] = useState<number[]>([]);
     const [activeTab, setActiveTab] = useState<'Future' | 'Option'>('Future');
     const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
@@ -762,6 +855,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 account: item.accountId,
                 product: item.product,
                 productName: item.productName || item.product_name || "",
+                exchange: item.exchange || "",
                 outrightLimit: item.outrightLimit !== undefined ? item.outrightLimit : (item['Outright Limit'] ?? item['outright limit'] ?? 0),
                 spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0)
             }));
@@ -770,7 +864,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     }, [rawData]);
 
     const dataKeys = useMemo(() => {
-        const base = ["account", "product", "productName", "outrightLimit"];
+        const base = ["account", "product", "productName", "exchange", "outrightLimit"];
         if (activeTab === 'Future') {
             base.push("spreadLimit");
         }
@@ -781,6 +875,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         account: "Account",
         product: "Product",
         productName: "Product Name",
+        exchange: "Exchange",
         productClass: "Class",
         outrightLimit: "Outright Limit",
         spreadLimit: "Spread Limit",
@@ -794,6 +889,22 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         const first = limitsData[0];
         return Object.keys(first).find((k) => typeof first[k] === "number") ?? null;
     }, [limitField, limitsData]);
+
+    const enrichedParameters = useMemo(() => {
+        if (!parameters || parameters.length === 0) return parameters;
+        return parameters.map(param => {
+            const nameLower = param.name.toLowerCase();
+            if (nameLower === 'products') {
+                const opts = Array.from(new Set(limitsData.map(r => String(r.product || '')).filter(Boolean))).sort();
+                return { ...param, options: opts.map(v => ({ label: v, value: v })), optionsApiUrl: undefined };
+            }
+            if (nameLower === 'product_names') {
+                const opts = Array.from(new Set(limitsData.map(r => String(r.productName || '')).filter(Boolean))).sort();
+                return { ...param, options: opts.map(v => ({ label: v, value: v })), optionsApiUrl: undefined };
+            }
+            return param;
+        });
+    }, [parameters, limitsData]);
 
     // Check if any row is actively requesting/editing, filtering for currently visible rows
     const showRequestCols = useMemo(() => {
@@ -812,12 +923,23 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     const columnOptions = useMemo(() => {
         const options: Record<string, string[]> = {};
-        if (limitsData.length === 0 && productOptions.length === 0) return options;
+
+        // Check if we have account options in parameters or our fetched state
+        const accountParam = parameters?.find(p => p.name.toLowerCase() === "account_numbers" || p.name.toLowerCase().includes("account"));
+        const hasAccountOptions = (accountParam?.options && accountParam.options.length > 0) || accountNumbersOptions.length > 0;
+
+        const productOptions = activeTab === "Future" ? productOptionsFutures : productOptionsOptions;
+        const hasProductOptions = productOptions.length > 0;
+
+        if (limitsData.length === 0 && !hasAccountOptions && !hasProductOptions) return options;
 
         dataKeys.forEach(key => {
             const k = key.toLowerCase();
             if (k.includes("account") || k.includes("number")) {
-                options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['Account Number'] || '')).filter(Boolean))).sort();
+                const dataAccountOptions = limitsData.map(row => String(row[key] || row['Account Number'] || '')).filter(Boolean);
+                const parameterAccountOptions = accountParam?.options?.map(o => String(o.value)) || [];
+                // Merge options from: 1. Existing data, 2. Parameter options prop, 3. Our independently fetched options
+                options[key] = Array.from(new Set([...dataAccountOptions, ...parameterAccountOptions, ...accountNumbersOptions])).sort();
             } else if (k === "product") {
                 if (productOptions.length > 0) {
                     options[key] = Array.from(new Set(productOptions.map(p => (typeof p === 'object' ? (p.metadata_sym || p.product || '') : p)).filter(Boolean))).sort();
@@ -830,12 +952,18 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 } else {
                     options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['productName'] || row['product_name'] || '')).filter(Boolean))).sort();
                 }
+            } else if (k === "exchange") {
+                if (productOptions.length > 0) {
+                    options[key] = Array.from(new Set(productOptions.map(p => (typeof p === 'object' ? (p.exchange || '') : p)).filter(Boolean))).sort();
+                } else {
+                    options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || '')).filter(Boolean))).sort();
+                }
             } else if (k.includes("category") || k.includes("type")) {
                 options[key] = Array.from(new Set(limitsData.map(row => String(row[key] || row['instrumentType'] || row['category'] || '')).filter(Boolean))).sort();
             }
         });
         return options;
-    }, [limitsData, dataKeys, productOptions]);
+    }, [limitsData, dataKeys, productOptionsFutures, productOptionsOptions, accountNumbersOptions]);
 
     const handleAddNewRow = () => {
         setNewRows(prev => [...prev, Date.now()]);
@@ -887,9 +1015,105 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     // ─── Export Logic ────────────────────────────────────────────────────────
 
     const handleExport = async () => {
-        if (limitsData.length === 0) return;
-
         try {
+            let exportRows: any[] = [];
+            const isInteractive = !readOnly;
+            const productOptions = activeTab === "Future" ? productOptionsFutures : productOptionsOptions;
+            if (isInteractive && productOptions && productOptions.length > 0) {
+                // Determine which accounts to include in the template
+                let accounts: string[] = [];
+                const paramAccounts = currentParams['account_numbers'] || currentParams['account'] || currentParams['Account'];
+
+                if (Array.isArray(paramAccounts)) {
+                    accounts = paramAccounts.map(String);
+                } else if (paramAccounts) {
+                    accounts = [String(paramAccounts)];
+                }
+
+                // Fallback to accounts already present in the data if no parameters are selected
+                if (accounts.length === 0) {
+                    accounts = Array.from(new Set(limitsData.map(r => String(r.account)))).filter(Boolean);
+                }
+
+                // Fallback to fetched/parameter account options (same source as "Add New Product" dropdown)
+                if (accounts.length === 0) {
+                    const accountParam = parameters?.find(p => p.name.toLowerCase() === "account_numbers" || p.name.toLowerCase().includes("account"));
+                    const paramOptionAccounts = accountParam?.options?.map(o => String(o.value)) || [];
+                    accounts = Array.from(new Set([...accountNumbersOptions, ...paramOptionAccounts])).filter(Boolean).sort();
+                }
+
+                if (accounts.length > 0) {
+                    // Map all product options to a clean list
+                    const allProductsList = productOptions.map(p => ({
+                        product: typeof p === 'object' ? (p.metadata_sym || p.product || '') : String(p),
+                        productName: typeof p === 'object' ? (p.instrument || p.productName || '') : '',
+                        exchange: typeof p === 'object' ? (p.exchange || '') : ''
+                    })).filter(p => p.product);
+
+                    // Generate a cross-product of accounts and products
+                    accounts.forEach(acc => {
+                        allProductsList.forEach(prod => {
+                            const existing = limitsData.find(r => String(r.account) === acc && String(r.product) === prod.product);
+                            if (existing) {
+                                exportRows.push({
+                                    account: existing.account,
+                                    product: existing.product,
+                                    productName: existing.productName,
+                                    exchange: existing.exchange || prod.exchange || "",
+                                    outrightLimit: existing.outrightLimit || 0,
+                                    spreadLimit: existing.spreadLimit || 0,
+                                    requestedOutrightLimit: existing.outrightLimit || 0,
+                                    requestedSpreadLimit: existing.spreadLimit || 0,
+                                    reason: ""
+                                });
+                            } else {
+                                // Add products that don't have limits yet with 0 values
+                                exportRows.push({
+                                    account: acc,
+                                    product: prod.product,
+                                    productName: prod.productName,
+                                    exchange: prod.exchange || "",
+                                    outrightLimit: 0,
+                                    spreadLimit: 0,
+                                    requestedOutrightLimit: 0,
+                                    requestedSpreadLimit: 0,
+                                    reason: ""
+                                });
+                            }
+                        });
+                    });
+                } else {
+                    // If no accounts found, just export what we have
+                    exportRows = limitsData.map(row => ({
+                        ...row,
+                        requestedOutrightLimit: row.outrightLimit || 0,
+                        requestedSpreadLimit: row.spreadLimit || 0,
+                        reason: ""
+                    }));
+                }
+            } else {
+                // Non-interactive mode or no product options: export only existing data
+                if (limitsData.length === 0) return;
+                exportRows = limitsData.map(row => ({
+                    account: row.account,
+                    product: row.product,
+                    productName: row.productName,
+                    exchange: row.exchange || "",
+                    outrightLimit: row.outrightLimit || 0,
+                    spreadLimit: row.spreadLimit || 0,
+                    ...(isInteractive ? {
+                        requestedOutrightLimit: row.outrightLimit || 0,
+                        requestedSpreadLimit: row.spreadLimit || 0,
+                        reason: ""
+                    } : {})
+                }));
+            }
+
+            if (exportRows.length === 0) {
+                toast.info("No data available to export.");
+                return;
+            }
+
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet("Trader Limits");
 
@@ -898,56 +1122,42 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 ...dataKeys.map(key => ({ header: DISPLAY_NAMES[key] || key, key: key, width: 20 })),
             ];
 
-            if (!readOnly) {
+            if (isInteractive) {
                 columns.push(
-                    { header: "Requested Outright Limit", key: "requestedOutrightLimit", width: 25 },
-                    { header: "Requested Spread Limit", key: "requestedSpreadLimit", width: 25 },
-                    { header: "Reason", key: "reason", width: 30 }
+                    { header: "Requested Outright Limit", key: "requestedOutrightLimit", width: 25 }
                 );
+                // Only show spread limit if in Futures tab
+                if (activeTab === 'Future') {
+                    columns.push({ header: "Requested Spread Limit", key: "requestedSpreadLimit", width: 25 });
+                }
+                columns.push({ header: "Reason", key: "reason", width: 30 });
             }
 
             worksheet.columns = columns;
-
-            // Add rows
-            const rows = limitsData.map(row => ({
-                account: row.account,
-                product: row.product,
-                productName: row.productName,
-                outrightLimit: row.outrightLimit || 0,
-                spreadLimit: row.spreadLimit || 0,
-                ...(!readOnly ? {
-                    requestedOutrightLimit: row.outrightLimit || 0,
-                    requestedSpreadLimit: row.spreadLimit || 0,
-                    reason: ""
-                } : {})
-            }));
-
-            worksheet.addRows(rows);
+            worksheet.addRows(exportRows);
 
             // Style headers
-            worksheet.getRow(1).font = { bold: true };
+            worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
             worksheet.getRow(1).fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FF00998B' } // Petrol color
+                fgColor: { argb: 'FF00998B' }
             };
-            worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
-            // Generate buffer
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = window.URL.createObjectURL(blob);
 
             const link = document.createElement("a");
             link.href = url;
-            link.download = `trader_limits_${new Date().toISOString().split('T')[0]}.xlsx`;
+            link.download = `trader_limits_${activeTab}_${new Date().toISOString().split('T')[0]}.xlsx`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error("Export Error:", error);
-            alert("Failed to generate Excel file.");
+            toast.error("Failed to generate Excel file.");
         }
     };
 
@@ -993,6 +1203,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     const acc = getCellVal(row, "Account Number", "Account", "Account ID");
                     const prod = getCellVal(row, "Product", "Symbol", "Instrument");
                     const prodName = getCellVal(row, "Product Name", "ProductName");
+                    const exch = getCellVal(row, "Exchange");
                     const reqOutrightLimit = getCellVal(row, "Requested Outright Limit", "New Outright Limit", "Outright Limit");
                     const reqSpreadLimit = activeTab === 'Future' ? getCellVal(row, "Requested Spread Limit", "New Spread Limit", "Spread Limit") : null;
                     const reason = getCellVal(row, "Reason", "Comments", "Remark");
@@ -1016,6 +1227,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                             account: String(acc),
                             product: String(prod),
                             productName: String(prodName || (existing?.productName) || ""),
+                            exchange: String(exch || (existing?.exchange) || ""),
                             outrightLimit: currentOutrightLimit,
                             spreadLimit: currentSpreadLimit,
                             requestedOutrightLimit: Number(reqOutrightLimit),
@@ -1030,11 +1242,11 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     setImportData(results);
                     setIsImportModalOpen(true);
                 } else {
-              toast.warning("No limit changes detected. All values match current database state.");
+                    toast.warning("No limit changes detected. All values match current database state.");
                 }
             } catch (err: any) {
                 console.error("ExcelJS Parse Error:", err);
-              toast.error("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
+                toast.error("Failed to parse Excel file. Please ensure it's a valid XLSX/CSV.");
             }
 
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1071,7 +1283,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             } else {
                 toast.error(result.message || "Import failed");
             }
-            
+
             setIsImportModalOpen(false);
             setImportData([]);
         } catch (error: any) {
@@ -1082,6 +1294,18 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         }
     };
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
+
+    const totalPages = Math.max(1, Math.ceil(limitsData.length / pageSize));
+
+    const paginatedLimitsData = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return limitsData.slice(start, start + pageSize).map((row, i) => ({ row, originalIdx: start + i }));
+    }, [limitsData, currentPage, pageSize]);
+
+    useEffect(() => { setCurrentPage(1); }, [activeTab, currentParams]);
+
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
     const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
@@ -1089,7 +1313,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     return (
         <WidgetContainer
             title={title}
-            parameters={parameters}
+            parameters={enrichedParameters}
             onParametersChange={setCurrentParams}
             darkMode={darkMode}
             initialParameterValues={currentParams}
@@ -1097,6 +1321,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             groupedParametersValues={groupedParametersValues}
             isTokenRequired={isTokenRequired}
             getFirebaseToken={getFirebaseToken}
+            showRefreshButton={showRefreshButton}
+            onRefresh={refetch}
         >
             <style>{`
                 /* KILL ALL DEFAULT SELECT ARROWS */
@@ -1238,9 +1464,9 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                         </thead>
                         <tbody>
                             {/* Existing Rows */}
-                            {limitsData.map((row, idx) => (
+                            {paginatedLimitsData.map(({ row, originalIdx }) => (
                                 <TableRow
-                                    key={`existing-${idx}`}
+                                    key={`existing-${originalIdx}`}
                                     data={row}
                                     columns={dataKeys}
                                     darkMode={darkMode}
@@ -1248,7 +1474,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     colorizeNumeric={colorizeNumeric}
                                     onSubmit={handleSubmit}
                                     showRequestCols={showRequestCols}
-                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${idx}`]: s }))}
+                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${originalIdx}`]: s }))}
                                     readOnly={readOnly}
                                     activeTab={activeTab}
                                 />
@@ -1270,7 +1496,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     showRequestCols={showRequestCols}
                                     onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
                                     readOnly={readOnly}
-                                    productOptions={productOptions}
+                                    productOptions={activeTab == 'Future' ? productOptionsFutures : productOptionsOptions}
                                     activeTab={activeTab}
                                 />
                             ))}
@@ -1288,19 +1514,17 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                         </tbody>
                     </table>
                 </div>
+                <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={limitsData.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    darkMode={darkMode}
+                />
+
             </div>
-            <ToastContainer
-                position="bottom-right"
-                autoClose={4000}
-                hideProgressBar={false}
-                newestOnTop
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme={darkMode ? "dark" : "light"}
-            />
         </WidgetContainer>
     );
 };

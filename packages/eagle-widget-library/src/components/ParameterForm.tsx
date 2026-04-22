@@ -65,6 +65,14 @@ const XIcon = ({ size = 8 }: { size?: number }) => (
     </svg>
 );
 
+const SearchIcon = ({ size = 11 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette — cycles deterministically by group index
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,8 +108,10 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     const [open, setOpen] = useState(false);
     const [dynamicOptions, setDynamicOptions] = useState<{ label: string, value: any }[] | null>(null);
     const [loading, setLoading] = useState(false);
+    const [search, setSearch] = useState('');
     const triggerRef = useRef<HTMLButtonElement>(null);
     const dropRef   = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
         top: 0, left: 0, width: 180,
     });
@@ -115,11 +125,14 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     const pillText    = darkMode ? '#93c5fd' : '#1d4ed8';
     const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
     const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
+    const searchBg    = darkMode ? '#1f2937' : '#f9fafb';
+    const searchBdr   = darkMode ? '#374151' : '#e5e7eb';
  
     const hasFetched = useRef(false);
 
     useEffect(() => {
         hasFetched.current = false;
+        setSearch(''); // Reset search when URL changes
     }, [param.optionsApiUrl]);
 
     useEffect(() => {
@@ -155,12 +168,16 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     }, [param.optionsApiUrl, getFirebaseToken]);
 
     const options  = dynamicOptions || param.options || [];
+    const filteredOptions = options.filter(opt =>
+        String(opt.label).toLowerCase().includes(search.toLowerCase()) ||
+        String(opt.value).toLowerCase().includes(search.toLowerCase())
+    );
     const selected = Array.isArray(value) ? value : [];
 
     const reposition = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const w = Math.max(rect.width, 160);
+        const w = Math.max(rect.width, 180); // increased min width for search
         let left = rect.left;
         if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
         setPos({ top: rect.bottom + 4, left, width: w });
@@ -171,6 +188,8 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         reposition();
         window.addEventListener('scroll', reposition, true);
         window.addEventListener('resize', reposition);
+        // Focus search input when opened
+        setTimeout(() => searchRef.current?.focus(), 50);
         return () => {
             window.removeEventListener('scroll', reposition, true);
             window.removeEventListener('resize', reposition);
@@ -187,7 +206,10 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
             ) setOpen(false);
         };
         document.addEventListener('mousedown', handle);
-        return () => document.removeEventListener('mousedown', handle);
+        return () => {
+            document.removeEventListener('mousedown', handle);
+            setSearch(''); // Clear search on close
+        };
     }, [open]);
 
     const toggle = (optValue: any) => {
@@ -278,10 +300,52 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
                         animation: 'paramPopoverIn 0.12s cubic-bezier(.16,1,.3,1)',
                     }}
                 >
+                    {/* Search Input */}
+                    <div style={{
+                        padding: '6px 8px',
+                        borderBottom: `1px solid ${searchBdr}`,
+                        background: searchBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                    }}>
+                        <span style={{ color: subtext, display: 'flex' }}><SearchIcon size={11} /></span>
+                        <input
+                            ref={searchRef}
+                            type="text"
+                            placeholder="Search..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            style={{
+                                flex: 1,
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                fontSize: 11,
+                                color: text,
+                                padding: '2px 0',
+                            }}
+                        />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch('')}
+                                style={{
+                                    background: 'none', border: 'none', padding: 0,
+                                    cursor: 'pointer', color: subtext, display: 'flex'
+                                }}
+                            >
+                                <XIcon size={8} />
+                            </button>
+                        )}
+                    </div>
+
                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                        {options.length === 0 ? (
-                            <div style={{ padding: '8px 12px', fontSize: 11, color: subtext }}>No options</div>
-                        ) : options.map(opt => {
+                        {filteredOptions.length === 0 ? (
+                            <div style={{ padding: '12px', fontSize: 11, color: subtext, textAlign: 'center' }}>
+                                {options.length === 0 ? 'No options' : 'No results found'}
+                            </div>
+                        ) : filteredOptions.map(opt => {
                             const isChecked = selected.includes(opt.value);
                             return (
                                 <button
