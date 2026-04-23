@@ -9,8 +9,7 @@
     "tailwind.preset.js"
   ],
   "scripts": {
-    "dev": "vite --port 5200",
-    "build": "tsc",
+"build": "tsc",
     "prepare": "npm run build",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
