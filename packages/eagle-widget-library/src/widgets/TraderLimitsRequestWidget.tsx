@@ -12,6 +12,8 @@ import { TablePagination } from "../components/TablePagination";
 import { Check, X as LucideX, Loader2, Plus, Info, Trash2, ChevronDown, Download, Upload, AlertCircle, FileSpreadsheet, Search } from "lucide-react";
 import { toast } from "react-toastify";
 
+// ─── Visual Components ────────────────────────────────────────────────────────
+
 // ─── Shadcn-like UI Components ───────────────────────────────────────────────
 
 const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'ghost' | 'outline' | 'destructive', size?: 'sm' | 'md' }>(
@@ -42,13 +44,17 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
                 ? (isHovered ? petrolHighlight : petrolColor)
                 : variant === 'destructive'
                     ? (isHovered ? redHighlight : redColor)
-                    : undefined,
-            color: variant === 'outline' ? (isHovered ? petrolHighlight : petrolColor) : undefined,
-            borderColor: variant === 'outline' ? (isHovered ? `${petrolHighlight}80` : `${petrolColor}40`) : undefined,
-            transform: ((variant === 'primary' || variant === 'destructive') && isHovered) ? 'translateY(-1px)' : undefined,
-            boxShadow: ((variant === 'primary' || variant === 'destructive') && isHovered)
-                ? `0 4px 12px ${variant === 'primary' ? 'rgba(0, 153, 139, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
-                : undefined
+                    : variant === 'outline' && isHovered
+                        ? petrolColor
+                        : undefined,
+            color: variant === 'outline' ? (isHovered ? 'white' : petrolColor) : undefined,
+            borderColor: variant === 'outline' ? (isHovered ? petrolColor : `${petrolColor}40`) : undefined,
+            transform: ((variant === 'primary' || variant === 'destructive' || variant === 'outline') && isHovered) ? 'translateY(-1px)' : undefined,
+            boxShadow: isHovered && (variant === 'primary' || variant === 'outline')
+                ? `0 4px 12px rgba(0, 153, 139, 0.3)`
+                : isHovered && variant === 'destructive'
+                    ? '0 4px 12px rgba(239, 68, 68, 0.25)'
+                    : undefined
         };
 
         return (
@@ -256,6 +262,8 @@ const TableRow: React.FC<RowProps> = ({
         draftData: isNew ? columns.reduce((acc, col) => ({ ...acc, [col]: "" }), {}) : undefined
     }));
 
+    const [isHovered, setIsHovered] = useState(false);
+
     const onStateChangeRef = useRef(onStateChange);
     onStateChangeRef.current = onStateChange;
 
@@ -284,7 +292,7 @@ const TableRow: React.FC<RowProps> = ({
     };
 
     const handleInternalSubmit = async () => {
-        if (!state.requestedOutrightLimit && !state.requestedSpreadLimit) return;
+        if (!state.requestedOutrightLimit && !state.requestedSpreadLimit && !isNew) return;
 
         // Validate non-negative limits
         if ((state.requestedOutrightLimit && Number(state.requestedOutrightLimit) < 0) ||
@@ -299,11 +307,11 @@ const TableRow: React.FC<RowProps> = ({
         }
 
         // Ensure reason is provided
-        if (!state.reason || state.reason.trim().length < 2) {
+        if (!state.reason || state.reason.trim().length < 5) {
             setState(prev => ({
                 ...prev,
                 status: "error",
-                message: "Please provide a valid reason (min 2 chars)"
+                message: "Reason required (min 5 chars)"
             }));
             return;
         }
@@ -314,6 +322,7 @@ const TableRow: React.FC<RowProps> = ({
             await onSubmit(submissionData, state);
             setState(prev => ({ ...prev, status: "success", message: "Submitted" }));
             toast.success("Limit request submitted successfully");
+            
             setTimeout(() => {
                 if (isNew && onRemove) {
                     onRemove();
@@ -329,98 +338,43 @@ const TableRow: React.FC<RowProps> = ({
 
     const renderValue = (key: string, val: any) => {
         if (isNew && isEditing) {
-            if (key === resolvedLimitField || key.toLowerCase().includes("limit")) {
+            if (key.toLowerCase().includes("limit")) {
                 return <span className={darkMode ? "text-gray-500 italic text-xs" : "text-gray-400 italic text-xs"}>0</span>;
             }
 
             if (columnOptions[key]) {
                 const handleDraftChange = (val: string) => {
                     let newDraft = { ...state.draftData, [key]: val };
-
                     if (productOptions && productOptions.length > 0 && typeof productOptions[0] === 'object') {
                         const lowKey = key.toLowerCase();
                         if (lowKey === "product") {
-                            if (activeTab === 'Future') {
-                                // 1:1 mapping for futures
-                                const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
-                                if (match) {
-                                    newDraft["productName"] = match.instrument || match.productName || "";
-                                }
-                            } else {
-                                // Options: one product → many instruments, so reset productName selection
-                                newDraft["productName"] = "";
-                            }
-                        } else if (lowKey === "productname" && activeTab === 'Future') {
-                            // 1:1 reverse mapping only for futures
+                            const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
+                            if (match) newDraft["productName"] = match.instrument || match.productName || "";
+                        } else if (lowKey === "productname") {
                             const match = productOptions.find(p => (p.instrument || p.productName) === val);
-                            if (match) {
-                                newDraft["product"] = match.metadata_sym || match.product || "";
-                            }
-                        } else if (lowKey === "productname" && activeTab === 'Option') {
-                            // Options: productName is the main identifier, clear product
-                            const match = productOptions.find(p => (p.instrument || p.productName) === val);
-                            if (match) {
-                                newDraft["product"] = match.metadata_sym || match.product || "";
-                            }
+                            if (match) newDraft["product"] = match.metadata_sym || match.product || "";
                         }
-
-                        // Exchange auto-fill: after product+productName are resolved, check if exchange is unambiguous
-                        if (lowKey === "product" || lowKey === "productname") {
-                            const resolvedProduct = newDraft["product"] || "";
-                            const resolvedProductName = newDraft["productName"] || "";
-                            if (resolvedProduct && resolvedProductName) {
-                                const matchingExchanges = Array.from(new Set(
-                                    productOptions
-                                        .filter(p => (p.metadata_sym || p.product) === resolvedProduct && (p.instrument || p.productName) === resolvedProductName)
-                                        .map(p => p.exchange)
-                                        .filter(Boolean)
-                                ));
-                                newDraft["exchange"] = matchingExchanges.length === 1 ? matchingExchanges[0] : "";
-                            } else {
-                                newDraft["exchange"] = "";
-                            }
+                        
+                        // Exchange auto-fill
+                        const resolvedProduct = newDraft["product"] || "";
+                        const resolvedProductName = newDraft["productName"] || "";
+                        if (resolvedProduct && resolvedProductName) {
+                            const matchingExchanges = Array.from(new Set(
+                                productOptions
+                                    .filter(p => (p.metadata_sym || p.product) === resolvedProduct && (p.instrument || p.productName) === resolvedProductName)
+                                    .map(p => p.exchange)
+                                    .filter(Boolean)
+                            ));
+                            newDraft["exchange"] = matchingExchanges.length === 1 ? matchingExchanges[0] : "";
                         }
                     }
-
                     setState({ ...state, draftData: newDraft });
                 };
-
-                // For Options tab: filter productName dropdown to only show instruments for the selected product
-                let effectiveOptions = columnOptions[key];
-                if (key.toLowerCase() === 'productname' && activeTab === 'Option' && productOptions.length > 0) {
-                    const selectedProduct = state.draftData?.["product"];
-                    if (selectedProduct) {
-                        effectiveOptions = productOptions
-                            .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct)
-                            .map((p: any) => p.instrument || p.productName || '')
-                            .filter(Boolean);
-                    }
-                }
-                // Filter exchange dropdown based on selected product+productName combination
-                if (key.toLowerCase() === 'exchange' && productOptions.length > 0) {
-                    const selectedProduct = state.draftData?.["product"];
-                    const selectedProductName = state.draftData?.["productName"];
-                    if (selectedProduct && selectedProductName) {
-                        effectiveOptions = Array.from(new Set(
-                            productOptions
-                                .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct && (p.instrument || p.productName) === selectedProductName)
-                                .map((p: any) => p.exchange)
-                                .filter(Boolean)
-                        ));
-                    } else if (selectedProduct) {
-                        effectiveOptions = Array.from(new Set(
-                            productOptions
-                                .filter((p: any) => (p.metadata_sym || p.product) === selectedProduct)
-                                .map((p: any) => p.exchange)
-                                .filter(Boolean)
-                        ));
-                    }
-                }
 
                 return (
                     <Select
                         placeholder={`Select ${key}`}
-                        options={effectiveOptions}
+                        options={columnOptions[key]}
                         value={state.draftData?.[key] || ""}
                         onChange={handleDraftChange}
                         darkMode={darkMode}
@@ -433,7 +387,7 @@ const TableRow: React.FC<RowProps> = ({
                     value={state.draftData?.[key] || ""}
                     onChange={e => setState({ ...state, draftData: { ...state.draftData, [key]: e.target.value } })}
                     disabled={state.status === "submitting"}
-                    className="h-9 text-sm text-center min-w-[80px]"
+                    className="h-8 text-sm text-center min-w-[80px]"
                     darkMode={darkMode}
                     placeholder={key}
                 />
@@ -441,167 +395,183 @@ const TableRow: React.FC<RowProps> = ({
         }
 
         if (typeof val === "number") {
-            return <span className="tabular-nums font-semibold">{val.toLocaleString()}</span>;
+            return <span className={`tabular-nums font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{val.toLocaleString()}</span>;
         }
-        return <span>{val ?? "—"}</span>;
+
+        if (key === "product") {
+            return <span style={{ color: '#00998b' }} className="font-bold uppercase">{val ?? "—"}</span>;
+        }
+        if (key === "exchange") {
+            return (
+                <span className="inline-flex items-center rounded-md px-3 py-1 text-[11px] font-black tracking-widest"
+                    style={{ 
+                        backgroundColor: darkMode ? '#00998b20' : '#00998b10', 
+                        color: '#00998b', 
+                        border: `1px solid #00998b40` 
+                    }}>
+                    {val ?? "—"}
+                </span>
+            );
+        }
+        return <span className="font-medium">{val ?? "—"}</span>;
     };
 
     const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
     const textColor = darkMode ? "text-gray-300" : "text-gray-700";
 
     return (
-        <tr className={`group transition-colors ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50/50'} border-b ${borderColor} ${isNew ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : ''}`}>
-            {columns.map(col => (
-                <td key={col} className={`px-4 py-3 text-sm text-center ${textColor}`}>
-                    <div className="flex justify-center items-center">
-                        {renderValue(col, data[col])}
-                    </div>
-                </td>
-            ))}
-
-            {showRequestCols && (
-                <>
-                    {/* Request Outright Limit */}
-                    <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
-                        {isEditing ? (
-                            <div className="flex items-center gap-2 justify-center h-full">
-                                <Input
-                                    type="number"
-                                    value={state.requestedOutrightLimit}
-                                    onChange={e => setState({ ...state, requestedOutrightLimit: e.target.value })}
-                                    disabled={state.status === "submitting"}
-                                    className="h-8 w-24 text-sm text-center"
-                                    darkMode={darkMode}
-                                    autoFocus={!isNew}
-                                    placeholder="Outright"
-                                />
-                                {!isNew && state.requestedOutrightLimit && data.outrightLimit !== undefined && (
-                                    <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
-                                        ${Number(state.requestedOutrightLimit) > Number(data.outrightLimit)
-                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
-                                            : Number(state.requestedOutrightLimit) < Number(data.outrightLimit)
-                                                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                                                : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
-                                        {Number(state.requestedOutrightLimit) > Number(data.outrightLimit) ? '+' : ''}
-                                        {Number(state.requestedOutrightLimit) - Number(data.outrightLimit)}
-                                    </div>
-                                )}
+        <>
+            <tr 
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`tlr-row group transition-all duration-200 border-b ${borderColor} relative
+                    ${darkMode ? 'hover:bg-gray-800/40' : 'hover:bg-gray-50/40'} 
+                    ${isNew ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : ''}
+                    ${isHovered ? 'z-10 -translate-y-0.5' : ''}
+                `}
+                style={{
+                    boxShadow: isHovered ? '0 8px 24px -6px rgba(0,0,0,0.4)' : 'none',
+                }}
+            >
+                {columns.map(col => {
+                    const isLeftAligned = col.toLowerCase() === 'productname';
+                    return (
+                        <td key={col} className={`px-4 py-3 text-sm ${isLeftAligned ? 'text-left' : 'text-center'} ${textColor}`}>
+                            <div className={`flex ${isLeftAligned ? 'justify-start' : 'justify-center'} items-center`}>
+                                {renderValue(col, data[col])}
                             </div>
-                        ) : (
-                            <span className="text-gray-400 italic text-xs">—</span>
-                        )}
-                    </td>
+                        </td>
+                    );
+                })}
 
-                    {/* Request Spread Limit */}
-                    {activeTab === 'Future' && (
+                {showRequestCols && (
+                    <>
                         <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
                             {isEditing ? (
-                                <div className="flex items-center gap-2 justify-center h-full">
+                                <div className="flex flex-col items-center gap-1">
                                     <Input
                                         type="number"
-                                        value={state.requestedSpreadLimit}
-                                        onChange={e => setState({ ...state, requestedSpreadLimit: e.target.value })}
+                                        value={state.requestedOutrightLimit}
+                                        onChange={e => setState({ ...state, requestedOutrightLimit: e.target.value })}
                                         disabled={state.status === "submitting"}
-                                        className="h-8 w-24 text-sm text-center"
+                                        className="h-8 w-24 text-sm text-center font-bold"
                                         darkMode={darkMode}
-                                        placeholder="Spread"
+                                        placeholder="Outright"
+                                        autoFocus={!isNew}
                                     />
-                                    {!isNew && state.requestedSpreadLimit && data.spreadLimit !== undefined && (
-                                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-all duration-200
-                                            ${Number(state.requestedSpreadLimit) > Number(data.spreadLimit)
-                                                ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
-                                                : Number(state.requestedSpreadLimit) < Number(data.spreadLimit)
-                                                    ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                                                    : (darkMode ? 'text-gray-400 bg-gray-800 border border-gray-700' : 'text-gray-400 bg-gray-50')}`}>
-                                            {Number(state.requestedSpreadLimit) > Number(data.spreadLimit) ? '+' : ''}
-                                            {Number(state.requestedSpreadLimit) - Number(data.spreadLimit)}
+                                    {!isNew && state.requestedOutrightLimit && data.outrightLimit !== undefined && (
+                                        <div className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded
+                                            ${Number(state.requestedOutrightLimit) > Number(data.outrightLimit)
+                                                ? 'text-green-500 bg-green-500/10'
+                                                : 'text-red-500 bg-red-500/10'}`}>
+                                            {Number(state.requestedOutrightLimit) > Number(data.outrightLimit) ? '+' : ''}
+                                            {Number(state.requestedOutrightLimit) - Number(data.outrightLimit)}
                                         </div>
                                     )}
                                 </div>
-                            ) : (
-                                <span className="text-gray-400 italic text-xs">—</span>
-                            )}
+                            ) : <span className="text-gray-600 italic text-[10px]">—</span>}
                         </td>
-                    )}
-
-                    {/* Reason */}
-                    <td className="px-4 py-2 min-w-[180px] text-center whitespace-nowrap">
-                        {isEditing ? (
-                            <div className="flex items-center justify-center">
+                        {activeTab === 'Future' && (
+                            <td className="px-4 py-2 min-w-[150px] text-center whitespace-nowrap">
+                                {isEditing ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                        <Input
+                                            type="number"
+                                            value={state.requestedSpreadLimit}
+                                            onChange={e => setState({ ...state, requestedSpreadLimit: e.target.value })}
+                                            disabled={state.status === "submitting"}
+                                            className="h-8 w-24 text-sm text-center font-bold"
+                                            darkMode={darkMode}
+                                            placeholder="Spread"
+                                        />
+                                        {!isNew && state.requestedSpreadLimit && data.spreadLimit !== undefined && (
+                                            <div className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded
+                                                ${Number(state.requestedSpreadLimit) > Number(data.spreadLimit)
+                                                    ? 'text-green-500 bg-green-500/10'
+                                                    : 'text-red-500 bg-red-500/10'}`}>
+                                                {Number(state.requestedSpreadLimit) > Number(data.spreadLimit) ? '+' : ''}
+                                                {Number(state.requestedSpreadLimit) - Number(data.spreadLimit)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : <span className="text-gray-600 italic text-[10px]">—</span>}
+                            </td>
+                        )}
+                        <td className="px-4 py-2 min-w-[180px] text-center whitespace-nowrap">
+                            {isEditing ? (
                                 <Input
                                     placeholder="Reason..."
                                     value={state.reason}
                                     onChange={e => setState({ ...state, reason: e.target.value })}
                                     disabled={state.status === "submitting"}
-                                    className="h-8 text-sm text-center"
+                                    className="h-8 text-xs text-center"
                                     darkMode={darkMode}
                                 />
-                            </div>
-                        ) : (
-                            <span className="text-gray-400 italic text-xs">—</span>
-                        )}
-                    </td>
-                </>
-            )}
+                            ) : <span className="text-gray-600 italic text-[10px]">—</span>}
+                        </td>
+                    </>
+                )}
 
-            {!readOnly && (
-                <td className="px-4 py-2 min-w-[140px] text-center">
-                    <div className="flex flex-col items-center justify-center gap-1">
-                        <div className="flex justify-center gap-2 items-center">
-                            {state.status === "idle" && (
-                                <Button variant="outline" size="sm" onClick={handleRequest} className="gap-1">
-                                    <Plus size={14} /> Request
-                                </Button>
-                            )}
-
-                            {(state.status === "editing" || state.status === "error") && (
-                                <>
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        onClick={handleInternalSubmit}
-                                        className="min-w-[70px] h-8"
-                                        disabled={!state.reason || state.reason.trim().length < 5}
-                                        style={{
-                                            opacity: (!state.reason || state.reason.trim().length < 5) ? 0.5 : 1,
-                                            cursor: (!state.reason || state.reason.trim().length < 5) ? 'not-allowed' : 'pointer'
-                                        }}
-                                        title={(!state.reason || state.reason.trim().length < 5) ? "Reason required (min 5 chars)" : "Submit request"}
+                {!readOnly && (
+                    <td className="px-4 py-2 min-w-[140px] text-center">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex justify-center gap-2 items-center">
+                                {state.status === "idle" && (
+                                    <Button 
+                                        variant="primary" 
+                                        size="sm" 
+                                        onClick={handleRequest} 
+                                        className="h-8 text-[11px] px-4 font-black uppercase tracking-widest gap-2 shadow-lg shadow-[#00998b]/20 hover:shadow-[#00998b]/40 transition-all active:scale-95"
+                                        style={{ backgroundColor: '#00998b', border: 'none' }}
                                     >
-                                        Submit
+                                        <Plus size={14} strokeWidth={3} /> Request
                                     </Button>
-                                    <Button variant="destructive" size="sm" onClick={handleCancel} className="w-8 h-8 px-0 flex items-center justify-center font-bold">
-                                        X
-                                    </Button>
-                                </>
-                            )}
+                                )}
 
-                            {state.status === "submitting" && (
-                                <div className="flex items-center gap-2 text-xs font-medium px-3 py-1" style={{ color: '#00998b' }}>
-                                    <Loader2 size={14} className="animate-spin" /> Submitting...
-                                </div>
-                            )}
+                                {(state.status === "editing" || state.status === "error" || state.status === "submitting") && (
+                                    <>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={handleInternalSubmit}
+                                            className="min-w-[80px] h-8 text-[11px] px-4 font-black uppercase tracking-widest shadow-lg shadow-[#00998b]/20 hover:shadow-[#00998b]/40 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            disabled={state.status === "submitting" || (state.reason?.length || 0) < 5}
+                                            style={{ backgroundColor: '#00998b', border: 'none' }}
+                                        >
+                                            {state.status === "submitting" ? (
+                                                <Loader2 size={14} className="animate-spin" />
+                                            ) : null}
+                                            {state.status === "submitting" ? "Submitting..." : "Submit"}
+                                        </Button>
+                                        {state.status !== "submitting" && (
+                                            <Button variant="destructive" size="sm" onClick={handleCancel} className="w-8 h-8 px-0 flex items-center justify-center font-bold">
+                                                X
+                                            </Button>
+                                        )}
+                                    </>
+                                )}
 
-                            {state.status === "success" && (
-                                <div className="flex items-center gap-1.5 text-green-500 text-xs font-bold bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-900/30">
-                                    <Check size={14} /> {state.message}
-                                </div>
+
+                                {state.status === "success" && (
+                                    <div className="flex items-center gap-1.5 text-green-500 text-xs font-bold bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full border border-green-200 dark:border-green-900/30">
+                                        <Check size={14} /> {state.message}
+                                    </div>
+                                )}
+                            </div>
+
+                            {state.status === "error" && (
+                                <span className="text-[10px] text-red-500 font-bold bg-red-50 dark:bg-red-900/10 px-2 py-0.5 rounded border border-red-100 dark:border-red-900/20">
+                                    {state.message}
+                                </span>
+                            )}
+                            {(state.status === "editing") && (!state.reason || state.reason.trim().length < 5) && (
+                                <span className="text-[9px] text-gray-500 italic">Reason required *</span>
                             )}
                         </div>
-
-                        {state.status === "error" && (
-                            <span className="text-[10px] text-red-500 font-bold bg-red-50 dark:bg-red-900/10 px-2 py-0.5 rounded border border-red-100 dark:border-red-900/20">
-                                {state.message}
-                            </span>
-                        )}
-
-                        {(state.status === "editing") && (!state.reason || state.reason.trim().length < 5) && (
-                            <span className="text-[9px] text-gray-400 italic">Reason required *</span>
-                        )}
-                    </div>
-                </td>
-            )}
-        </tr>
+                    </td>
+                )}
+            </tr>
+        </>
     );
 };
 
@@ -851,13 +821,13 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     useEffect(() => {
         if (rawData && Array.isArray(rawData)) {
-            const mapped = rawData.map((item: any) => ({
-                account: item.accountId,
-                product: item.product,
-                productName: item.productName || item.product_name || "",
-                exchange: item.exchange || "",
+            const mapped = rawData.map((item: any, idx: number) => ({
+                account: item.accountId || item.account || item.Account || "—",
+                product: item.product || item.Symbol || "—",
+                productName: item.productName || item.product_name || item.Instrument || "",
+                exchange: item.exchange || "—",
                 outrightLimit: item.outrightLimit !== undefined ? item.outrightLimit : (item['Outright Limit'] ?? item['outright limit'] ?? 0),
-                spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0)
+                spreadLimit: item.spreadLimit !== undefined ? item.spreadLimit : (item['Spread Limit'] ?? item['spread limit'] ?? 0),
             }));
             setLimitsData(mapped);
         }
@@ -1359,20 +1329,24 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                     background: #00998b;
                 }
+
+                /* Row hover effect */
+                tbody .tlr-row {
+                    transition: background-color 0.15s ease-in-out;
+                }
+
+                tbody .tlr-row:hover {
+                    background-color: rgba(0, 153, 139, 0.18) !important;
+                    box-shadow: inset 3px 0 0 #00998b !important;
+                }
             `}</style>
 
             <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
+                {/* Blurrable Content Wrapper */}
+                <div className={`flex-1 flex flex-col transition-all duration-500 ease-in-out ${isImportModalOpen ? 'blur-[12px] pointer-events-none opacity-40 scale-[0.98]' : 'blur-0 opacity-100 scale-100'}`}>
 
-                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
-                    <div className="flex items-center gap-2">
-                        {!readOnly && (
-                            <>
-                                <Info size={14} style={{ color: '#00998b' }} />
-                                <span>Click <span style={{ color: '#00998b', fontWeight: '600' }}>+ Request</span> to modify a limit, or use the <b>Add New Product</b> button to add a commodity.</span>
-                            </>
-                        )}
-                    </div>
-
+                {/* Brand Header Custom Integration */}
+                <div className={`flex items-center justify-end px-4 py-2 border-b ${darkMode ? 'bg-gray-950 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="flex items-center gap-2">
                         {!readOnly && (
                             <>
@@ -1387,10 +1361,13 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     variant="outline"
                                     size="sm"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="h-7 text-[11px] gap-1 px-3"
+                                    className={`h-8 text-[11px] gap-2 px-4 font-black uppercase tracking-widest transition-all active:scale-95
+                                        ${darkMode 
+                                            ? 'border-[#00998b]/40 bg-[#00998b]/5 text-[#00998b] hover:bg-[#00998b]/10' 
+                                            : 'border-[#00998b]/30 bg-white text-[#00998b] hover:bg-[#00998b]/5'}`}
                                     title="Import limits from Excel/CSV"
                                 >
-                                    <Upload size={14} /> Import
+                                    <Upload size={14} strokeWidth={2.5} /> Import
                                 </Button>
                             </>
                         )}
@@ -1398,68 +1375,91 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                             variant="outline"
                             size="sm"
                             onClick={handleExport}
-                            className="h-7 text-[11px] gap-1 px-3"
+                            className={`h-8 text-[11px] gap-2 px-4 font-black uppercase tracking-widest transition-all active:scale-95
+                                ${darkMode 
+                                    ? 'border-[#00998b]/40 bg-[#00998b]/5 text-[#00998b] hover:bg-[#00998b]/10' 
+                                    : 'border-[#00998b]/30 bg-white text-[#00998b] hover:bg-[#00998b]/5'}`}
                             title="Export current limits to Excel"
                         >
-                            <Download size={14} /> Export
+                            <Download size={14} strokeWidth={2.5} /> Export
                         </Button>
                         {!readOnly && allowAddingRows && (
                             <Button
                                 variant="primary"
                                 size="sm"
                                 onClick={handleAddNewRow}
-                                className="h-7 text-[11px] gap-1 px-3 font-bold"
+                                className="h-8 text-[11px] gap-2 px-4 font-black uppercase tracking-widest shadow-lg shadow-[#00998b]/20 hover:shadow-[#00998b]/40 transition-all active:scale-95"
+                                style={{ backgroundColor: '#00998b', border: 'none' }}
                             >
-                                <Plus size={14} /> Add New Product
+                                <Plus size={14} strokeWidth={3} /> Add New Product
                             </Button>
                         )}
                     </div>
                 </div>
 
-                <ImportPreviewModal
-                    isOpen={isImportModalOpen}
-                    onClose={() => setIsImportModalOpen(false)}
-                    onConfirm={handleConfirmImport}
-                    data={importData}
-                    darkMode={darkMode}
-                    isSubmitting={isBulkSubmitting}
-                    activeTab={activeTab}
-                />
 
-                <div className={`flex items-center gap-1 border-b ${borderColor} px-4`}>
-                    <button
-                        onClick={() => setActiveTab('Future')}
-                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Future' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
-                    >
-                        Future
-                        {activeTab === 'Future' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('Option')}
-                        className={`px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all relative ${activeTab === 'Option' ? 'text-[#00998b]' : 'text-gray-400 hover:text-gray-200'}`}
-                    >
-                        Option
-                        {activeTab === 'Option' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#00998b]" />}
-                    </button>
+
+                {/* Tab Bar with Counts */}
+                <div className={`flex border-b px-4 ${darkMode ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200'}`}>
+                    {['Future', 'Option'].map(tab => {
+                        const count = tab === 'Future' 
+                            ? (rawData?.filter((i:any) => (i.category||i.instrumentType||'').toLowerCase().includes('future')).length || 0) 
+                            : (rawData?.filter((i:any) => (i.category||i.instrumentType||'').toLowerCase().includes('option')).length || 0);
+                        
+                        const isActive = activeTab.toLowerCase().replace(/s$/, '') === tab.toLowerCase().replace(/s$/, '');
+                        return (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab as any)}
+                                className={`px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all relative
+                                    ${isActive ? '' : (darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}
+                                style={{ 
+                                    color: isActive ? '#00998b' : undefined,
+                                    boxShadow: isActive ? 'inset 0 -4px 0 #00998b' : 'none'
+                                }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    {tab}S
+                                    <span 
+                                        className={`px-1.5 py-0.5 rounded-sm text-[9px] font-black ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}
+                                        style={{ 
+                                            backgroundColor: isActive ? '#00998b20' : undefined,
+                                            color: isActive ? '#00998b' : (darkMode ? '#4b5563' : '#6b7280')
+                                        }}
+                                    >
+                                        {count}
+                                    </span>
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 <div className="flex-1 overflow-auto">
                     <table className="w-full border-collapse text-left">
-                        <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
+                        <thead 
+                            className={`${isImportModalOpen ? 'opacity-40' : 'sticky top-0 z-10 backdrop-blur-sm'} ${headerBg} border-b ${borderColor}`}
+                            style={isImportModalOpen ? { filter: 'blur(12px)', pointerEvents: 'none' } : {}}
+                        >
                             <tr>
-                                {dataKeys.map(key => (
-                                    <th key={key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>
-                                        {DISPLAY_NAMES[key] || key}
-                                    </th>
-                                ))}
+                                {dataKeys.map(key => {
+                                    const isLeftAligned = key.toLowerCase() === 'productname';
+                                    return (
+                                        <th key={key} className={`px-4 py-3 text-[10px] font-bold uppercase tracking-widest ${isLeftAligned ? 'text-left' : 'text-center'} ${headerTextColor}`}>
+                                            {key === 'outrightLimit' ? 'OUTRIGHT LIMIT' : 
+                                             key === 'spreadLimit' ? 'SPREAD LIMIT' : 
+                                             DISPLAY_NAMES[key] || key.toUpperCase()}
+                                        </th>
+                                    );
+                                })}
                                 {showRequestCols && (
                                     <>
-                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Outright</th>
-                                        {activeTab === 'Future' && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Request Spread</th>}
-                                        <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Reason</th>
+                                        <th className={`px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-center ${headerTextColor}`}>Req. Outright</th>
+                                        {activeTab === 'Future' && <th className={`px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-center ${headerTextColor}`}>Req. Spread</th>}
+                                        <th className={`px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-center ${headerTextColor}`}>Reason</th>
                                     </>
                                 )}
-                                {!readOnly && <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`}>Actions</th>}
+                                {!readOnly && <th className={`px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-center ${headerTextColor}`}>Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1524,6 +1524,17 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     darkMode={darkMode}
                 />
 
+                </div>
+
+                <ImportPreviewModal
+                    isOpen={isImportModalOpen}
+                    onClose={() => setIsImportModalOpen(false)}
+                    onConfirm={handleConfirmImport}
+                    data={importData}
+                    darkMode={darkMode}
+                    isSubmitting={isBulkSubmitting}
+                    activeTab={activeTab}
+                />
             </div>
         </WidgetContainer>
     );
