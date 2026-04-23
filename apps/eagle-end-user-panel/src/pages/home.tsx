@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import eagleLogo from "@/assets/eagle-2.png";
 import eagleDarkLogo from "@/assets/eagle-2-dark.png";
 import {
@@ -12,6 +12,11 @@ import {
     LogOut,
     Search,
 } from "lucide-react";
+import { useDataConnectorSync } from "@gsc-tech/eagle-widget-library";
+import type { ConnectorStatus } from "@gsc-tech/eagle-widget-library";
+import { useConnectorsStore } from "@/store/connectorsStore";
+import { AlertBanner } from "@/components/AlertBanner";
+import { ConnectorConfig } from "@/components/ConnectorConfig";
 import {
     Sidebar,
     SidebarProvider,
@@ -111,6 +116,30 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         });
         return () => unsubscribe();
     }, []);
+
+    // ── Data Connectors ───────────────────────────────────────────────────────
+    const [connectorConfigOpen, setConnectorConfigOpen] = useState(false);
+    const connectors     = useConnectorsStore((s) => s.connectors);
+    const marexConnector = connectors.find((c) => c.type === "marex") ?? null;
+    const excelConnector = connectors.find((c) => c.type === "excel") ?? null;
+
+    const getFirebaseToken = useCallback(async () => {
+        try { return await getToken(); } catch { return ""; }
+    }, []);
+
+    const { status: marexStatus } = useDataConnectorSync(
+        marexConnector ? { ...marexConnector, getFirebaseToken } : null
+    );
+    const { status: excelStatus } = useDataConnectorSync(
+        excelConnector ? { ...excelConnector } : null
+    );
+
+    const connectorStatuses = useMemo<Record<string, ConnectorStatus>>(() => {
+        const m: Record<string, ConnectorStatus> = {};
+        if (marexConnector) m[marexConnector.id] = marexStatus;
+        if (excelConnector) m[excelConnector.id] = excelStatus;
+        return m;
+    }, [marexConnector, excelConnector, marexStatus, excelStatus]);
 
     const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
     const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
@@ -466,6 +495,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 <div className="pb-2 px-2 space-y-0.5 group-data-[collapsible=icon]:hidden">
                                     <button
                                         id="settings-btn"
+                                        onClick={() => setConnectorConfigOpen(true)}
                                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
                                     >
                                         <Settings className="w-4 h-4 text-muted-foreground" />
@@ -489,6 +519,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
                 {/* ── Main Content ── */}
                 <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+                    <AlertBanner />
                     {selected ? (
                         <>
                             {/* Dashboard header */}
@@ -580,6 +611,13 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     )}
                 </main>
             </div>
+
+            {connectorConfigOpen && (
+                <ConnectorConfig
+                    statuses={connectorStatuses}
+                    onClose={() => setConnectorConfigOpen(false)}
+                />
+            )}
         </SidebarProvider>
     );
 }

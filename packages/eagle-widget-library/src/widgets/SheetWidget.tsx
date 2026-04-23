@@ -6,37 +6,32 @@ import type { BaseWidgetProps, ParameterValues } from "../types";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { InsertSheetModal } from "../components/InsertSheetModal";
 import { useSheetStore } from "../store/sheetStore";
-import { useParameterDefaults } from "../hooks/useParameterDefaults";
+import { usePositionsStore } from "../store/positionsStore";
 import { CalculationMode, UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
 import { InsertSheetCommand } from "@univerjs/preset-sheets-core";
-import { createUniver, defaultTheme, greenTheme, LocaleType, merge, mergeLocales } from "@univerjs/presets";
+import { createUniver, defaultTheme, LocaleType, mergeLocales } from "@univerjs/presets";
+//@ts-ignore
 import "@univerjs/presets/lib/styles/preset-sheets-core.css";
+//@ts-ignore
 import '@univerjs/preset-sheets-conditional-formatting/lib/index.css'
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US'
 import { UniverSheetsConditionalFormattingPreset } from "@univerjs/preset-sheets-conditional-formatting";
 import UniverPresetSheetsConditionalFormattingEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US'
-import { buildProductSheet, sanitizeWorkbookSnapshot, reconstructWorkbookFromSnapshot, getWorkbookSkeleton } from "../utils/sheetBuilder";
-import { toast } from 'react-toastify';
+import { buildProductSheet, reconstructWorkbookFromSnapshot, getWorkbookSkeleton } from "../utils/sheetBuilder";
 
 // ─── Conditional Formatting Helper ──────────────────────────────────────────
 
 /**
- * Apply legacy position highlighting: 
+ * Apply legacy position highlighting:
  * Blue for longs (+) and Orange for shorts (-) in columns C-N.
  */
 function applyDefaultConditionalFormatting(fWorksheet: any) {
     if (!fWorksheet) return;
 
     try {
-
-        // Strategy legs: Columns C to N (index 2 to 13)
-        // Data usually starts from Row 4 (index 3). 
-        // We use the worksheet's actual row count to avoid "out of bounds" errors.
-
         const fRange = fWorksheet.getRange(3, 2, 146, 17);
         const rangeDetails = fRange.getRange();
 
-        // 1. Rule for Positive (Longs) - Blue Theme
         const rulePos = fWorksheet.newConditionalFormattingRule()
             .whenNumberGreaterThan(0)
             .setRanges([rangeDetails])
@@ -46,7 +41,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
             .setBold(true)
             .build();
 
-        // 2. Rule for Negative (Shorts) - Orange Theme
         const ruleNeg = fWorksheet.newConditionalFormattingRule()
             .whenNumberLessThan(0)
             .setRanges([rangeDetails])
@@ -89,8 +83,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
 
 export interface SheetWidgetProps extends BaseWidgetProps {
     getFirebaseToken?: () => Promise<string>;
-    marexWsUrl?: string;
-    excelWsUrl?: string;
     /**
      * A previously saved Univer workbook snapshot (returned by `fWorkbook.save()`).
      * When provided the widget skips the default template build and loads this data directly.
@@ -102,12 +94,6 @@ export interface SheetWidgetProps extends BaseWidgetProps {
      * Use this to persist the workbook state to your database.
      */
     onSave?: (workbookSnapshot: Record<string, any>, parameters?: any[]) => void;
-}
-
-
-interface WsMessage {
-    ts: number;
-    data: Record<string, number[]>; // e.g. { "positions": [...], "key2": [...] }
 }
 
 
@@ -123,72 +109,19 @@ function colLetter(index: number): string {
 }
 
 
-const MONTH_CODE_TO_NAME: Record<string, string> = {
-    F: "Jan", G: "Feb", H: "Mar", J: "Apr", K: "May", M: "Jun",
-    N: "Jul", Q: "Aug", U: "Sep", V: "Oct", X: "Nov", Z: "Dec",
-};
-
-/**
- * Parse an incoming WebSocket symbol into its product and label.
- * Example: "CLH26" -> { product: "CL", label: "MAR26" }
- */
-function parseSymbol(symbol: string): { product: string; label: string } | null {
-    const match = symbol.match(/^([A-Z]+)([FGHJKMNQUVXZ])(\d{2})$/i);
-    if (!match) return null;
-    const [, product, monthCode, year] = match;
-    const month = MONTH_CODE_TO_NAME[monthCode.toUpperCase()];
-    if (!month) return null;
-    return { product: product.toUpperCase(), label: `${month}${year}`.toUpperCase() };
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SheetWidget: React.FC<SheetWidgetProps> = ({
     id,
     title = "Positions Sheet",
     darkMode = false,
-    marexWsUrl = "ws://localhost:8000/ws",
-    excelWsUrl = "ws://localhost:8000/ws",
     parameters,
-    getFirebaseToken,
     initialWorkbookData,
     initialParameterValues,
     onSave,
 }) => {
-    const [excelAccountId, setExcelAccountId] = useState<string>(
-        initialParameterValues?.["Excel Account Id"] || ""
-    );
-    const [marexAccountId, setMarexAccountId] = useState<string>(
-        initialParameterValues?.["Marex Account Id"] || ""
-    );
     const containerRef = useRef<HTMLDivElement>(null);
     const univerRef = useRef<any>(null);
-    const excelWsRef = useRef<WebSocket | null>(null);
-    const marexWsRef = useRef<WebSocket | null>(null);
-    const excelReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const marexReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // ── WS Connection State ───────────────────────────────────────────────────
-    const [excelStatus, setExcelStatus] = useState<"connected" | "connecting" | "error" | "failed">("connecting");
-    const [marexStatus, setMarexStatus] = useState<"connected" | "connecting" | "error" | "failed">("connecting");
-    const excelAttemptRef = useRef(0);
-    const marexAttemptRef = useRef(0);
-
-    // Connect triggers for interactive UI refresh
-    const [excelConnectTrigger, setExcelConnectTrigger] = useState(0);
-    const [marexConnectTrigger, setMarexConnectTrigger] = useState(0);
-
-    const handleExcelRefresh = useCallback(() => {
-        excelAttemptRef.current = 0;
-        setExcelStatus("connecting");
-        setExcelConnectTrigger(prev => prev + 1);
-    }, []);
-
-    const handleMarexRefresh = useCallback(() => {
-        marexAttemptRef.current = 0;
-        setMarexStatus("connecting");
-        setMarexConnectTrigger(prev => prev + 1);
-    }, []);
 
     // Keep latest prop values accessible inside async/cleanup closures
     const onSaveRef = useRef(onSave);
@@ -230,12 +163,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     const [modalLoading, setModalLoading] = useState(false);
     const [modalError, setModalError] = useState<string | null>(null);
 
-    // Keep a ref so the Univer event handler (which closes over this callback)
-    // always has access to the latest handler.
     const openModalRef = useRef<() => void>(() => setModalOpen(true));
-
-    // Flag to bypass the InsertSheetCommand intercept when we're creating a
-    // sheet programmatically (workbook.create() fires InsertSheetCommand too).
     const isProgrammaticInsertRef = useRef(false);
     useEffect(() => {
         openModalRef.current = () => {
@@ -245,29 +173,18 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     });
 
     const handleParametersChange = useCallback((values: ParameterValues) => {
-        setExcelAccountId(values["Excel Account Id"]);
-        setMarexAccountId(values["Marex Account Id"]);
         currentParamsRef.current = values;
     }, []);
 
-
-
     // ── Global Focus Patch ───────────────────────────────────────────────────
-    // Prevent ANY element inside Univer from causing a browser scroll-into-view
-    // when it receives focus. Univer's internal logic carelessly calls .focus()
-    // without { preventScroll: true } in multiple places (including inside
-    // SlideTabItem.focus for the tab bar). This causes the dashboard to jump
-    // violently upward when clicking the "+" button or other tab elements.
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
-        // Only patch once per window context
         const patchedFlag = '__univerFocusPatched';
         if (!(HTMLElement.prototype as any)[patchedFlag]) {
             const originalFocus = HTMLElement.prototype.focus;
             HTMLElement.prototype.focus = function (options?: FocusOptions) {
-                // If the element requesting focus is inside our designated container
                 if (this && typeof this.closest === 'function' && this.closest('.univer-scroll-lock-container')) {
                     return originalFocus.call(this, { ...options, preventScroll: true });
                 }
@@ -290,16 +207,10 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 let workbookData: Record<string, any>;
 
                 if (initialWorkbookDataRef.current) {
-                    // ── Atomic Reconstruction ──
-                    // Instead of loading the buggy persisted snapshot directly, we rebuild 
-                    // a fresh skeleton from templates and patch the old data back into it.
-                    // This is the "bringing back" workaround to fix frozen formulas.
                     workbookData = await reconstructWorkbookFromSnapshot(initialWorkbookDataRef.current);
                 } else {
-                    // ── Build default template (RB sheet) ────────────────────
                     const { sheetId, sheetSnapshot } = await buildProductSheet("RB");
                     sheetSnapshot[sheetId].name = "RB";
-
                     workbookData = {
                         ...getWorkbookSkeleton(),
                         sheets: sheetSnapshot,
@@ -331,14 +242,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 univerRef.current = univerAPI;
                 createdUniverAPI = univerAPI;
 
-                // Sync ALL sheets from the loaded workbook into the store in one batch
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 if (fWorkbook) {
                     const sheets = fWorkbook.getSheets();
                     const sheetsDataToBatch: Record<string, any> = {};
                     const activeSheet = fWorkbook.getActiveSheet();
 
-                    // Apply conditional formatting to the active sheet IMMEDIATELY for responsiveness
                     if (activeSheet) {
                         applyDefaultConditionalFormatting(activeSheet);
                     }
@@ -348,8 +257,6 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         if (snapshot?.name && snapshot?.cellData) {
                             sheetsDataToBatch[snapshot.name] = snapshot.cellData;
                         }
-
-                        // Apply conditional formatting to other sheets with a slight delay to avoid freezing UI
                         if (s !== activeSheet) {
                             setTimeout(() => applyDefaultConditionalFormatting(s), (index + 1) * 200);
                         }
@@ -360,34 +267,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     }
                 }
 
-                // Give Univer one JS task to finish its internal async setup
-                // (formula-engine warm-up, canvas render) before we accept data.
-                setTimeout(() => {
-                    // Send snapshot request now that Univer is ready
-                    if (excelWsRef.current && excelWsRef.current.readyState === WebSocket.OPEN) {
-                        excelWsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
-                    }
-                }, 500);
-
-                // ── Intercept InsertSheetCommand ──────────────────────────────────────
                 const disposable = univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (event: any) => {
                     const { id } = event;
-                    // Intercept both the object ID and the literal string for robustness
                     if (id === InsertSheetCommand.id || id === 'sheet.command.insert-sheet') {
-                        // If WE triggered this programmatically (via modal confirmation), let it through.
                         if (isProgrammaticInsertRef.current) return;
-
-                        // Otherwise cancel the native blank sheet creation.
-                        // Setting cancel = true must happen synchronously here.
                         event.cancel = true;
-
-                        // Open our custom modal using a timeout.
-                        // This pushes the React state update to the next task tick, allowing 
-                        // Univer to finish its cancellation check before a React re-render seizing the thread.
-                        setTimeout(() => {
-                            openModalRef.current();
-                        }, 0);
-
+                        setTimeout(() => { openModalRef.current(); }, 0);
                         return;
                     }
                 });
@@ -399,11 +284,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                         const name = worksheet._worksheet._snapshot.name;
                         const fWorkbook = univerRef.current.getActiveWorkbook();
                         const snapshot = fWorkbook.save();
-
                         triggerAutoSaveRef.current?.();
-
-                        // Grab the fully evaluated/saved snapshot for this specific sheet
-
                         const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === name) as any;
                         if (targetSheetObj && targetSheetObj.cellData) {
                             useSheetStore.getState().setSheet(id || "univer", name, targetSheetObj.cellData);
@@ -421,18 +302,14 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     });
                 }
 
-                // ── Global Formula Listener ──────────────────────────────────────────
                 let formulaSubscription: any = null;
                 const formulaEngine = univerAPI.getFormula();
                 if (formulaEngine && typeof formulaEngine.calculationResultApplied === 'function') {
-                    formulaSubscription = formulaEngine.calculationResultApplied((result: any) => {
+                    formulaSubscription = formulaEngine.calculationResultApplied((_result: any) => {
                         const fWorkbook = univerAPI.getActiveWorkbook();
                         if (!fWorkbook) return;
-
                         triggerAutoSaveRef.current?.();
-
                         const snapshot = fWorkbook.save();
-                        // Update the store with the fully evaluated snapshot
                         for (const sheetObj of Object.values(snapshot.sheets) as any[]) {
                             if (sheetObj?.name && sheetObj?.cellData) {
                                 useSheetStore.getState().setSheet(id || "univer", sheetObj.name, sheetObj.cellData);
@@ -441,7 +318,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     });
                 }
 
-                return { disposable, editSubscription, formulaSubscription };
+                return { disposable, editSubscription, formulaSubscription, deleteSubscription };
 
             } catch (err) {
                 console.error("[SheetWidget] Failed to initialize univer:", err);
@@ -454,22 +331,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             isCancelled = true;
             initPromise.then((res) => {
                 if (res) {
-                    if (res.editSubscription && typeof res.editSubscription.dispose === 'function') {
-                        res.editSubscription.dispose();
-                    }
-                    if (res.disposable && typeof res.disposable.dispose === 'function') {
-                        res.disposable.dispose();
-                    }
-                    if (res.formulaSubscription && typeof res.formulaSubscription.dispose === 'function') {
-                        res.formulaSubscription.dispose();
-                    }
+                    res.editSubscription?.dispose?.();
+                    res.disposable?.dispose?.();
+                    res.formulaSubscription?.dispose?.();
+                    res.deleteSubscription?.dispose?.();
                 }
-
-
-                // CRITICAL: Only dispose of the instance WE created in THIS effect execution.
-                // This prevents a stale cleanup from an old mount destroying a new mount's instance.
                 if (createdUniverAPI) {
-                    // ── Persist workbook to database on close ─────────────────
                     const fWorkbook = createdUniverAPI.getActiveWorkbook();
                     if (fWorkbook && onSaveRef.current) {
                         try {
@@ -489,278 +356,95 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── WebSocket ────────────────────────────────────────────────────────────
+    // ── Apply positions from positionsStore ──────────────────────────────────
+    // Subscribes to both marex and excel positions and writes them into the
+    // active Univer workbook cells (same column mapping as before).
+    const marexPositions = usePositionsStore((s) => s.marex);
+    const excelPositions = usePositionsStore((s) => s.excel);
 
-    const handleWsData = useCallback((dataArray: Record<string, any>[], expectedAccountId: string, targetColIndex: number) => {
+    const applyPositionsToSheet = useCallback((
+        positions: Record<string, Record<string, number>>,
+        targetColIndex: number // 23 = Excel (X), 24 = Marex (Y)
+    ) => {
         const univerAPI = univerRef.current;
         if (!univerAPI) return;
         const workbook = univerAPI.getActiveWorkbook();
         if (!workbook) return;
 
-        const accountItem = dataArray.find(d => String(d.accountId) === String(expectedAccountId));
-        if (!accountItem || !accountItem.data) return;
-
-        const actualData = accountItem.data;
-
-        // Map WS values to structured updates by product -> label -> value
-        const updatesByProduct = new Map<string, Map<string, any>>();
-        for (const [symbol, value] of Object.entries(actualData)) {
-            const parsed = parseSymbol(symbol);
-            if (parsed) {
-                if (!updatesByProduct.has(parsed.product)) {
-                    updatesByProduct.set(parsed.product, new Map());
-                }
-                // If it's an empty string or nullish, treat as ""
-                const cleanValue = value === "" || value == null ? "" : value;
-                updatesByProduct.get(parsed.product)!.set(parsed.label, cleanValue);
-            }
-        }
-
-        // Apply updates to any sheet that has matching rules
+        const contractPrefix = (product: string) => `F.${product}.`;
         const sheets = workbook.getSheets();
-        let anySheetUpdated = false;
+        let anyUpdated = false;
 
         for (const sheet of sheets) {
             let cellData: any;
             let sheetName = "";
             try {
-                const sheetSnapshot = sheet.getSheet().getSnapshot();
-                cellData = sheetSnapshot?.cellData;
-                sheetName = sheetSnapshot?.name || "";
-            } catch (err) {
-                console.error("[SheetWidget] Failed to get sheet snapshot:", err);
+                const snapshot = sheet.getSheet().getSnapshot();
+                cellData = snapshot?.cellData;
+                sheetName = snapshot?.name || "";
+            } catch {
                 continue;
             }
-
             if (!cellData || !sheetName) continue;
 
-            // Extract base product from sheet name (e.g., "CL(2)" -> "CL")
             const baseSheetName = sheetName.replace(/\(\d+\)$/, "").toUpperCase();
-            const contractPrefix = `F.${baseSheetName}.`;
-
-            const productUpdates = updatesByProduct.get(baseSheetName);
-            // We still process the sheet even if no updates for this product exist (to zero out others)
-            const productUpdatesMap = productUpdates || new Map<string, any>();
+            const prefix = contractPrefix(baseSheetName);
+            const productUpdates = positions[baseSheetName] ?? {};
 
             let updatedAnyCell = false;
 
-            // Iterate over the cell data snapshot to find the matching contract row.
-            // Using Column 25 (index "25") for static contract name matching.
             for (const [rowIdxStr, rowObj] of Object.entries(cellData)) {
-                if (!rowObj || typeof rowObj !== 'object') continue;
+                if (!rowObj || typeof rowObj !== "object") continue;
+                const cellR = (rowObj as any)["25"]; // Column Z — static contract name
+                if (!cellR?.v || typeof cellR.v !== "string") continue;
 
-                const cellR = (rowObj as any)["25"]; // Column Z (Static Contract Name)
-                if (cellR && cellR.v && typeof cellR.v === "string") {
-                    const currentContract = String(cellR.v).toUpperCase();
+                const currentContract = String(cellR.v).toUpperCase();
+                if (!currentContract.startsWith(prefix)) continue;
 
-                    if (currentContract.startsWith(contractPrefix)) {
-                        const labelPart = currentContract.substring(contractPrefix.length).toUpperCase();
-                        const hasUpdate = productUpdatesMap.has(labelPart);
-                        const newVal = hasUpdate ? productUpdatesMap.get(labelPart) : 0;
+                const labelPart = currentContract.substring(prefix.length).toUpperCase();
+                const hasUpdate = labelPart in productUpdates;
+                const newVal = hasUpdate ? productUpdates[labelPart] : 0;
 
-                        const targetColIdxStr = String(targetColIndex);
-                        const targetCell = (rowObj as any)[targetColIdxStr];
-                        const currentValue = targetCell?.v;
-
-                        // Only set if value actually changes.
-                        if (currentValue !== newVal) {
-                            const rowNum = parseInt(rowIdxStr, 10) + 1; // 1-indexed for A1 notation
-                            const letter = colLetter(targetColIndex);
-                            sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
-
-                            // Only count as update if it's a real update OR if zeroing out a non-zero value
-                            if (hasUpdate || Number(currentValue || 0) !== 0) {
-                                updatedAnyCell = true;
-                            }
-                        }
+                const targetColIdxStr = String(targetColIndex);
+                const currentValue = (rowObj as any)[targetColIdxStr]?.v;
+                if (currentValue !== newVal) {
+                    const rowNum = parseInt(rowIdxStr, 10) + 1;
+                    const letter = colLetter(targetColIndex);
+                    sheet.getRange(`${letter}${rowNum}`)?.setValue(newVal);
+                    if (hasUpdate || Number(currentValue || 0) !== 0) {
+                        updatedAnyCell = true;
                     }
                 }
             }
 
             if (updatedAnyCell) {
-                anySheetUpdated = true;
-                // Manually trigger calculation for the workbook to ensure inactive sheets calculate too
-                const formulaEngine = univerAPI.getFormula && univerAPI.getFormula();
+                anyUpdated = true;
+                const formulaEngine = univerAPI.getFormula?.();
                 if (formulaEngine && typeof formulaEngine.executeCalculation === "function") {
                     formulaEngine.executeCalculation();
                 }
-
-                // Propagate the ENTIRE updated sheet to the store (synchronous initial, formulaResultApplied handles async)
                 const fWorkbook = univerAPI.getActiveWorkbook();
                 const snapshot = fWorkbook.save();
                 const targetSheetObj = Object.values(snapshot.sheets).find((s: any) => s.name === sheetName) as any;
-
-                if (targetSheetObj && targetSheetObj.cellData) {
+                if (targetSheetObj?.cellData) {
                     useSheetStore.getState().setSheet(id || "univer", sheetName, targetSheetObj.cellData);
                 }
             }
         }
 
-        if (anySheetUpdated) {
+        if (anyUpdated) {
             triggerAutoSaveRef.current?.();
         }
     }, [id]);
 
-    // ── WebSocket Excel ────────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!excelWsUrl || !excelAccountId) return;
+        applyPositionsToSheet(excelPositions, 23); // NetPos Excel → column X
+    }, [excelPositions, applyPositionsToSheet]);
 
-        function connect() {
-            setExcelStatus("connecting");
-            const ws = new WebSocket(excelWsUrl!);
-            excelWsRef.current = ws;
-
-            ws.onopen = () => {
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-
-                    if (msg.type === "error" && msg.message) {
-                        setExcelStatus("error");
-                        toast.error(`Excel: ${msg.message}`, { toastId: "excel_ws_error", autoClose: 3000 });
-                    }
-
-                    if (msg.data && Array.isArray(msg.data)) {
-                        setExcelStatus("connected");
-                        toast.dismiss("excel_ws_reconnect");
-                        toast.dismiss("excel_ws_error");
-                        excelAttemptRef.current = 0; // Reset only when real data flows
-                        handleWsData(msg.data, excelAccountId, 23); // NetPos Excel is X (23)
-                    }
-                } catch (err) {
-                    console.error("[SheetWidget] Excel WS message error:", err);
-                }
-            };
-
-            ws.onclose = () => {
-                excelAttemptRef.current += 1;
-                const attempt = excelAttemptRef.current;
-
-                if (attempt >= 5) {
-                    setExcelStatus("failed");
-                    // Update existing toast or create new one
-                    if (toast.isActive("excel_ws_reconnect")) {
-                        toast.update("excel_ws_reconnect", { type: "error", render: "Excel: Connection failed. Please hit ↻ Refresh in the widget.", autoClose: 3000 });
-                    } else {
-                        toast.error("Excel: Connection failed. Please hit ↻ Refresh in the widget.", { toastId: "excel_ws_reconnect", autoClose: 3000 });
-                    }
-                } else {
-                    setExcelStatus("error");
-                    const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
-                    const msg = `Excel: Connection lost. Reconnecting in ${delay / 1000}s... (Attempt ${attempt}/4)`;
-                    if (toast.isActive("excel_ws_reconnect")) {
-                        toast.update("excel_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
-                    } else {
-                        toast.warning(msg, { toastId: "excel_ws_reconnect", autoClose: 3000 });
-                    }
-                    excelReconnectRef.current = setTimeout(connect, delay);
-                }
-            };
-
-            ws.onerror = (err: Event) => {
-                console.error("[SheetWidget] Excel WS error. Check connection.");
-                setExcelStatus("error");
-            };
-        }
-
-        connect();
-
-        return () => {
-            if (excelReconnectRef.current) clearTimeout(excelReconnectRef.current);
-            if (excelWsRef.current) {
-                excelWsRef.current.onclose = null; // Prevent reconnect loop on unmount
-                excelWsRef.current.close();
-            }
-        };
-    }, [excelWsUrl, excelAccountId, handleWsData, excelConnectTrigger]);
-
-
-    // ── WebSocket Marex ────────────────────────────────────────────────────────────
     useEffect(() => {
-        if (!marexWsUrl || !marexAccountId) return;
+        applyPositionsToSheet(marexPositions, 24); // NetPos Marex → column Y
+    }, [marexPositions, applyPositionsToSheet]);
 
-        function connect() {
-            setMarexStatus("connecting");
-            const ws = new WebSocket(marexWsUrl!);
-            marexWsRef.current = ws;
-
-            ws.onopen = async () => {
-                try {
-                    const token = getFirebaseToken ? await getFirebaseToken() : "";
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            token,
-                            account_id: marexAccountId
-                        }));
-                    }
-                } catch (err) {
-                    console.error("[SheetWidget] Failed to get firebase token", err);
-                }
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-
-                    if (msg.type === "error" && msg.message) {
-                        setMarexStatus("error");
-                        toast.error(`Risk: ${msg.message}`, { toastId: "marex_ws_error", autoClose: 3000 });
-                    }
-
-                    if (msg.data && Array.isArray(msg.data)) {
-                        setMarexStatus("connected");
-                        toast.dismiss("marex_ws_reconnect");
-                        toast.dismiss("marex_ws_error");
-                        marexAttemptRef.current = 0; // Reset only when real data flows
-                        handleWsData(msg.data, marexAccountId, 24); // NetPos Marex is Y (24)
-                    }
-                } catch (err) {
-                    console.error("[SheetWidget] Marex WS message error:", err);
-                }
-            };
-
-            ws.onclose = () => {
-                marexAttemptRef.current += 1;
-                const attempt = marexAttemptRef.current;
-
-                if (attempt >= 5) {
-                    setMarexStatus("failed");
-                    if (toast.isActive("marex_ws_reconnect")) {
-                        toast.update("marex_ws_reconnect", { type: "error", render: "Risk: Connection failed. Please hit ↻ Refresh in the widget.", autoClose: 3000 });
-                    } else {
-                        toast.error("Risk: Connection failed. Please hit ↻ Refresh in the widget.", { toastId: "marex_ws_reconnect", autoClose: 3000 });
-                    }
-                } else {
-                    setMarexStatus("error");
-                    const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
-                    const msg = `Risk: Connection lost. Reconnecting in ${delay / 1000}s... (Attempt ${attempt}/4)`;
-                    if (toast.isActive("marex_ws_reconnect")) {
-                        toast.update("marex_ws_reconnect", { type: "warning", render: msg, autoClose: 3000 });
-                    } else {
-                        toast.warning(msg, { toastId: "marex_ws_reconnect", autoClose: 3000 });
-                    }
-                    marexReconnectRef.current = setTimeout(connect, delay);
-                }
-            };
-
-            ws.onerror = (err: Event) => {
-                console.error("[SheetWidget] Marex WS error. Check connection.");
-                setMarexStatus("error");
-            };
-        }
-
-        connect();
-
-        return () => {
-            if (marexReconnectRef.current) clearTimeout(marexReconnectRef.current);
-            if (marexWsRef.current) {
-                marexWsRef.current.onclose = null; // Prevent reconnect loop on unmount
-                marexWsRef.current.close();
-            }
-        };
-    }, [marexWsUrl, marexAccountId, getFirebaseToken, handleWsData, marexConnectTrigger]);
     // ── Modal handlers ────────────────────────────────────────────────────────
 
     const handleModalConfirm = useCallback(async (product: string) => {
@@ -770,26 +454,18 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         setModalError(null);
 
         try {
-            // 1. Fetch contracts + build sheet snapshot
             const { sheetId, sheetSnapshot } = await buildProductSheet(product);
-
-            // 2. Get the workbook and insert the new sheet
             const univerAPI = univerRef.current;
             const newSheet = await insertSheetIntoWorkbook(univerAPI, product, sheetId, sheetSnapshot, isProgrammaticInsertRef);
 
-            if (!newSheet) {
-                throw new Error("Failed to insert sheet into workbook");
-            }
+            if (!newSheet) throw new Error("Failed to insert sheet into workbook");
 
-            // apply conditional formatting to the newly created sheet
             applyDefaultConditionalFormatting(newSheet);
 
-            // Allow Univer to finish adding the sheet and hydrating the UI
-            // before we ask for values over WebSocket (which writes cells).
+            // Re-apply current positions to the new sheet
             setTimeout(() => {
-                if (excelWsRef.current && excelWsRef.current.readyState === WebSocket.OPEN) {
-                    excelWsRef.current.send(JSON.stringify({ msg: "send_snapshot" }));
-                }
+                applyPositionsToSheet(excelPositions, 23);
+                applyPositionsToSheet(marexPositions, 24);
             }, 500);
 
             setModalOpen(false);
@@ -799,76 +475,15 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         } finally {
             setModalLoading(false);
         }
-    }, []);
+    }, [excelPositions, marexPositions, applyPositionsToSheet]);
 
     const handleModalCancel = useCallback(() => {
-        if (modalLoading) return; // Don't close while loading
+        if (modalLoading) return;
         setModalOpen(false);
         setModalError(null);
     }, [modalLoading]);
 
     // ── Render ───────────────────────────────────────────────────────────────
-
-    const dotStyle = (status: string): React.CSSProperties => ({
-        width: '8px',
-        height: '8px',
-        borderRadius: '50%',
-        display: 'inline-block',
-        flexShrink: 0,
-        backgroundColor: status === 'connected' ? '#22c55e' : status === 'error' ? '#ef4444' : '#eab308',
-    });
-
-    const pillStyle: React.CSSProperties = {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
-        border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
-        borderRadius: '6px',
-        padding: '4px 10px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-    };
-
-    const labelStyle: React.CSSProperties = {
-        fontWeight: 700,
-        fontSize: '10px',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        color: darkMode ? '#d1d5db' : '#374151',
-        pointerEvents: 'none',
-    };
-
-    const dividerStyle: React.CSSProperties = {
-        width: '1px',
-        height: '14px',
-        backgroundColor: darkMode ? '#4b5563' : '#d1d5db',
-    };
-
-    const StatusIndicator = () => (
-        <div style={pillStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title={`Excel Connector: ${excelStatus}`}>
-                {excelStatus === 'failed' ? (
-                    <button onClick={handleExcelRefresh} style={{ color: '#3b82f6', fontSize: '10px', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>⟳ Excel</button>
-                ) : (
-                    <>
-                        <div style={dotStyle(excelStatus)} />
-                        <span style={labelStyle}>Excel</span>
-                    </>
-                )}
-            </div>
-            <div style={dividerStyle} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }} title={`Risk Server: ${marexStatus}`}>
-                {marexStatus === 'failed' ? (
-                    <button onClick={handleMarexRefresh} style={{ color: '#3b82f6', fontSize: '10px', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}>⟳ Risk</button>
-                ) : (
-                    <>
-                        <div style={dotStyle(marexStatus)} />
-                        <span style={labelStyle}>Risk</span>
-                    </>
-                )}
-            </div>
-        </div>
-    );
 
     return (
         <WidgetContainer
@@ -877,11 +492,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             parameters={parameters}
             initialParameterValues={initialParameterValues}
             onParametersChange={handleParametersChange}
-            headerRight={<StatusIndicator />}
         >
             <div ref={containerRef} className="h-full w-full univer-scroll-lock-container" />
 
-            {/* Render modal in a portal so it's above everything */}
             {modalOpen &&
                 ReactDOM.createPortal(
                     <InsertSheetModal
@@ -899,18 +512,12 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
 
 // ─── Helper: insert sheet into Univer workbook ─────────────────────────────────
 
-/**
- * Insert a new sheet (built from the template + API data) into the active Univer workbook.
- *
- * Univer's FWorkbook exposes:
- *   - `create(name, row, col, {index, data})` — creates a sheet with data
- */
 async function insertSheetIntoWorkbook(
     univerAPI: any,
     product: string,
     sheetId: string,
     sheetSnapshot: Record<string, any>,
-    isProgrammaticInsertRef: React.MutableRefObject<boolean>
+    isProgrammaticInsertRef: React.RefObject<boolean>
 ): Promise<any> {
     try {
         const sheetData = sheetSnapshot[sheetId];
@@ -919,14 +526,10 @@ async function insertSheetIntoWorkbook(
         const workbook = univerAPI.getActiveWorkbook();
         if (!workbook) return null;
 
-        // Create a new blank sheet with the product name
-        // Univer's createSheet returns the new FWorksheet
         const existingSheetNames: string[] = workbook.getSheets
             ? workbook.getSheets().map((s: any) => s.getSheetName?.() ?? s.getName?.() ?? "")
             : [];
 
-
-        // Deduplicate name if needed
         let finalName = product;
         if (existingSheetNames.includes(finalName)) {
             let counter = 2;
@@ -934,11 +537,8 @@ async function insertSheetIntoWorkbook(
             finalName = `${product}(${counter})`;
         }
 
-        // Make sure the snapshot uses the deduplicated name
         sheetData.name = finalName;
 
-        // Set the bypass flag BEFORE calling create() so the BeforeCommandExecute
-        // handler knows this InsertSheetCommand is programmatic and lets it through.
         isProgrammaticInsertRef.current = true;
         let newSheet: any;
         try {
@@ -946,13 +546,9 @@ async function insertSheetIntoWorkbook(
                 finalName,
                 sheetData.rowCount || 10,
                 sheetData.columnCount || 10,
-                {
-                    index: existingSheetNames.length,
-                    sheet: sheetData,
-                }
+                { index: existingSheetNames.length, sheet: sheetData }
             );
         } finally {
-            // Always clear the flag, even if create() throws.
             isProgrammaticInsertRef.current = false;
         }
 

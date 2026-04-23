@@ -25,6 +25,10 @@ import {
   TrendingUp,
   RefreshCw,
 } from "lucide-react";
+import { usePositionsStore } from "../store/positionsStore";
+import { useAlertsStore } from "../store/alertsStore";
+import type { ExpiryAlert } from "../store/alertsStore";
+import { parseSymbol } from "../utils/symbolParser";
 
 // ─── Product Groups (fallback when API doesn't provide category) ──────────────
 
@@ -202,6 +206,30 @@ function resolveGroup(symbol: string, apiCategory?: string, overrides?: Record<s
 }
 
 // ─── API Parser ───────────────────────────────────────────────────────────────
+
+// ─── Position Lookup Helpers ──────────────────────────────────────────────────
+
+type GetPositionFn = (symbol: string, label: string) => { marex: number; excel: number; active: number };
+type GetPositionByAccountFn = (accountId: string, symbol: string, label: string) => { marex: number; excel: number; active: number };
+
+function getPositionForEvent(
+  event: ExpiryEvent,
+  getPos: GetPositionFn
+): { marex: number; excel: number; active: number } {
+  const parsed = parseSymbol(`${event.symbol}${event.contractCode}`);
+  if (parsed) return getPos(parsed.product, parsed.label);
+  return { marex: 0, excel: 0, active: 0 };
+}
+
+function getPositionForEventByAccount(
+  event: ExpiryEvent,
+  accountId: string,
+  getPosByAccount: GetPositionByAccountFn
+): { marex: number; excel: number; active: number } {
+  const parsed = parseSymbol(`${event.symbol}${event.contractCode}`);
+  if (parsed) return getPosByAccount(accountId, parsed.product, parsed.label);
+  return { marex: 0, excel: 0, active: 0 };
+}
 
 function parseApiResponse(raw: unknown, overrides?: Record<string, string>): ExpiryEvent[] {
   if (!raw) return [];
@@ -415,33 +443,85 @@ function ViewModeToggle({ value, onChange, dk }: { value: ViewMode; onChange: (v
 
 // ─── Event Badge ──────────────────────────────────────────────────────────────
 
-const EventBadge = memo(({ event, dk }: { event: ExpiryEvent; dk: boolean }) => {
+const EventBadge = memo(({ event, dk, activePosition, accountBreakdown }: {
+  event: ExpiryEvent;
+  dk: boolean;
+  activePosition?: number;
+  accountBreakdown?: { accountId: string; qty: number }[];
+}) => {
   const cfg = GROUP_CONFIG[event._group] ?? GROUP_CONFIG["Other"];
   const t   = tok(dk);
+  const hasPos = activePosition !== undefined && activePosition !== 0;
+  const hasBreakdown = (accountBreakdown?.length ?? 0) > 1;
+
+  function fmtQty(q: number) {
+    return q > 0 ? `+${q.toLocaleString()}` : q.toLocaleString();
+  }
+
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: "7px 12px 7px 15px", borderRadius: 9,
+      borderRadius: 9,
       background: dk ? cfg.darkBg : cfg.bg,
-      border: `1px solid ${cfg.color}25`,
+      border: hasPos ? `1px solid ${cfg.color}55` : `1px solid ${cfg.color}25`,
       position: "relative", overflow: "hidden",
     }}>
+      {/* Left accent bar */}
       <div style={{
         position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
         background: DATE_TYPE_CONFIG[event.dateType].color, borderRadius: "9px 0 0 9px",
       }} />
-      <GroupDot group={event._group} size={8} />
-      <span style={{ fontWeight: 800, fontSize: 13, color: cfg.color, letterSpacing: "0.02em", minWidth: 28 }}>
-        {event.symbol}
-      </span>
-      <span style={{ fontSize: 12, color: t.textSec, fontWeight: 600 }}>
-        {event.contractCode}
-      </span>
-      <DateTypePill type={event.dateType} />
-      {event.exchange && (
-        <span style={{ fontSize: 9, color: t.textMuted, marginLeft: "auto", fontWeight: 700, letterSpacing: "0.04em" }}>
-          {event.exchange}
+
+      {/* Main row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 15px" }}>
+        <GroupDot group={event._group} size={8} />
+        <span style={{ fontWeight: 800, fontSize: 13, color: cfg.color, letterSpacing: "0.02em", minWidth: 28 }}>
+          {event.symbol}
         </span>
+        <span style={{ fontSize: 12, color: t.textSec, fontWeight: 600 }}>
+          {event.contractCode}
+        </span>
+        <DateTypePill type={event.dateType} />
+        {hasPos ? (
+          <span style={{
+            fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 5,
+            background: activePosition! > 0 ? "rgba(59,130,246,0.15)" : "rgba(249,115,22,0.15)",
+            color: activePosition! > 0 ? "#3b82f6" : "#f97316",
+            border: `1px solid ${activePosition! > 0 ? "rgba(59,130,246,0.3)" : "rgba(249,115,22,0.3)"}`,
+            marginLeft: "auto", letterSpacing: "0.02em",
+          }}>
+            {activePosition! > 0 ? `+${activePosition}` : String(activePosition)}
+          </span>
+        ) : event.exchange ? (
+          <span style={{ fontSize: 9, color: t.textMuted, marginLeft: "auto", fontWeight: 700, letterSpacing: "0.04em" }}>
+            {event.exchange}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Account breakdown row — only when 2+ accounts have data */}
+      {hasBreakdown && (
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: "3px 6px",
+          padding: "0 12px 7px 15px", alignItems: "center",
+        }}>
+          {accountBreakdown!.map(({ accountId, qty }) => (
+            <span key={accountId} style={{
+              fontSize: 9, fontWeight: 700,
+              padding: "1px 6px", borderRadius: 4,
+              background: qty > 0
+                ? "rgba(59,130,246,0.1)"
+                : qty < 0
+                ? "rgba(249,115,22,0.1)"
+                : (dk ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"),
+              color: qty > 0 ? "#60a5fa" : qty < 0 ? "#fb923c" : t.textMuted,
+              border: `1px solid ${qty > 0 ? "rgba(59,130,246,0.2)" : qty < 0 ? "rgba(249,115,22,0.2)" : "transparent"}`,
+              letterSpacing: "0.02em",
+            }}>
+              <span style={{ color: t.textMuted, fontWeight: 600 }}>Acct {accountId}: </span>
+              {qty === 0 ? "—" : fmtQty(qty)}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -450,9 +530,10 @@ EventBadge.displayName = "EventBadge";
 
 // ─── Day Cell ─────────────────────────────────────────────────────────────────
 
-const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, onClick }: {
+const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, onClick, hasPosition }: {
   day: number; events: ExpiryEvent[]; isToday: boolean;
   isSelected: boolean; isCurrentMonth: boolean; dk: boolean; onClick: () => void;
+  hasPosition?: boolean;
 }) => {
   const t = tok(dk);
   const hasEvents  = events.length > 0;
@@ -482,6 +563,8 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
         ? "1.5px solid #3b82f6"
         : isToday
         ? "1.5px solid rgba(59,130,246,0.45)"
+        : hasPosition
+        ? "1.5px solid rgba(234,179,8,0.55)"
         : hasEvents
         ? `1px solid ${t.border}`
         : "1px solid transparent",
@@ -523,6 +606,17 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
       {/* Corner indicators */}
       {hasExpiry && <div style={{ position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: "50%", background: "#a855f7" }} />}
       {hasFTD    && <div style={{ position: "absolute", top: 3, left:  3, width: 5, height: 5, borderRadius: "50%", background: "#06b6d4" }} />}
+
+      {/* Position indicator — gold diamond bottom-centre */}
+      {hasPosition && (
+        <div style={{
+          position: "absolute", bottom: 3,
+          width: 5, height: 5,
+          background: "#eab308",
+          borderRadius: 1,
+          transform: "rotate(45deg)",
+        }} />
+      )}
     </div>
   );
 });
@@ -530,11 +624,16 @@ DayCell.displayName = "DayCell";
 
 // ─── Day Detail Panel ─────────────────────────────────────────────────────────
 
-const DayDetailPanel = memo(({ date, events, dk, onClose }: {
+const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
   date: Date; events: ExpiryEvent[]; dk: boolean; onClose: () => void;
+  getPosition: GetPositionFn;
 }) => {
   const [tab, setTab] = useState<"all" | "expiry" | "ftd">("all");
   const t = tok(dk);
+
+  const getPositionByAccount = usePositionsStore((s) => s.getPositionByAccount);
+  const getAccountIds        = usePositionsStore((s) => s.getAccountIds);
+  const accountIds           = getAccountIds();
 
   const displayed = useMemo(
     () => tab === "all" ? events : events.filter(e => e.dateType === tab),
@@ -632,7 +731,19 @@ const DayDetailPanel = memo(({ date, events, dk, onClose }: {
                   <span style={{ fontSize: 9, fontWeight: 600, color: t.textMuted }}>({evts.length})</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {evts.map(e => <EventBadge key={e.id} event={e} dk={dk} />)}
+                  {evts.map(e => {
+                    const breakdown = accountIds.map(acctId => ({
+                      accountId: acctId,
+                      qty: getPositionForEventByAccount(e, acctId, getPositionByAccount).active,
+                    }));
+                    return (
+                      <EventBadge
+                        key={e.id} event={e} dk={dk}
+                        activePosition={getPositionForEvent(e, getPosition).active}
+                        accountBreakdown={breakdown}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -886,7 +997,54 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
     return map;
   }, [filteredEvents]);
 
-  // ── Upcoming list (sidebar) ───────────────────────────────────────────────
+  // ── Positions awareness ───────────────────────────────────────────────────
+  const getPosition = usePositionsStore((s) => s.getPosition);
+  const setAlerts   = useAlertsStore((s) => s.setAlerts);
+
+  // Map dateKey → true if any event on that day has an open position
+  const positionDateKeys = useMemo(() => {
+    const keys = new Set<string>();
+    Object.entries(eventsByDate).forEach(([dateKey, evts]) => {
+      if (evts.some(e => getPositionForEvent(e, getPosition).active !== 0)) {
+        keys.add(dateKey);
+      }
+    });
+    return keys;
+  }, [eventsByDate, getPosition]);
+
+  // Generate expiry alerts for any event with a position expiring within 5 days
+  useEffect(() => {
+    const now = getToday();
+    const newAlerts: ExpiryAlert[] = [];
+
+    filteredEvents.forEach((event) => {
+      const eventDate = isoToLocal(event.date);
+      const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
+      if (daysAway < 0 || daysAway > 5) return;
+
+      const pos = getPositionForEvent(event, getPosition);
+      if (pos.active === 0) return;
+
+      newAlerts.push({
+        id: `${event.id}_alert`,
+        symbol: event.symbol,
+        contractCode: event.contractCode,
+        productName: event.productName,
+        expiryDate: event.date,
+        daysUntilExpiry: daysAway,
+        marexPosition: pos.marex,
+        excelPosition: pos.excel,
+        activePosition: pos.active,
+        dateType: event.dateType,
+        severity: daysAway <= 2 ? "critical" : "warning",
+        addressed: false,
+      });
+    });
+
+    setAlerts(newAlerts);
+  }, [filteredEvents, getPosition, setAlerts]);
+
+  //── Upcoming list (sidebar) ───────────────────────────────────────────────
   const upcomingDates = useMemo(() => {
     return Object.keys(eventsByDate)
       .filter(key => {
@@ -1277,6 +1435,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                   isToday={dateKey === todayKey}
                   isSelected={dateKey === selectedDateKey}
                   isCurrentMonth={isCurrentMonth}
+                  hasPosition={positionDateKeys.has(dateKey)}
                   dk={dk}
                   onClick={() => {
                     if ((eventsByDate[dateKey] ?? []).length > 0)
@@ -1297,6 +1456,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                 events={selectedEvents}
                 dk={dk}
                 onClose={() => setSelectedDateKey(null)}
+                getPosition={getPosition}
               />
             </div>
           )}
