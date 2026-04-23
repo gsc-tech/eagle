@@ -343,38 +343,95 @@ const TableRow: React.FC<RowProps> = ({
             }
 
             if (columnOptions[key]) {
-                const handleDraftChange = (val: string) => {
-                    let newDraft = { ...state.draftData, [key]: val };
+                const handleDraftChange = (newVal: string) => {
+                    let newDraft = { ...state.draftData, [key]: newVal };
+
                     if (productOptions && productOptions.length > 0 && typeof productOptions[0] === 'object') {
                         const lowKey = key.toLowerCase();
+
                         if (lowKey === "product") {
-                            const match = productOptions.find(p => (p.metadata_sym || p.product) === val);
-                            if (match) newDraft["productName"] = match.instrument || match.productName || "";
+                            const currentProductName = newDraft["productName"] || "";
+                            const isCompatible = currentProductName && productOptions.some(
+                                p => (p.metadata_sym || p.product) === newVal && (p.instrument || p.productName) === currentProductName
+                            );
+                            if (!isCompatible) {
+                                const validNames = Array.from(new Set(
+                                    productOptions
+                                        .filter(p => (p.metadata_sym || p.product) === newVal)
+                                        .map(p => p.instrument || p.productName || "")
+                                        .filter(Boolean)
+                                ));
+                                newDraft["productName"] = validNames.length === 1 ? validNames[0] : "";
+                            }
                         } else if (lowKey === "productname") {
-                            const match = productOptions.find(p => (p.instrument || p.productName) === val);
-                            if (match) newDraft["product"] = match.metadata_sym || match.product || "";
+                            const currentProduct = newDraft["product"] || "";
+                            const isCompatible = currentProduct && productOptions.some(
+                                p => (p.instrument || p.productName) === newVal && (p.metadata_sym || p.product) === currentProduct
+                            );
+                            if (!isCompatible) {
+                                const validProducts = Array.from(new Set(
+                                    productOptions
+                                        .filter(p => (p.instrument || p.productName) === newVal)
+                                        .map(p => p.metadata_sym || p.product || "")
+                                        .filter(Boolean)
+                                ));
+                                newDraft["product"] = validProducts.length === 1 ? validProducts[0] : "";
+                            }
                         }
-                        
-                        // Exchange auto-fill
-                        const resolvedProduct = newDraft["product"] || "";
-                        const resolvedProductName = newDraft["productName"] || "";
-                        if (resolvedProduct && resolvedProductName) {
-                            const matchingExchanges = Array.from(new Set(
-                                productOptions
-                                    .filter(p => (p.metadata_sym || p.product) === resolvedProduct && (p.instrument || p.productName) === resolvedProductName)
-                                    .map(p => p.exchange)
-                                    .filter(Boolean)
-                            ));
-                            newDraft["exchange"] = matchingExchanges.length === 1 ? matchingExchanges[0] : "";
+
+                        // Exchange: validate/auto-fill based on resolved product + productName
+                        if (key.toLowerCase() !== "exchange") {
+                            const resolvedProduct = newDraft["product"] || "";
+                            const resolvedProductName = newDraft["productName"] || "";
+                            if (resolvedProduct || resolvedProductName) {
+                                let filtered = productOptions;
+                                if (resolvedProduct) filtered = filtered.filter(p => (p.metadata_sym || p.product) === resolvedProduct);
+                                if (resolvedProductName) filtered = filtered.filter(p => (p.instrument || p.productName) === resolvedProductName);
+                                const validExchanges = Array.from(new Set(filtered.map(p => p.exchange).filter(Boolean)));
+                                const currentExchange = newDraft["exchange"] || "";
+                                if (!currentExchange || !validExchanges.includes(currentExchange)) {
+                                    newDraft["exchange"] = validExchanges.length === 1 ? validExchanges[0] : "";
+                                }
+                            }
                         }
                     }
+
                     setState({ ...state, draftData: newDraft });
                 };
+
+                // Compute filtered options based on current draft selections
+                let resolvedOptions = columnOptions[key];
+                if (productOptions && productOptions.length > 0 && typeof productOptions[0] === 'object') {
+                    const lowKey = key.toLowerCase();
+                    const selectedProduct = state.draftData?.["product"] || "";
+                    const selectedProductName = state.draftData?.["productName"] || "";
+
+                    if (lowKey === "productname" && selectedProduct) {
+                        resolvedOptions = Array.from(new Set(
+                            productOptions
+                                .filter(p => (p.metadata_sym || p.product) === selectedProduct)
+                                .map(p => p.instrument || p.productName || "")
+                                .filter(Boolean)
+                        )).sort();
+                    } else if (lowKey === "product" && selectedProductName) {
+                        resolvedOptions = Array.from(new Set(
+                            productOptions
+                                .filter(p => (p.instrument || p.productName) === selectedProductName)
+                                .map(p => p.metadata_sym || p.product || "")
+                                .filter(Boolean)
+                        )).sort();
+                    } else if (lowKey === "exchange" && (selectedProduct || selectedProductName)) {
+                        let filtered = productOptions;
+                        if (selectedProduct) filtered = filtered.filter(p => (p.metadata_sym || p.product) === selectedProduct);
+                        if (selectedProductName) filtered = filtered.filter(p => (p.instrument || p.productName) === selectedProductName);
+                        resolvedOptions = Array.from(new Set(filtered.map(p => p.exchange || "").filter(Boolean))).sort();
+                    }
+                }
 
                 return (
                     <Select
                         placeholder={`Select ${key}`}
-                        options={columnOptions[key]}
+                        options={resolvedOptions}
                         value={state.draftData?.[key] || ""}
                         onChange={handleDraftChange}
                         darkMode={darkMode}
