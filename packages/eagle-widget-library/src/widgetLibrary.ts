@@ -26,6 +26,10 @@ import { WorldMapWidgetDef } from "./widgets/WorldMapWidget";
 import { WatchListWidgetDef } from "./widgets/WatchListWidget";
 import { SheetWidgetDef } from "./widgets/SheetWidget";
 import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
+import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidget";
+import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
+import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
+import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
 
 export const widgetLibrary = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -55,4 +59,8 @@ export const widgetLibrary = {
     WatchListWidget: WatchListWidgetDef,
     SheetWidget: SheetWidgetDef,
     CartesianHeatmapWidget: CartesianHeatmapWidgetDef,
+    TraderLimitsRequestWidget: TraderLimitsRequestWidgetDef,
+    TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
+    TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,
+    TraderLimitsApprovalStagesViewWidget: TraderLimitsApprovalStagesViewWidgetDef,
 }

@@ -9,6 +9,8 @@ interface ParameterFormProps {
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     darkMode?: boolean;
     initialParameterValues?: Record<string, string>;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +65,14 @@ const XIcon = ({ size = 8 }: { size?: number }) => (
     </svg>
 );
 
+const SearchIcon = ({ size = 11 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette — cycles deterministically by group index
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,17 +100,22 @@ interface MultiSelectDropdownProps {
     value: string[];          // array of selected values
     darkMode: boolean;
     onChange: (selected: string[]) => void;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
 }
-
-function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDropdownProps) {
+ 
+function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired, getFirebaseToken }: MultiSelectDropdownProps) {
     const [open, setOpen] = useState(false);
+    const [dynamicOptions, setDynamicOptions] = useState<{ label: string, value: any }[] | null>(null);
+    const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const triggerRef = useRef<HTMLButtonElement>(null);
     const dropRef   = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
         top: 0, left: 0, width: 180,
     });
-
+ 
     const bg          = darkMode ? '#111827' : '#ffffff';
     const border      = darkMode ? '#374151' : '#e5e7eb';
     const text        = darkMode ? '#e5e7eb' : '#111827';
@@ -110,14 +125,59 @@ function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDr
     const pillText    = darkMode ? '#93c5fd' : '#1d4ed8';
     const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
     const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
+    const searchBg    = darkMode ? '#1f2937' : '#f9fafb';
+    const searchBdr   = darkMode ? '#374151' : '#e5e7eb';
+ 
+    const hasFetched = useRef(false);
 
-    const options  = param.options ?? [];
+    useEffect(() => {
+        hasFetched.current = false;
+        setSearch(''); // Reset search when URL changes
+    }, [param.optionsApiUrl]);
+
+    useEffect(() => {
+        if (param.optionsApiUrl && !hasFetched.current) {
+            const fetchOptions = async () => {
+                setLoading(true);
+                try {
+                    let url = param.optionsApiUrl!;
+                    if (getFirebaseToken) {
+                        try {
+                            const token = await getFirebaseToken();
+                            if (token) {
+                                url += (url.includes('?') ? '&' : '?') + `token=${token}`;
+                            }
+                        } catch (e) {
+                            console.warn("Could not get firebase token for options fetch", e);
+                        }
+                    }
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+                    const data = await resp.json();
+                    setDynamicOptions(data);
+                    hasFetched.current = true;
+                } catch (err) {
+                    console.error("Failed to fetch parameter options:", err);
+                    setDynamicOptions([]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchOptions();
+        }
+    }, [param.optionsApiUrl, getFirebaseToken]);
+
+    const options  = dynamicOptions || param.options || [];
+    const filteredOptions = options.filter(opt =>
+        String(opt.label).toLowerCase().includes(search.toLowerCase()) ||
+        String(opt.value).toLowerCase().includes(search.toLowerCase())
+    );
     const selected = Array.isArray(value) ? value : [];
 
     const reposition = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const w = Math.max(rect.width, 160);
+        const w = Math.max(rect.width, 180); // increased min width for search
         let left = rect.left;
         if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
         setPos({ top: rect.bottom + 4, left, width: w });
@@ -131,6 +191,8 @@ function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDr
         reposition();
         window.addEventListener('scroll', reposition, true);
         window.addEventListener('resize', reposition);
+        // Focus search input when opened
+        setTimeout(() => searchRef.current?.focus(), 50);
         return () => {
             window.removeEventListener('scroll', reposition, true);
             window.removeEventListener('resize', reposition);
@@ -147,7 +209,10 @@ function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDr
             ) setOpen(false);
         };
         document.addEventListener('mousedown', handle);
-        return () => document.removeEventListener('mousedown', handle);
+        return () => {
+            document.removeEventListener('mousedown', handle);
+            setSearch(''); // Clear search on close
+        };
     }, [open]);
 
     const toggle = (optValue: any) => {
@@ -188,7 +253,7 @@ function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDr
                 <span style={{ flex: 1, display: 'flex', flexWrap: 'nowrap', gap: 3, overflow: 'hidden', minWidth: 0 }}>
                     {selected.length === 0 ? (
                         <span style={{ color: subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {param.placeholder || param.label}
+                            {loading ? 'Loading...' : (param.placeholder || param.label)}
                         </span>
                     ) : selected.length === 1 ? (
                         <span style={{
@@ -240,29 +305,51 @@ function MultiSelectDropdown({ param, value, darkMode, onChange }: MultiSelectDr
                         animation: 'paramPopoverIn 0.12s cubic-bezier(.16,1,.3,1)',
                     }}
                 >
-                    <div style={{ padding: '8px', borderBottom: `1px solid ${border}` }}>
+                    {/* Search Input */}
+                    <div style={{
+                        padding: '6px 8px',
+                        borderBottom: `1px solid ${searchBdr}`,
+                        background: searchBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                    }}>
+                        <span style={{ color: subtext, display: 'flex' }}><SearchIcon size={11} /></span>
                         <input
+                            ref={searchRef}
                             type="text"
                             placeholder="Search..."
                             value={search}
-                            autoFocus
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={e => setSearch(e.target.value)}
                             style={{
-                                width: '100%',
-                                padding: '4px 8px',
-                                fontSize: 11,
-                                background: hoverBg,
-                                border: `1px solid ${border}`,
-                                borderRadius: 4,
-                                color: text,
+                                flex: 1,
+                                background: 'transparent',
+                                border: 'none',
                                 outline: 'none',
-                                boxSizing: 'border-box'
+                                fontSize: 11,
+                                color: text,
+                                padding: '2px 0',
                             }}
                         />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch('')}
+                                style={{
+                                    background: 'none', border: 'none', padding: 0,
+                                    cursor: 'pointer', color: subtext, display: 'flex'
+                                }}
+                            >
+                                <XIcon size={8} />
+                            </button>
+                        )}
                     </div>
+
                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                         {filteredOptions.length === 0 ? (
-                            <div style={{ padding: '8px 12px', fontSize: 11, color: subtext }}>No options found</div>
+                            <div style={{ padding: '12px', fontSize: 11, color: subtext, textAlign: 'center' }}>
+                                {options.length === 0 ? 'No options' : 'No results found'}
+                            </div>
                         ) : filteredOptions.map(opt => {
                             const isChecked = selected.includes(opt.value);
                             return (
@@ -764,6 +851,62 @@ function GroupPopover({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Dynamic single select
+// ─────────────────────────────────────────────────────────────────────────────
+ 
+function DynamicSelect({ param, value, commonProps, handleChange, isTokenRequired, getFirebaseToken }: any) {
+    const [options, setOptions] = useState<{ label: string, value: any }[] | null>(null);
+    const [loading, setLoading] = useState(false);
+ 
+    const hasFetched = useRef(false);
+
+    useEffect(() => {
+        hasFetched.current = false;
+    }, [param.optionsApiUrl]);
+
+    useEffect(() => {
+        if (param.optionsApiUrl && !hasFetched.current) {
+            const fetchOptions = async () => {
+                setLoading(true);
+                try {
+                    let url = param.optionsApiUrl!;
+                    if (getFirebaseToken) {
+                        try {
+                            const token = await getFirebaseToken();
+                            if (token) {
+                                url += (url.includes('?') ? '&' : '?') + `token=${token}`;
+                            }
+                        } catch (e) {
+                            console.warn("Could not get token for DynamicSelect", e);
+                        }
+                    }
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    setOptions(data);
+                    hasFetched.current = true;
+                } catch (err) {
+                    console.error("Failed to fetch parameter options:", err);
+                    setOptions([]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchOptions();
+        }
+    }, [param.optionsApiUrl, getFirebaseToken]);
+ 
+    const finalOptions = options || param.options || [];
+ 
+    return (
+        <select {...commonProps} value={value}
+            onChange={e => handleChange(param.name, e.target.value, param.groupId)}>
+            <option value="">{loading ? 'Loading...' : param.label}</option>
+            {finalOptions.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+    );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
 // Main ParameterForm
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -774,6 +917,8 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
     groupedParametersValues,
     onGroupedParametersChange,
     initialParameterValues,
+    isTokenRequired,
+    getFirebaseToken,
 }) => {
     const [values, setValues] = useState<ParameterValues>(() => {
         const init: ParameterValues = {};
@@ -905,7 +1050,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
             style: inputStyle,
             required: param.required,
         };
-
+ 
         switch (param.type) {
             case 'text':
                 return <input type="text" {...common} value={val}
@@ -919,13 +1064,24 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                 return <input type="date" {...common} value={val}
                     onChange={e => handleChange(param.name, e.target.value, param.groupId)} />;
             case 'select':
+                if (param.optionsApiUrl) {
+                    return (
+                        <DynamicSelect
+                            param={param}
+                            value={val}
+                            commonProps={common}
+                            handleChange={handleChange}
+                            isTokenRequired={isTokenRequired}
+                            getFirebaseToken={getFirebaseToken}
+                        />
+                    );
+                }
                 return (
-                    <SingleSelectDropdown
-                        param={param}
-                        value={val}
-                        darkMode={darkMode}
-                        onChange={(selected) => handleChange(param.name, selected, param.groupId)}
-                    />
+                    <select {...common} value={val}
+                        onChange={e => handleChange(param.name, e.target.value, param.groupId)}>
+                        <option value="">{param.label}</option>
+                        {param.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
                 );
             case 'multiselect': {
                 const arrVal = Array.isArray(val) ? val : (val ? [val] : []);
@@ -935,6 +1091,8 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                         value={arrVal}
                         darkMode={darkMode}
                         onChange={(selected) => handleChange(param.name, selected, param.groupId)}
+                        isTokenRequired={isTokenRequired}
+                        getFirebaseToken={getFirebaseToken}
                     />
                 );
             }

@@ -26,3 +26,6 @@ export * from "./widgets/WorldMapWidget";
 export * from "./widgets/WatchListWidget";
 export * from "./widgets/SheetWidget";
 export * from "./widgets/CartesianHeatmapWidget";
+export * from "./widgets/TraderLimitsRequestWidget";
+export * from "./widgets/TraderLimitRequestsViewWidget";
+export * from "./widgets/TraderLimitsApprovalWidget";
