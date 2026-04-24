@@ -765,6 +765,7 @@ export interface DataTableWidgetProps extends BaseWidgetProps {
         badge?: Record<string, BadgeVariant>;
         [key: string]: any;
     }>;
+    tabFilterField?: string;
 }
 
 export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
@@ -783,7 +784,8 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     groupedParametersValues,
     isTokenRequired,
     getFirebaseToken,
-    columnConfig: propColumnConfig
+    columnConfig: propColumnConfig,
+    tabFilterField
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
@@ -828,10 +830,29 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     const finalTabData = useMemo<TabData | null>(() => {
         if (!stableData || stableData.length === 0) return null;
         if (stableData.length === 1 && isTabData(stableData[0])) return stableData[0] as TabData;
-        return { "Data": stableData };
-    }, [stableData]);
+        
+        if (tabFilterField) {
+            const grouped: TabData = { "All": stableData };
+            stableData.forEach(row => {
+                const tabVal = String(row[tabFilterField] ?? "Unknown");
+                if (!grouped[tabVal]) grouped[tabVal] = [];
+                grouped[tabVal].push(row);
+            });
+            // If some tabs have valid names but some are "Unknown", 
+            // the tabs variable will handle sorting them later.
+            return grouped;
+        }
 
-    const tabs = useMemo(() => Object.keys(finalTabData ?? {}).sort(), [finalTabData]);
+        return { "Data": stableData };
+    }, [stableData, tabFilterField]);
+
+    const tabs = useMemo(() => {
+        const sortedTabs = Object.keys(finalTabData ?? {}).sort();
+        if (sortedTabs.includes("All")) {
+            return ["All", ...sortedTabs.filter(t => t !== "All")];
+        }
+        return sortedTabs;
+    }, [finalTabData]);
 
     useEffect(() => {
         if (tabs.length === 0) return;

@@ -184,7 +184,10 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     }, []);
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) {
+            setSearch('');
+            return;
+        }
         reposition();
         window.addEventListener('scroll', reposition, true);
         window.addEventListener('resize', reposition);
@@ -223,6 +226,8 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         e.stopPropagation();
         onChange([]);
     };
+
+    const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
 
     return (
         <>
@@ -397,6 +402,204 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
                             </button>
                         </div>
                     )}
+                </div>,
+                document.body
+            )}
+        </>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single-select dropdown (portal-based)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SingleSelectDropdownProps {
+    param: ParameterDefinition;
+    value: string;
+    darkMode: boolean;
+    onChange: (selected: string) => void;
+}
+
+function SingleSelectDropdown({ param, value, darkMode, onChange }: SingleSelectDropdownProps) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const dropRef   = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
+        top: 0, left: 0, width: 180,
+    });
+
+    const bg          = darkMode ? '#111827' : '#ffffff';
+    const border      = darkMode ? '#374151' : '#e5e7eb';
+    const text        = darkMode ? '#e5e7eb' : '#111827';
+    const subtext     = darkMode ? '#6b7280' : '#9ca3af';
+    const hoverBg     = darkMode ? '#1f2937' : '#f3f4f6';
+    const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
+    const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
+
+    const options  = param.options ?? [];
+
+    const reposition = useCallback(() => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        const w = Math.max(rect.width, 160);
+        let left = rect.left;
+        if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+        setPos({ top: rect.bottom + 4, left, width: w });
+    }, []);
+
+    useEffect(() => {
+        if (!open) {
+            setSearch('');
+            return;
+        }
+        reposition();
+        window.addEventListener('scroll', reposition, true);
+        window.addEventListener('resize', reposition);
+        return () => {
+            window.removeEventListener('scroll', reposition, true);
+            window.removeEventListener('resize', reposition);
+        };
+    }, [open, reposition]);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return;
+        const handle = (e: MouseEvent) => {
+            if (
+                dropRef.current   && !dropRef.current.contains(e.target as Node) &&
+                triggerRef.current && !triggerRef.current.contains(e.target as Node)
+            ) setOpen(false);
+        };
+        document.addEventListener('mousedown', handle);
+        return () => document.removeEventListener('mousedown', handle);
+    }, [open]);
+
+    const handleSelect = (optValue: string) => {
+        onChange(optValue);
+        setOpen(false);
+    };
+
+    const clearSelection = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange('');
+        setOpen(false);
+    };
+
+    const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
+    const selectedLabel = options.find(o => o.value === value)?.label || value;
+
+    return (
+        <>
+            <button
+                ref={triggerRef}
+                type="button"
+                id={param.name}
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, padding: '3px 6px',
+                    border: `1px solid ${triggerBdr}`,
+                    borderRadius: 5,
+                    background: triggerBg,
+                    color: value ? text : subtext,
+                    cursor: 'pointer', minWidth: 90, maxWidth: 200,
+                    outline: 'none',
+                    transition: 'border-color 0.15s',
+                }}
+            >
+                <span style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
+                    {!value ? (
+                        <span style={{ color: subtext, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {param.placeholder || param.label}
+                        </span>
+                    ) : (
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: text }}>
+                            {selectedLabel}
+                        </span>
+                    )}
+                </span>
+                {value && (
+                    <span
+                        role="button"
+                        aria-label="Clear selection"
+                        onClick={clearSelection}
+                        style={{ color: subtext, display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                    >
+                        <XIcon size={8} />
+                    </span>
+                )}
+                <span style={{ color: subtext, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <ChevronDownIcon size={10} />
+                </span>
+            </button>
+
+            {open && createPortal(
+                <div
+                    ref={dropRef}
+                    style={{
+                        position: 'fixed',
+                        top: pos.top,
+                        left: pos.left,
+                        width: pos.width,
+                        zIndex: 99999,
+                        background: bg,
+                        border: `1px solid ${border}`,
+                        borderRadius: 8,
+                        boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                        overflow: 'hidden',
+                        animation: 'paramPopoverIn 0.12s cubic-bezier(.16,1,.3,1)',
+                    }}
+                >
+                    <div style={{ padding: '8px', borderBottom: `1px solid ${border}` }}>
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            value={search}
+                            autoFocus
+                            onChange={(e) => setSearch(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                background: hoverBg,
+                                border: `1px solid ${border}`,
+                                borderRadius: 4,
+                                color: text,
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {filteredOptions.length === 0 ? (
+                            <div style={{ padding: '8px 12px', fontSize: 11, color: subtext }}>No options found</div>
+                        ) : filteredOptions.map(opt => {
+                            const isSelected = value === opt.value;
+                            return (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => handleSelect(opt.value)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        width: '100%', padding: '7px 12px',
+                                        background: isSelected ? hoverBg : 'transparent',
+                                        border: 'none', cursor: 'pointer',
+                                        color: text, fontSize: 11, textAlign: 'left',
+                                        transition: 'background 0.1s',
+                                    }}
+                                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
+                                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                >
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {opt.label}
+                                    </span>
+                                    {isSelected && <CheckIcon size={10} className="" />}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>,
                 document.body
             )}
