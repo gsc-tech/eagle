@@ -226,9 +226,6 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         e.stopPropagation();
         onChange([]);
     };
-
-    const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()));
-
     return (
         <>
             {/* Trigger */}
