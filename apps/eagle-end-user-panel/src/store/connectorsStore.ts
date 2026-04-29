@@ -1,20 +1,21 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ConnectorRecord } from "@gsc-tech/eagle-widget-library";
 import type { ConnectorType } from "@gsc-tech/eagle-widget-library";
 
-export interface DataConnectorConfig {
-    id: string;
-    type: ConnectorType;
-    name: string;
-    wsUrl: string;
-    accountId: string;
-}
+export type { ConnectorRecord };
+export type DataConnectorConfig = ConnectorRecord;
+
+export const NATIVE_CONNECTOR_URLS: Record<ConnectorType, string> = {
+    marex: "ws://192.168.0.44:8001/ws",
+    excel: "ws://localhost:8004/ws",
+};
 
 interface ConnectorsState {
-    connectors: DataConnectorConfig[];
-    upsertConnector: (config: DataConnectorConfig) => void;
+    connectors: ConnectorRecord[];
+    upsertConnector: (config: ConnectorRecord) => void;
     removeConnector: (id: string) => void;
-    getByType: (type: ConnectorType) => DataConnectorConfig | undefined;
+    getByType: (type: ConnectorType) => ConnectorRecord | undefined;
 }
 
 export const useConnectorsStore = create<ConnectorsState>()(

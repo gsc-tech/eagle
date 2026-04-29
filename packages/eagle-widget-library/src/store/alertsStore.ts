@@ -20,8 +20,15 @@ export interface ExpiryAlert {
 
 export interface AlertsState {
     alerts: ExpiryAlert[];
-    /** Full replacement — called by ExpiryCalendarWidget on each recalc. */
-    setAlerts: (alerts: ExpiryAlert[]) => void;
+    /**
+     * Merge incoming active alerts with existing store state.
+     * - Incoming alerts whose ID already exists: update position/severity data,
+     *   but preserve the existing `addressed` flag.
+     * - Incoming alerts that are new: added with addressed=false.
+     * - Existing alerts no longer in incoming set: kept if addressed (user
+     *   dismissed them), dropped if unaddressed (position closed / left window).
+     */
+    mergeAlerts: (alerts: ExpiryAlert[]) => void;
     markAllAddressed: () => void;
     dismissAlert: (id: string) => void;
 }
@@ -29,18 +36,26 @@ export interface AlertsState {
 export const useAlertsStore = create<AlertsState>((set) => ({
     alerts: [],
 
-    setAlerts: (alerts) =>
+    mergeAlerts: (incoming) =>
         set((s) => {
-            // Preserve addressed state for alerts that already exist
-            const addressedIds = new Set(
-                s.alerts.filter((a) => a.addressed).map((a) => a.id)
-            );
-            return {
-                alerts: alerts.map((a) => ({
-                    ...a,
-                    addressed: addressedIds.has(a.id) ? true : a.addressed,
-                })),
-            };
+            const incomingMap = new Map(incoming.map((a) => [a.id, a]));
+            const existingMap = new Map(s.alerts.map((a) => [a.id, a]));
+
+            // Start with all incoming alerts, preserving addressed flag if known
+            const merged: ExpiryAlert[] = incoming.map((a) => ({
+                ...a,
+                addressed: existingMap.get(a.id)?.addressed ?? false,
+            }));
+
+            // Re-append addressed alerts that are no longer active (so dismissed
+            // history isn't lost until the user explicitly clears it)
+            s.alerts.forEach((existing) => {
+                if (existing.addressed && !incomingMap.has(existing.id)) {
+                    merged.push(existing);
+                }
+            });
+
+            return { alerts: merged };
         }),
 
     markAllAddressed: () =>

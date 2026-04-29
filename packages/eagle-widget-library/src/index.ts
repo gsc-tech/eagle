@@ -27,6 +27,8 @@ export * from "./widgets/WatchListWidget";
 export * from "./widgets/SheetWidget";
 export * from "./widgets/CartesianHeatmapWidget";
 export * from "./widgets/ExpiryCalendarWidget";
+export * from "./types";
 export * from "./store/positionsStore";
 export * from "./store/alertsStore";
+export * from "./context/ConnectorsContext";
 export * from "./hooks/useDataConnectorSync";

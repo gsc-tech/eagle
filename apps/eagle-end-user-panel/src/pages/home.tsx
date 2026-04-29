@@ -11,12 +11,19 @@ import {
     Settings,
     LogOut,
     Search,
+    Wifi,
+    WifiOff,
+    Loader,
+    AlertCircle,
+    Database,
+    Bell,
 } from "lucide-react";
-import { useDataConnectorSync } from "@gsc-tech/eagle-widget-library";
+import { useDataConnectorSync, useAlertsStore, ConnectorsProvider } from "@gsc-tech/eagle-widget-library";
 import type { ConnectorStatus } from "@gsc-tech/eagle-widget-library";
-import { useConnectorsStore } from "@/store/connectorsStore";
+import { useConnectorsStore, NATIVE_CONNECTOR_URLS } from "@/store/connectorsStore";
 import { AlertBanner } from "@/components/AlertBanner";
 import { ConnectorConfig } from "@/components/ConnectorConfig";
+import { AlertHistoryPanel } from "@/components/AlertHistoryPanel";
 import {
     Sidebar,
     SidebarProvider,
@@ -77,6 +84,20 @@ interface DashboardPageProps {
     onLogout: () => void;
 }
 
+function connectorStatusColor(status: ConnectorStatus): string {
+    if (status === "connected")  return "#22c55e";
+    if (status === "connecting") return "#eab308";
+    if (status === "error" || status === "failed") return "#ef4444";
+    return "#52525b";
+}
+
+function ConnectorStatusIcon({ status }: { status: ConnectorStatus }) {
+    if (status === "connected")  return <Wifi size={12} />;
+    if (status === "connecting") return <Loader size={12} style={{ animation: "spin 1s linear infinite" }} />;
+    if (status === "error" || status === "failed") return <AlertCircle size={12} />;
+    return <WifiOff size={12} />;
+}
+
 export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const [open, setOpen] = useState(true);
     const [dashboards, setDashboards] = useState<Dashboard[]>([]);
@@ -117,6 +138,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         return () => unsubscribe();
     }, []);
 
+    // ── Alert history panel ───────────────────────────────────────────────────
+    const [alertPanelOpen, setAlertPanelOpen] = useState(false);
+    const activeAlertCount = useAlertsStore((s) => s.alerts.filter((a) => !a.addressed).length);
+    const totalAlertCount  = useAlertsStore((s) => s.alerts.length);
+
     // ── Data Connectors ───────────────────────────────────────────────────────
     const [connectorConfigOpen, setConnectorConfigOpen] = useState(false);
     const connectors     = useConnectorsStore((s) => s.connectors);
@@ -128,10 +154,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     }, []);
 
     const { status: marexStatus } = useDataConnectorSync(
-        marexConnector ? { ...marexConnector, getFirebaseToken } : null
+        marexConnector ? { ...marexConnector, wsUrl: NATIVE_CONNECTOR_URLS.marex, getFirebaseToken } : null
     );
     const { status: excelStatus } = useDataConnectorSync(
-        excelConnector ? { ...excelConnector } : null
+        excelConnector ? { ...excelConnector, wsUrl: NATIVE_CONNECTOR_URLS.excel } : null
     );
 
     const connectorStatuses = useMemo<Record<string, ConnectorStatus>>(() => {
@@ -453,8 +479,61 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                         </Collapsible>
                     </SidebarContent>
 
-                    {/* Footer — Theme toggle + User profile */}
+                    {/* Footer — Connector status + Theme toggle + User profile */}
                     <SidebarFooter className="border-t border-sidebar-border p-0">
+
+                        {/* ── Connector Status Bar — always visible ── */}
+                        <button
+                            onClick={() => setConnectorConfigOpen(true)}
+                            className="w-full text-left hover:bg-sidebar-accent/60 transition-colors border-b border-sidebar-border"
+                            title="Data Connectors"
+                        >
+                            {/* Expanded sidebar view */}
+                            <div className="px-4 py-3 group-data-[collapsible=icon]:hidden">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Database className="w-4 h-4 text-muted-foreground" />
+                                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                            Data Connectors
+                                        </span>
+                                    </div>
+                                    <Settings className="w-4 h-4 text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2.5">
+                                    {[
+                                        { label: "Marex",  configured: !!marexConnector, status: marexStatus },
+                                        { label: "Excel",  configured: !!excelConnector, status: excelStatus },
+                                    ].map(({ label, configured, status }) => {
+                                        const color = configured ? connectorStatusColor(status) : "#52525b";
+                                        const displayStatus = configured ? status : "not set";
+                                        return (
+                                            <div key={label} className="flex items-center gap-2">
+                                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
+                                                <span className="text-sm font-semibold text-sidebar-foreground flex-1">{label}</span>
+                                                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color }}>
+                                                    {configured && <ConnectorStatusIcon status={status} />}
+                                                    <span style={{ textTransform: "capitalize" }}>{displayStatus}</span>
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Collapsed / icon-only view: two stacked status dots */}
+                            <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center justify-center gap-2 py-3">
+                                {[
+                                    { configured: !!marexConnector, status: marexStatus },
+                                    { configured: !!excelConnector, status: excelStatus },
+                                ].map(({ configured, status }, i) => {
+                                    const color = configured ? connectorStatusColor(status) : "#52525b";
+                                    return (
+                                        <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block" }} />
+                                    );
+                                })}
+                            </div>
+                        </button>
+
                         {/* Theme toggle */}
                         <div className="flex items-center justify-center py-3 group-data-[collapsible=icon]:py-2">
                             <ThemeToggle />
@@ -538,7 +617,36 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                         </p>
                                     </div>
                                 </div>
-                                <div id="dashboard-toast-container" className="flex-1 flex justify-end"></div>
+                                <div id="dashboard-toast-container" className="flex-1 flex items-center justify-end gap-3">
+                                    {/* Alert history button */}
+                                    <button
+                                        onClick={() => setAlertPanelOpen(true)}
+                                        title="Alert History"
+                                        style={{
+                                            position: "relative", display: "flex", alignItems: "center", gap: 7,
+                                            padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+                                            background: activeAlertCount > 0 ? "rgba(239,68,68,0.12)" : "transparent",
+                                            border: `1px solid ${activeAlertCount > 0 ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.1)"}`,
+                                            color: activeAlertCount > 0 ? "#fca5a5" : "#71717a",
+                                            fontSize: 13, fontWeight: 700,
+                                            transition: "all 0.15s",
+                                        }}
+                                    >
+                                        <Bell size={16} />
+                                        <span>Alerts</span>
+                                        {totalAlertCount > 0 && (
+                                            <span style={{
+                                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                                minWidth: 20, height: 20, borderRadius: 999,
+                                                background: activeAlertCount > 0 ? "#ef4444" : "#3f3f46",
+                                                color: "#ffffff",
+                                                fontSize: 11, fontWeight: 800, padding: "0 5px",
+                                            }}>
+                                                {totalAlertCount}
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
                             </header>
 
                             {/* Tab bar */}
@@ -570,14 +678,16 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                                         </div>
                                     ) : (
-                                        <DashboardCanvas
-                                            key={`${selected.dashboardID}-${activeTab.id}`}
-                                            dashboardId={selected.dashboardID}
-                                            initialLayout={activeTab.layout}
-                                            onLayoutChange={handleLayoutChange}
-                                            workbookSnapshots={workbookSnapshots}
-                                            onSaveWorkbook={handleSaveWorkbook}
-                                        />
+                                        <ConnectorsProvider connectors={connectors}>
+                                            <DashboardCanvas
+                                                key={`${selected.dashboardID}-${activeTab.id}`}
+                                                dashboardId={selected.dashboardID}
+                                                initialLayout={activeTab.layout}
+                                                onLayoutChange={handleLayoutChange}
+                                                workbookSnapshots={workbookSnapshots}
+                                                onSaveWorkbook={handleSaveWorkbook}
+                                            />
+                                        </ConnectorsProvider>
                                     )
                                 )}
                             </div>
@@ -618,6 +728,13 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     onClose={() => setConnectorConfigOpen(false)}
                 />
             )}
+
+            <AlertHistoryPanel
+                open={alertPanelOpen}
+                onClose={() => setAlertPanelOpen(false)}
+            />
+
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </SidebarProvider>
     );
 }

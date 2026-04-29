@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useConnectorsStore } from "@/store/connectorsStore";
+import { useConnectorsStore, NATIVE_CONNECTOR_URLS } from "@/store/connectorsStore";
 import type { DataConnectorConfig } from "@/store/connectorsStore";
 import type { ConnectorType, ConnectorStatus } from "@gsc-tech/eagle-widget-library";
 import { Plus, Trash2, Wifi, WifiOff, Loader, AlertCircle, X } from "lucide-react";
@@ -36,7 +36,6 @@ function StatusDot({ status }: { status: ConnectorStatus }) {
 const BLANK: Omit<DataConnectorConfig, "id"> = {
     type: "marex",
     name: "",
-    wsUrl: "",
     accountId: "",
 };
 
@@ -53,11 +52,10 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
     const [error, setError]     = useState<string | null>(null);
 
     const openAdd = () => { setForm(BLANK); setEditId(null); setError(null); setAdding(true); };
-    const openEdit = (c: DataConnectorConfig) => { setForm({ type: c.type, name: c.name, wsUrl: c.wsUrl, accountId: c.accountId }); setEditId(c.id); setError(null); setAdding(true); };
+    const openEdit = (c: DataConnectorConfig) => { setForm({ type: c.type, name: c.name, accountId: c.accountId }); setEditId(c.id); setError(null); setAdding(true); };
     const cancelForm = () => { setAdding(false); setEditId(null); setError(null); };
 
     const handleSave = () => {
-        if (!form.wsUrl.trim())    { setError("WebSocket URL is required."); return; }
         if (!form.accountId.trim()) { setError("Account ID is required."); return; }
         const id = editId ?? `${form.type}_${Date.now()}`;
         upsertConnector({ id, ...form, name: form.name.trim() || `${form.type === "marex" ? "Marex" : "Excel"} Connector` });
@@ -127,7 +125,7 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
                                     </span>
                                 </div>
                                 <div style={{ fontSize: 10, color: "#52525b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {c.wsUrl} · acct {c.accountId}
+                                    {NATIVE_CONNECTOR_URLS[c.type]} · acct {c.accountId}
                                 </div>
                             </div>
                             <StatusDot status={statuses[c.id] ?? "idle"} />
@@ -169,13 +167,10 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
                             </div>
 
                             <div style={{ marginBottom: 10 }}>
-                                <label style={labelStyle}>WebSocket URL</label>
-                                <input
-                                    type="text" placeholder="wss://your-api.example.com/ws"
-                                    value={form.wsUrl}
-                                    onChange={(e) => setForm((f) => ({ ...f, wsUrl: e.target.value }))}
-                                    style={inputStyle}
-                                />
+                                <label style={labelStyle}>WebSocket URL (native)</label>
+                                <div style={{ ...inputStyle, color: "#52525b", userSelect: "none" }}>
+                                    {NATIVE_CONNECTOR_URLS[form.type]}
+                                </div>
                             </div>
 
                             <div style={{ marginBottom: 12 }}>

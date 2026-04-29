@@ -451,8 +451,9 @@ const EventBadge = memo(({ event, dk, activePosition, accountBreakdown }: {
 }) => {
   const cfg = GROUP_CONFIG[event._group] ?? GROUP_CONFIG["Other"];
   const t   = tok(dk);
-  const hasPos = activePosition !== undefined && activePosition !== 0;
-  const hasBreakdown = (accountBreakdown?.length ?? 0) > 1;
+  const hasBreakdown = (accountBreakdown?.length ?? 0) > 0;
+  // Show position badge if net != 0, OR if any account has a position (catches ±0 netting)
+  const hasPos = (activePosition !== undefined && activePosition !== 0) || hasBreakdown || (accountBreakdown?.length ?? 0) === 1;
 
   function fmtQty(q: number) {
     return q > 0 ? `+${q.toLocaleString()}` : q.toLocaleString();
@@ -484,12 +485,20 @@ const EventBadge = memo(({ event, dk, activePosition, accountBreakdown }: {
         {hasPos ? (
           <span style={{
             fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 5,
-            background: activePosition! > 0 ? "rgba(59,130,246,0.15)" : "rgba(249,115,22,0.15)",
-            color: activePosition! > 0 ? "#3b82f6" : "#f97316",
-            border: `1px solid ${activePosition! > 0 ? "rgba(59,130,246,0.3)" : "rgba(249,115,22,0.3)"}`,
+            background: (activePosition ?? 0) > 0
+              ? "rgba(59,130,246,0.15)"
+              : (activePosition ?? 0) < 0
+              ? "rgba(249,115,22,0.15)"
+              : "rgba(234,179,8,0.15)",
+            color: (activePosition ?? 0) > 0
+              ? "#3b82f6"
+              : (activePosition ?? 0) < 0
+              ? "#f97316"
+              : "#eab308",
+            border: `1px solid ${(activePosition ?? 0) > 0 ? "rgba(59,130,246,0.3)" : (activePosition ?? 0) < 0 ? "rgba(249,115,22,0.3)" : "rgba(234,179,8,0.4)"}`,
             marginLeft: "auto", letterSpacing: "0.02em",
           }}>
-            {activePosition! > 0 ? `+${activePosition}` : String(activePosition)}
+            {(activePosition ?? 0) === 0 ? "±0" : (activePosition ?? 0) > 0 ? `+${activePosition}` : String(activePosition)}
           </span>
         ) : event.exchange ? (
           <span style={{ fontSize: 9, color: t.textMuted, marginLeft: "auto", fontWeight: 700, letterSpacing: "0.04em" }}>
@@ -556,6 +565,8 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
         ? "rgba(59,130,246,0.16)"
         : isToday && !isSelected
         ? (dk ? "rgba(59,130,246,0.09)" : "rgba(59,130,246,0.06)")
+        : hasPosition
+        ? (dk ? "rgba(234,179,8,0.13)" : "rgba(234,179,8,0.10)")
         : hasEvents
         ? (dk ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)")
         : "transparent",
@@ -564,7 +575,7 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
         : isToday
         ? "1.5px solid rgba(59,130,246,0.45)"
         : hasPosition
-        ? "1.5px solid rgba(234,179,8,0.55)"
+        ? "2px solid rgba(234,179,8,0.85)"
         : hasEvents
         ? `1px solid ${t.border}`
         : "1px solid transparent",
@@ -576,9 +587,11 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
       {/* Day number */}
       <span style={{
         fontSize: 15, lineHeight: 1, zIndex: 1,
-        fontWeight: isToday || isSelected ? 800 : hasEvents ? 700 : 500,
+        fontWeight: isToday || isSelected ? 800 : hasPosition || hasEvents ? 700 : 500,
         color: isSelected || isToday
           ? "#3b82f6"
+          : hasPosition
+          ? "#eab308"
           : hasEvents ? t.textPrimary : t.textMuted,
       }}>
         {day}
@@ -611,10 +624,11 @@ const DayCell = memo(({ day, events, isToday, isSelected, isCurrentMonth, dk, on
       {hasPosition && (
         <div style={{
           position: "absolute", bottom: 3,
-          width: 5, height: 5,
+          width: 7, height: 7,
           background: "#eab308",
           borderRadius: 1,
           transform: "rotate(45deg)",
+          boxShadow: "0 0 4px rgba(234,179,8,0.7)",
         }} />
       )}
     </div>
@@ -635,18 +649,47 @@ const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
   const getAccountIds        = usePositionsStore((s) => s.getAccountIds);
   const accountIds           = getAccountIds();
 
+  const hasGrossPosition = useCallback((e: ExpiryEvent) =>
+    accountIds.some(id => getPositionForEventByAccount(e, id, getPositionByAccount).active !== 0),
+    [accountIds, getPositionByAccount]
+  );
+
+  const getBreakdown = useCallback((e: ExpiryEvent) =>
+    accountIds
+      .map(acctId => ({ accountId: acctId, qty: getPositionForEventByAccount(e, acctId, getPositionByAccount).active }))
+      .filter(b => b.qty !== 0),
+    [accountIds, getPositionByAccount]
+  );
+
   const displayed = useMemo(
     () => tab === "all" ? events : events.filter(e => e.dateType === tab),
     [events, tab]
   );
+
+  // Split into contracts with gross positions (top section) and the rest
+  const [withPos, withoutPos] = useMemo(() => {
+    const yes: ExpiryEvent[] = [], no: ExpiryEvent[] = [];
+    displayed.forEach(e => (hasGrossPosition(e) ? yes : no).push(e));
+    yes.sort((a, b) => Math.abs(getPositionForEvent(b, getPosition).active) - Math.abs(getPositionForEvent(a, getPosition).active));
+    return [yes, no];
+  }, [displayed, hasGrossPosition, getPosition]);
+
   const byGroup = useMemo(() => {
     const map: Record<string, ExpiryEvent[]> = {};
-    displayed.forEach(e => { (map[e._group] ??= []).push(e); });
+    withoutPos.forEach(e => { (map[e._group] ??= []).push(e); });
     return map;
-  }, [displayed]);
+  }, [withoutPos]);
 
   const expCount = events.filter(e => e.dateType === "expiry").length;
   const ftdCount = events.filter(e => e.dateType === "ftd").length;
+
+  const renderBadge = (e: ExpiryEvent) => (
+    <EventBadge
+      key={e.id} event={e} dk={dk}
+      activePosition={getPositionForEvent(e, getPosition).active}
+      accountBreakdown={getBreakdown(e)}
+    />
+  );
 
   return (
     <div style={{
@@ -717,37 +760,53 @@ const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
         {displayed.length === 0 ? (
           <div style={{ textAlign: "center", padding: "24px 0", color: t.textMuted, fontSize: 11 }}>No contracts of this type</div>
         ) : (
-          GROUP_ORDER.concat(["Other"]).map(group => {
-            const evts = byGroup[group];
-            if (!evts?.length) return null;
-            const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
-            return (
-              <div key={group} style={{ marginBottom: 12 }}>
+          <>
+            {/* ── Open positions section (cross-group, always at top) ── */}
+            {withPos.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                  <span style={{ fontSize: 12 }}>{cfg.icon}</span>
-                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: cfg.color }}>
-                    {group}
+                  <span style={{ width: 7, height: 7, background: "#eab308", borderRadius: 1, transform: "rotate(45deg)", display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#eab308" }}>
+                    Open Positions
                   </span>
-                  <span style={{ fontSize: 9, fontWeight: 600, color: t.textMuted }}>({evts.length})</span>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: t.textMuted }}>({withPos.length})</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {evts.map(e => {
-                    const breakdown = accountIds.map(acctId => ({
-                      accountId: acctId,
-                      qty: getPositionForEventByAccount(e, acctId, getPositionByAccount).active,
-                    }));
-                    return (
-                      <EventBadge
-                        key={e.id} event={e} dk={dk}
-                        activePosition={getPositionForEvent(e, getPosition).active}
-                        accountBreakdown={breakdown}
-                      />
-                    );
-                  })}
+                  {withPos.map(renderBadge)}
                 </div>
               </div>
-            );
-          })
+            )}
+
+            {/* ── Remaining contracts grouped by commodity ── */}
+            {withoutPos.length > 0 && (
+              <>
+                {withPos.length > 0 && (
+                  <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: t.textMuted, marginBottom: 8, paddingTop: 4, borderTop: `1px solid ${t.border}` }}>
+                    Other Contracts
+                  </div>
+                )}
+                {GROUP_ORDER.concat(["Other"]).map(group => {
+                  const evts = byGroup[group];
+                  if (!evts?.length) return null;
+                  const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+                  return (
+                    <div key={group} style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+                        <span style={{ fontSize: 12 }}>{cfg.icon}</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: cfg.color }}>
+                          {group}
+                        </span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: t.textMuted }}>({evts.length})</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {evts.map(renderBadge)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -999,7 +1058,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
 
   // ── Positions awareness ───────────────────────────────────────────────────
   const getPosition = usePositionsStore((s) => s.getPosition);
-  const setAlerts   = useAlertsStore((s) => s.setAlerts);
+  const mergeAlerts = useAlertsStore((s) => s.mergeAlerts);
 
   // Map dateKey → true if any event on that day has an open position
   const positionDateKeys = useMemo(() => {
@@ -1020,7 +1079,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
     filteredEvents.forEach((event) => {
       const eventDate = isoToLocal(event.date);
       const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
-      if (daysAway < 0 || daysAway > 5) return;
+      if (daysAway < 0 || daysAway > 150) return;
 
       const pos = getPositionForEvent(event, getPosition);
       if (pos.active === 0) return;
@@ -1041,8 +1100,8 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
       });
     });
 
-    setAlerts(newAlerts);
-  }, [filteredEvents, getPosition, setAlerts]);
+    mergeAlerts(newAlerts);
+  }, [filteredEvents, getPosition, mergeAlerts]);
 
   //── Upcoming list (sidebar) ───────────────────────────────────────────────
   const upcomingDates = useMemo(() => {

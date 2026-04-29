@@ -76,9 +76,9 @@ export default function WidgetRenderer({
     // ── Widget component lookup ────────────────────────────────────────────────
     const WidgetComponent = useMemo(() => {
         const entry =
-            widgetLibrary[widget.componentName as keyof typeof widgetLibrary];
+            widgetLibrary[widget?.componentName as keyof typeof widgetLibrary];
         return entry?.component;
-    }, [widget.componentName]);
+    }, [widget?.componentName]);
 
     const getFirebaseToken = useCallback(async () => {
         try {
@@ -100,7 +100,7 @@ export default function WidgetRenderer({
                         Widget not found
                     </p>
                     <p className="text-xs text-destructive/70 mt-1">
-                        {widget.componentName}
+                        {widget?.componentName}
                     </p>
                 </div>
             </div>
@@ -108,15 +108,15 @@ export default function WidgetRenderer({
     }
 
     const otherDefaultProps = useMemo(() => {
-        const { initialParameterValues: _, ...rest } = widget.defaultProps || EMPTY_OBJ;
+        const { initialParameterValues: _, ...rest } = widget?.defaultProps || EMPTY_OBJ;
         return rest;
-    }, [widget.defaultProps]);
+    }, [widget?.defaultProps]);
 
     const initialParameterValues = useMemo(() => {
-        if (widget.componentName !== "SheetWidget") return EMPTY_OBJ;
+        if (widget?.componentName !== "SheetWidget") return EMPTY_OBJ;
         if (!initialWorkbookData?.parameters) return widget.defaultProps?.initialParameterValues || EMPTY_OBJ;
         return initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {});
-    }, [widget.componentName, initialWorkbookData?.parameters, widget.defaultProps?.initialParameterValues]);
+    }, [widget?.componentName, initialWorkbookData?.parameters, widget?.defaultProps?.initialParameterValues]);
 
     const handleSave = useCallback((snapshot: Record<string, any>, parameters?: any[]) => {
         if (onSaveWorkbook) {
@@ -129,20 +129,19 @@ export default function WidgetRenderer({
             <WidgetComponent
                 {...otherDefaultProps}
                 id={layoutItem.i}
-                title={widget.name}
+                title={widget?.name}
                 darkMode={theme === "dark"}
                 groupedParametersValues={groupedParametersValues}
                 onGroupedParametersChange={handleGroupedParametersChange}
                 initialWidgetState={widgetState}
                 onWidgetStateChange={handleWidgetStateChange}
                 // SheetWidget-specific: load saved snapshot and persist on close
-                {...(widget.defaultProps?.isTokenRequired && {
+                {...(widget?.defaultProps?.isTokenRequired && {
                     getFirebaseToken,
                 })}
-                {...(widget.componentName === "SheetWidget" && {
+                {...(widget?.componentName === "SheetWidget" && {
                     initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
                     initialParameterValues,
-                    getFirebaseToken,
                     onSave: handleSave
                 })}
             />

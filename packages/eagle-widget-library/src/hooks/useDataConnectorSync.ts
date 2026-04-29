@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { parseSymbol } from "../utils/symbolParser";
 import { usePositionsStore } from "../store/positionsStore";
+import type { ConnectorType, ConnectorStatus } from "../types";
 
-export type ConnectorType = "marex" | "excel";
-export type ConnectorStatus = "idle" | "connecting" | "connected" | "error" | "failed";
+export type { ConnectorType, ConnectorStatus };
 
 export interface DataConnectorConfig {
     type: ConnectorType;

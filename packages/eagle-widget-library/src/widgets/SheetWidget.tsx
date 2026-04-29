@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import ReactDOM from "react-dom";
-import type { BaseWidgetProps, ParameterValues } from "../types";
+import type { BaseWidgetProps, DataBinding, DataSlotDefinition, ParameterValues } from "../types";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { InsertSheetModal } from "../components/InsertSheetModal";
 import { useSheetStore } from "../store/sheetStore";
@@ -82,7 +82,6 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SheetWidgetProps extends BaseWidgetProps {
-    getFirebaseToken?: () => Promise<string>;
     /**
      * A previously saved Univer workbook snapshot (returned by `fWorkbook.save()`).
      * When provided the widget skips the default template build and loads this data directly.
@@ -94,6 +93,12 @@ export interface SheetWidgetProps extends BaseWidgetProps {
      * Use this to persist the workbook state to your database.
      */
     onSave?: (workbookSnapshot: Record<string, any>, parameters?: any[]) => void;
+    /**
+     * When true, renders per-connector account selectors in the widget header so the user
+     * can choose which account's positions are displayed in this widget.
+     * Default: false.
+     */
+    showAccountSelector?: boolean;
 }
 
 
@@ -119,6 +124,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
     initialWorkbookData,
     initialParameterValues,
     onSave,
+    showAccountSelector = false,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const univerRef = useRef<any>(null);
@@ -356,11 +364,45 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // ── Data slot bindings (account selector) ────────────────────────────────
+    const [dataBindings, setDataBindings] = useState<DataBinding[]>(
+        initialWidgetState?.dataBindings ?? []
+    );
+
+    const handleDataBindingsChange = useCallback((bindings: DataBinding[]) => {
+        setDataBindings(bindings);
+        onWidgetStateChange?.({ ...(initialWidgetState ?? {}), dataBindings: bindings });
+    }, [onWidgetStateChange, initialWidgetState]);
+
     // ── Apply positions from positionsStore ──────────────────────────────────
     // Subscribes to both marex and excel positions and writes them into the
     // active Univer workbook cells (same column mapping as before).
-    const marexPositions = usePositionsStore((s) => s.marex);
-    const excelPositions = usePositionsStore((s) => s.excel);
+    const allMarexPositions = usePositionsStore((s) => s.marex);
+    const allExcelPositions = usePositionsStore((s) => s.excel);
+    const marexByAccount = usePositionsStore((s) => s.marexByAccount);
+    const excelByAccount = usePositionsStore((s) => s.excelByAccount);
+
+    // Slot options are derived from actual per-account keys in the store
+    // (not from the connector's accountId field, which may be a comma-separated list).
+    const dataSlots: DataSlotDefinition[] = showAccountSelector ? [
+        {
+            id: "marex",
+            label: "Marex",
+            options: Object.keys(marexByAccount).sort().map((id) => ({ label: id, value: id })),
+        },
+        {
+            id: "excel",
+            label: "Excel",
+            options: Object.keys(excelByAccount).sort().map((id) => ({ label: id, value: id })),
+        },
+    ] : [];
+
+    // sourceId IS the accountId — stored directly, no connector lookup needed.
+    const marexAccountId = dataBindings.find((b) => b.slotId === "marex")?.sourceId ?? null;
+    const excelAccountId = dataBindings.find((b) => b.slotId === "excel")?.sourceId ?? null;
+
+    const marexPositions = marexAccountId === "__none__" ? {} : marexAccountId ? (marexByAccount[marexAccountId] ?? {}) : allMarexPositions;
+    const excelPositions = excelAccountId === "__none__" ? {} : excelAccountId ? (excelByAccount[excelAccountId] ?? {}) : allExcelPositions;
 
     const applyPositionsToSheet = useCallback((
         positions: Record<string, Record<string, number>>,
@@ -492,6 +534,9 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
             parameters={parameters}
             initialParameterValues={initialParameterValues}
             onParametersChange={handleParametersChange}
+            dataSlots={dataSlots.length > 0 ? dataSlots : undefined}
+            dataBindings={dataBindings}
+            onDataBindingsChange={dataSlots.length > 0 ? handleDataBindingsChange : undefined}
         >
             <div ref={containerRef} className="h-full w-full univer-scroll-lock-container" />
 
