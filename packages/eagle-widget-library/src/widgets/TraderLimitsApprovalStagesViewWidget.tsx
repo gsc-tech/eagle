@@ -536,6 +536,15 @@ export const TraderLimitsApprovalStagesViewWidget: React.FC<TraderLimitsApproval
     }, [rawData, localData]);
 
 
+    const hasChanged = useMemo(() => {
+        if (!editingRowId) return false;
+        const originalRow = activeData.find(r => r.id === editingRowId);
+        if (!originalRow) return false;
+        const orig = originalRow.stages;
+        if (orig.length !== draftStages.length) return true;
+        return draftStages.some((s, i) => s.id !== orig[i].id || s.role !== orig[i].role);
+    }, [draftStages, editingRowId, activeData]);
+
     const startEditing = (row: TraderApprovalStage) => {
         setEditingRowId(row.id);
         setDraftStages([...row.stages]);
@@ -749,7 +758,7 @@ export const TraderLimitsApprovalStagesViewWidget: React.FC<TraderLimitsApproval
                                                 <Button variant="ghost" size="icon" onClick={cancelEditing} darkMode={darkMode} title="Cancel">
                                                     <X size={16} />
                                                 </Button>
-                                                <Button variant="primary" size="icon" onClick={() => saveEditing(row.id)} darkMode={darkMode} disabled={isSaving} title="Save">
+                                                <Button variant="primary" size="icon" onClick={() => saveEditing(row.id)} darkMode={darkMode} disabled={isSaving || !hasChanged} title="Save">
                                                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} strokeWidth={2.5} />}
                                                 </Button>
                                             </div>
