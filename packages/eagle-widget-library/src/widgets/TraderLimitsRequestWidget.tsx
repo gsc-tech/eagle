@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import ExcelJS from "exceljs";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
@@ -652,11 +653,13 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
 
     const missingReasonsCount = data.filter(r => !r.reason || r.reason.trim().length < 5).length;
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`w-full max-w-5xl max-h-[85vh] flex flex-col rounded-xl shadow-2xl overflow-hidden border ${borderColor} ${darkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}>
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}>
+            <div className={`flex flex-col rounded-lg shadow-2xl border ${borderColor} ${darkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}
+                style={{ width: '900px', maxWidth: '100%', height: '75vh', display: 'flex', flexDirection: 'column' }}>
+
                 {/* Header */}
-                <div className={`flex items-center justify-between px-6 py-4 border-b ${borderColor} ${headerBg}`}>
+                <div className={`flex items-center justify-between px-6 py-4 border-b ${borderColor} ${headerBg} shrink-0`}>
                     <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-[#00998b]/10 text-[#00998b]">
                             <FileSpreadsheet size={20} />
@@ -668,79 +671,69 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors">
+                    <button onClick={onClose} className={`p-1 rounded-full transition-colors ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}>
                         <LucideX size={20} />
                     </button>
                 </div>
 
-                {/* Table */}
-                <div className="flex-1 overflow-auto p-4">
+                {/* Scrollable Table */}
+                <div className="overflow-y-auto custom-scrollbar flex-1" style={{ minHeight: 0 }}>
                     <table className="w-full text-sm border-collapse">
-                        <thead className={`sticky top-0 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} z-10 shadow-sm`}>
+                        <thead className={`sticky top-0 z-10 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                             <tr className={`border-b ${borderColor}`}>
-                                <th className="px-4 py-3 text-left font-semibold">Account</th>
-                                <th className="px-4 py-3 text-left font-semibold">Product</th>
-                                <th className="px-4 py-3 text-left font-semibold">Product Name</th>
-                                <th className="px-4 py-3 text-center font-semibold">Outright (New)</th>
-                                {activeTab === 'Future' && <th className="px-4 py-3 text-center font-semibold">Spread (New)</th>}
-                                <th className="px-4 py-3 text-left font-semibold">Reason</th>
+                                <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Account</th>
+                                <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Product</th>
+                                <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Product Name</th>
+                                <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-widest opacity-60">Outright (New)</th>
+                                {activeTab === 'Future' && <th className="px-4 py-3 text-center font-semibold text-xs uppercase tracking-widest opacity-60">Spread (New)</th>}
+                                <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Reason</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        <tbody className={`divide-y ${borderColor}`}>
                             {data.map((row, idx) => {
                                 const isReasonValid = row.reason && row.reason.trim().length >= 5;
                                 return (
-                                    <tr key={idx} className={darkMode ? 'hover:bg-gray-900' : 'hover:bg-gray-50'}>
-                                        <td className="px-4 py-2.5 font-mono text-xs">{row.account}</td>
-                                        <td className="px-4 py-2.5">{row.product}</td>
-                                        <td className="px-4 py-2.5 text-xs text-gray-400">{row.productName}</td>
-                                        <td className="px-4 py-2.5 text-center">
-                                            <div className="flex flex-col items-center gap-0.5">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500 text-[10px] tabular-nums">{row.outrightLimit?.toLocaleString() || 0}</span>
-                                                    <span className="text-gray-400">→</span>
-                                                    <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                        {row.requestedOutrightLimit?.toLocaleString() || 0}
-                                                    </span>
+                                    <tr key={idx} className={`${darkMode ? 'hover:bg-gray-900/50' : 'hover:bg-gray-50'}`}>
+                                        <td className="px-4 py-3 font-mono text-xs">{row.account}</td>
+                                        <td className="px-4 py-3 font-bold" style={{ color: '#00998b' }}>{row.product}</td>
+                                        <td className="px-4 py-3 text-xs opacity-70">{row.productName}</td>
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="flex items-center gap-1.5 text-sm">
+                                                    <span className="opacity-50 tabular-nums">{row.outrightLimit?.toLocaleString() || 0}</span>
+                                                    <span className="opacity-40">→</span>
+                                                    <span className="font-bold tabular-nums">{row.requestedOutrightLimit?.toLocaleString() || 0}</span>
                                                 </div>
                                                 {row.requestedOutrightLimit !== row.outrightLimit && (
-                                                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedOutrightLimit) > Number(row.outrightLimit)
-                                                        ? 'text-green-400 bg-green-500/20'
-                                                        : 'text-red-400 bg-red-500/20'
-                                                        }`}>
-                                                        {Number(row.requestedOutrightLimit) > Number(row.outrightLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
-                                                        {Math.abs(Number(row.requestedOutrightLimit) - Number(row.outrightLimit)).toLocaleString()}
+                                                    <span className={`text-[10px] font-extrabold px-2 py-1 rounded ${Number(row.requestedOutrightLimit) > Number(row.outrightLimit) ? 'text-green-400 bg-green-500/20' : 'text-red-400 bg-red-500/20'}`}>
+                                                        {Number(row.requestedOutrightLimit) > Number(row.outrightLimit) ? '+' : ''}
+                                                        {Number(row.requestedOutrightLimit) - Number(row.outrightLimit)}
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
                                         {activeTab === 'Future' && (
-                                            <td className="px-4 py-2.5 text-center">
-                                                <div className="flex flex-col items-center gap-0.5">
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="text-gray-500 text-[10px] tabular-nums">{row.spreadLimit?.toLocaleString() || 0}</span>
-                                                        <span className="text-gray-400">→</span>
-                                                        <span className={`text-sm font-bold tabular-nums ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                                            {row.requestedSpreadLimit?.toLocaleString() || 0}
-                                                        </span>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className="flex items-center gap-1.5 text-sm">
+                                                        <span className="opacity-50 tabular-nums">{row.spreadLimit?.toLocaleString() || 0}</span>
+                                                        <span className="opacity-40">→</span>
+                                                        <span className="font-bold tabular-nums">{row.requestedSpreadLimit?.toLocaleString() || 0}</span>
                                                     </div>
                                                     {row.requestedSpreadLimit !== row.spreadLimit && (
-                                                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${Number(row.requestedSpreadLimit) > Number(row.spreadLimit)
-                                                            ? 'text-green-400 bg-green-500/20'
-                                                            : 'text-red-400 bg-red-500/20'
-                                                            }`}>
-                                                            {Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? <Plus size={8} strokeWidth={4} /> : <span className="mb-0.5 text-sm">↓</span>}
-                                                            {Math.abs(Number(row.requestedSpreadLimit) - Number(row.spreadLimit)).toLocaleString()}
+                                                        <span className={`text-[10px] font-extrabold px-2 py-1 rounded ${Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? 'text-green-400 bg-green-500/20' : 'text-red-400 bg-red-500/20'}`}>
+                                                            {Number(row.requestedSpreadLimit) > Number(row.spreadLimit) ? '+' : ''}
+                                                            {Number(row.requestedSpreadLimit) - Number(row.spreadLimit)}
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
                                         )}
-                                        <td className="px-4 py-2.5">
+                                        <td className="px-4 py-3">
                                             {isReasonValid ? (
-                                                <span className={`${darkMode ? 'text-gray-300' : 'text-gray-600'} italic text-xs`}>{row.reason}</span>
+                                                <span className="text-xs opacity-70 italic">{row.reason}</span>
                                             ) : (
-                                                <div className="flex items-center gap-1.5 text-red-500 font-bold text-[10px] animate-pulse">
+                                                <div className="flex items-center gap-1.5 text-red-500 font-bold text-[11px]">
                                                     <AlertCircle size={12} /> Missing Reason
                                                 </div>
                                             )}
@@ -753,7 +746,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                 </div>
 
                 {/* Footer */}
-                <div className={`px-6 py-4 border-t ${borderColor} flex items-center justify-between ${headerBg}`}>
+                <div className={`px-6 py-4 border-t ${borderColor} flex items-center justify-between ${headerBg} shrink-0`}>
                     <div className="flex items-center gap-2">
                         {missingReasonsCount > 0 ? (
                             <div className="text-red-500 flex items-center gap-2 text-xs font-bold bg-red-50 dark:bg-red-900/10 px-3 py-2 rounded-md border border-red-200 dark:border-red-900/30">
@@ -783,7 +776,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                 </div>
             </div>
         </div>
-    );
+    , document.body);
 };
 
 // ─── Main Widget ───────────────────────────────────────────────────────────────
@@ -1070,17 +1063,29 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                 }
 
                 if (accounts.length > 0) {
-                    // Map all product options to a clean list
-                    const allProductsList = productOptions.map(p => ({
-                        product: typeof p === 'object' ? (p.metadata_sym || p.product || '') : String(p),
-                        productName: typeof p === 'object' ? (p.instrument || p.productName || '') : '',
-                        exchange: typeof p === 'object' ? (p.exchange || '') : ''
-                    })).filter(p => p.product);
+                    // Deduplicate by product+productName so futures dedup on product alone
+                    // and options (multiple productNames per product) each get their own row.
+                    const allProductsList = Array.from(
+                        new Map(
+                            productOptions
+                                .map(p => ({
+                                    product: typeof p === 'object' ? (p.metadata_sym || p.product || '') : String(p),
+                                    productName: typeof p === 'object' ? (p.instrument || p.productName || '') : '',
+                                    exchange: typeof p === 'object' ? (p.exchange || '') : ''
+                                }))
+                                .filter(p => p.product)
+                                .map(p => [`${p.product}|${p.productName}`, p] as const)
+                        ).values()
+                    );
 
                     // Generate a cross-product of accounts and products
                     accounts.forEach(acc => {
                         allProductsList.forEach(prod => {
-                            const existing = limitsData.find(r => String(r.account) === acc && String(r.product) === prod.product);
+                            const existing = limitsData.find(r =>
+                                String(r.account) === acc &&
+                                String(r.product) === prod.product &&
+                                (!prod.productName || String(r.productName) === prod.productName)
+                            );
                             if (existing) {
                                 exportRows.push({
                                     account: existing.account,
