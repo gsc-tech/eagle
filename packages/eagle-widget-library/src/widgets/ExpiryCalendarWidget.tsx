@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { usePositionsStore } from "../store/positionsStore";
 import { useAlertsStore } from "../store/alertsStore";
-import type { ExpiryAlert } from "../store/alertsStore";
 import { parseSymbol } from "../utils/symbolParser";
 
 // ─── Product Groups (fallback when API doesn't provide category) ──────────────
@@ -185,14 +184,6 @@ function isoToDateKey(iso: string): string {
 
 function isoToLocal(iso: string): Date {
   return new Date(iso + "T12:00:00Z");
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function firstDayOfMonth(year: number, month: number): number {
-  return new Date(year, month, 1).getDay();
 }
 
 function resolveGroup(symbol: string, apiCategory?: string, overrides?: Record<string, string>): string {
@@ -647,18 +638,20 @@ const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
 
   const getPositionByAccount = usePositionsStore((s) => s.getPositionByAccount);
   const getAccountIds        = usePositionsStore((s) => s.getAccountIds);
+  const posMarexByAccount    = usePositionsStore((s) => s.marexByAccount);
+  const posExcelByAccount    = usePositionsStore((s) => s.excelByAccount);
   const accountIds           = getAccountIds();
 
   const hasGrossPosition = useCallback((e: ExpiryEvent) =>
     accountIds.some(id => getPositionForEventByAccount(e, id, getPositionByAccount).active !== 0),
-    [accountIds, getPositionByAccount]
+    [accountIds, getPositionByAccount, posMarexByAccount, posExcelByAccount]
   );
 
   const getBreakdown = useCallback((e: ExpiryEvent) =>
     accountIds
       .map(acctId => ({ accountId: acctId, qty: getPositionForEventByAccount(e, acctId, getPositionByAccount).active }))
       .filter(b => b.qty !== 0),
-    [accountIds, getPositionByAccount]
+    [accountIds, getPositionByAccount, posMarexByAccount, posExcelByAccount]
   );
 
   const displayed = useMemo(
@@ -672,7 +665,7 @@ const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
     displayed.forEach(e => (hasGrossPosition(e) ? yes : no).push(e));
     yes.sort((a, b) => Math.abs(getPositionForEvent(b, getPosition).active) - Math.abs(getPositionForEvent(a, getPosition).active));
     return [yes, no];
-  }, [displayed, hasGrossPosition, getPosition]);
+  }, [displayed, hasGrossPosition, getPosition, posMarexByAccount, posExcelByAccount]);
 
   const byGroup = useMemo(() => {
     const map: Record<string, ExpiryEvent[]> = {};
@@ -1057,8 +1050,11 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   }, [filteredEvents]);
 
   // ── Positions awareness ───────────────────────────────────────────────────
-  const getPosition = usePositionsStore((s) => s.getPosition);
-  const mergeAlerts = useAlertsStore((s) => s.mergeAlerts);
+  const getPosition       = usePositionsStore((s) => s.getPosition);
+  const posMarex          = usePositionsStore((s) => s.marex);
+  const posExcel          = usePositionsStore((s) => s.excel);
+  const setCalendarEvents = useAlertsStore((s) => s.setCalendarEvents);
+  const refreshAlerts     = useAlertsStore((s) => s.refreshAlerts);
 
   // Map dateKey → true if any event on that day has an open position
   const positionDateKeys = useMemo(() => {
@@ -1069,39 +1065,12 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
       }
     });
     return keys;
-  }, [eventsByDate, getPosition]);
+  }, [eventsByDate, getPosition, posMarex, posExcel]);
 
-  // Generate expiry alerts for any event with a position expiring within 5 days
   useEffect(() => {
-    const now = getToday();
-    const newAlerts: ExpiryAlert[] = [];
-
-    filteredEvents.forEach((event) => {
-      const eventDate = isoToLocal(event.date);
-      const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
-      if (daysAway < 0 || daysAway > 150) return;
-
-      const pos = getPositionForEvent(event, getPosition);
-      if (pos.active === 0) return;
-
-      newAlerts.push({
-        id: `${event.id}_alert`,
-        symbol: event.symbol,
-        contractCode: event.contractCode,
-        productName: event.productName,
-        expiryDate: event.date,
-        daysUntilExpiry: daysAway,
-        marexPosition: pos.marex,
-        excelPosition: pos.excel,
-        activePosition: pos.active,
-        dateType: event.dateType,
-        severity: daysAway <= 2 ? "critical" : "warning",
-        addressed: false,
-      });
-    });
-
-    mergeAlerts(newAlerts);
-  }, [filteredEvents, getPosition, mergeAlerts]);
+    setCalendarEvents(filteredEvents);
+    refreshAlerts(getPosition);
+  }, [filteredEvents, getPosition, setCalendarEvents, refreshAlerts, posMarex, posExcel]);
 
   //── Upcoming list (sidebar) ───────────────────────────────────────────────
   const upcomingDates = useMemo(() => {
@@ -1118,9 +1087,6 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   }, [eventsByDate, sidebarShowAll, viewYear, viewMonth]);
 
   // ── Calendar grid ─────────────────────────────────────────────────────────
-  const firstDay   = firstDayOfMonth(viewYear, viewMonth);
-  const totalDays  = daysInMonth(viewYear, viewMonth);
-  const prevMDays  = daysInMonth(viewMonth === 0 ? viewYear - 1 : viewYear, viewMonth === 0 ? 11 : viewMonth - 1);
   const monthLabel = useMemo(() => new Date(viewYear, viewMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }), [viewYear, viewMonth]);
 
   const handlePrevMonth = useCallback(() => {

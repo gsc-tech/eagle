@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import type { EventDateType } from "../widgets/ExpiryCalendarWidget";
+import type { EventDateType, ExpiryEvent } from "../widgets/ExpiryCalendarWidget";
+import { parseSymbol } from "../utils/symbolParser";
+
+type GetPositionFn = (symbol: string, label: string) => { marex: number; excel: number; active: number };
 
 export interface ExpiryAlert {
     id: string;
@@ -20,6 +23,8 @@ export interface ExpiryAlert {
 
 export interface AlertsState {
     alerts: ExpiryAlert[];
+    /** Calendar events cached here so alerts can be recomputed even when the widget is unmounted. */
+    calendarEvents: ExpiryEvent[];
     /**
      * Merge incoming active alerts with existing store state.
      * - Incoming alerts whose ID already exists: update position/severity data,
@@ -29,12 +34,58 @@ export interface AlertsState {
      *   dismissed them), dropped if unaddressed (position closed / left window).
      */
     mergeAlerts: (alerts: ExpiryAlert[]) => void;
+    /** Called by ExpiryCalendarWidget whenever its filtered events change. */
+    setCalendarEvents: (events: ExpiryEvent[]) => void;
+    /**
+     * Recompute alerts from the stored calendarEvents.
+     * Call this from the app whenever positions change, regardless of which
+     * dashboard is currently active.
+     */
+    refreshAlerts: (getPosition: GetPositionFn) => void;
     markAllAddressed: () => void;
     dismissAlert: (id: string) => void;
 }
 
-export const useAlertsStore = create<AlertsState>((set) => ({
+export const useAlertsStore = create<AlertsState>((set, get) => ({
     alerts: [],
+    calendarEvents: [],
+
+    setCalendarEvents: (events) => set({ calendarEvents: events }),
+
+    refreshAlerts: (getPosition) => {
+        const { calendarEvents } = get();
+        const now = new Date();
+        now.setHours(12, 0, 0, 0);
+        const newAlerts: ExpiryAlert[] = [];
+
+        calendarEvents.forEach((event) => {
+            const eventDate = new Date(event.date + "T12:00:00Z");
+            const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
+            if (daysAway < 0 || daysAway > 150) return;
+
+            const parsed = parseSymbol(`${event.symbol}${event.contractCode}`);
+            if (!parsed) return;
+            const pos = getPosition(parsed.product, parsed.label);
+            if (pos.active === 0) return;
+
+            newAlerts.push({
+                id: `${event.id}_alert`,
+                symbol: event.symbol,
+                contractCode: event.contractCode,
+                productName: event.productName,
+                expiryDate: event.date,
+                daysUntilExpiry: daysAway,
+                marexPosition: pos.marex,
+                excelPosition: pos.excel,
+                activePosition: pos.active,
+                dateType: event.dateType,
+                severity: daysAway <= 2 ? "critical" : "warning",
+                addressed: false,
+            });
+        });
+
+        get().mergeAlerts(newAlerts);
+    },
 
     mergeAlerts: (incoming) =>
         set((s) => {
