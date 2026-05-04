@@ -1405,7 +1405,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
             <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
                 {/* Blurrable Content Wrapper */}
-                <div className={`flex-1 flex flex-col transition-all duration-500 ease-in-out ${isImportModalOpen ? 'blur-[12px] pointer-events-none opacity-40 scale-[0.98]' : 'blur-0 opacity-100 scale-100'}`}>
+                <div className={`flex-1 min-h-0 flex flex-col transition-all duration-500 ease-in-out ${isImportModalOpen ? 'blur-[12px] pointer-events-none opacity-40 scale-[0.98]' : 'blur-0 opacity-100 scale-100'}`}>
 
                 {/* Brand Header Custom Integration */}
                 <div className={`flex items-center justify-end px-4 py-2 border-b ${darkMode ? 'bg-gray-950 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
@@ -1497,7 +1497,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     })}
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                     <table className="w-full border-collapse text-left">
                         <thead 
                             className={`${isImportModalOpen ? 'opacity-40' : 'sticky top-0 z-10 backdrop-blur-sm'} ${headerBg} border-b ${borderColor}`}
