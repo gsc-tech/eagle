@@ -1,4 +1,4 @@
-export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'checkbox';
+export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox';
 
 export interface ParameterDefinition {
     name: string;
@@ -6,6 +6,7 @@ export interface ParameterDefinition {
     type: ParameterType;
     defaultValue?: any;
     options?: { label: string; value: any }[]; // For select type
+    optionsApiUrl?: string;                   // Optional URL to fetch options dynamically
     required?: boolean;
     placeholder?: string;
     groupId?: string;
@@ -13,6 +14,13 @@ export interface ParameterDefinition {
 
 export interface ParameterValues {
     [key: string]: any;
+}
+
+// Defines a single event subscription: listen for `eventType` and run `action`.
+// Currently supports 'refetch'; extend the union as new actions are needed.
+export interface WidgetEventSubscription {
+    eventType: string;
+    action: 'refetch';
 }
 
 export interface BaseWidgetProps {
@@ -24,7 +32,13 @@ export interface BaseWidgetProps {
     groupedParametersValues?: Record<string, string>;
     onGroupedParametersChange?: (values: Record<string, any>) => void;
     sheetDependency?: SheetDependencyConfig;
-    initialParameterValues?: Record<string, string>;
+    initialWidgetState?: any;
+    onWidgetStateChange?: (state: any) => void;
+    isTokenRequired?: boolean;
+    getFirebaseToken?: () => Promise<string>;
+    // Cross-widget event subscriptions. When a subscribed event fires, the
+    // widget performs the specified action (e.g. refetch its data).
+    eventSubscriptions?: WidgetEventSubscription[];
 }
 
 export interface NormalizationConfig {

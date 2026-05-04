@@ -411,6 +411,16 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                     });
                 }
 
+                let deleteSubscription: any = null;
+                if (univerAPI.Event && univerAPI.Event.BeforeSheetDelete) {
+                    deleteSubscription = univerAPI.addEvent(univerAPI.Event.BeforeSheetDelete, (params: any) => {
+                        const { worksheet } = params;
+                        const name = worksheet._worksheet._snapshot.name;
+                        triggerAutoSaveRef.current?.();
+                        useSheetStore.getState().deleteSheet(id || "univer", name);
+                    });
+                }
+
                 // ── Global Formula Listener ──────────────────────────────────────────
                 let formulaSubscription: any = null;
                 const formulaEngine = univerAPI.getFormula();

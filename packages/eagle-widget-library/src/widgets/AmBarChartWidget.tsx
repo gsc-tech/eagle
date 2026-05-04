@@ -41,6 +41,8 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     onGroupedParametersChange,
     groupedParametersValues,
     sheetDependency,
+    initialWidgetState,
+    onWidgetStateChange,
 }) => {
     const chartId = useId();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -49,7 +51,15 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
     const seriesRefs = useRef<am5xy.ColumnSeries[]>([]);
 
     const defaultParams = useParameterDefaults(parameters);
-    const [currentParams, setCurrentParams] = useState<ParameterValues>(defaultParams);
+    const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+        return initialWidgetState?.parameters || defaultParams;
+    });
+
+    useEffect(() => {
+        if (onWidgetStateChange) {
+            onWidgetStateChange({ parameters: currentParams });
+        }
+    }, [currentParams, onWidgetStateChange]);
 
     let routeData: any = null;
     if (apiUrl !== null) {
@@ -315,6 +325,7 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
             onGroupedParametersChange={onGroupedParametersChange}
+            initialParameterValues={currentParams}
             groupedParametersValues={groupedParametersValues}
             title={title}
         >

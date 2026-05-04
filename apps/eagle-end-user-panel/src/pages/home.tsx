@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { getToken } from "@/firebase/authService";
 import { auth } from "@/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
+import { useDashboardStateStore } from "@/store/dashboardStateStore";
 
 export type Tab = {
     id: string;
@@ -111,6 +112,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         return () => unsubscribe();
     }, []);
 
+    const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
+    const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
+    const setStoredTabLayouts = useDashboardStateStore((s) => s.setTabLayouts);
+    const getStoredDashboardState = useDashboardStateStore((s) => s.getDashboardState);
+
     // Fetch dashboards on mount
     useEffect(() => {
         const fetchDashboards = async () => {
@@ -139,29 +145,96 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     // Handle dashboard selection
     const handleSelect = (dashboard: Dashboard) => {
         setSelected(dashboard);
+        const { dashboardID, publishedLayout: initialData } = dashboard;
 
-        const initialData = dashboard.publishedLayout;
-        let parsedTabs: Tab[] = [];
-
+        // Parse backend tabs
+        let backendTabs: Tab[] = [];
         if (!initialData) {
-            parsedTabs = [{ id: "default", title: "Main", layout: [] }];
+            backendTabs = [{ id: "default", title: "Main", layout: [] }];
         } else if (Array.isArray(initialData)) {
-            parsedTabs = [{ id: "legacy", title: "Main", layout: initialData }];
+            backendTabs = [{ id: "legacy", title: "Main", layout: initialData }];
         } else if (initialData.tabs && Array.isArray(initialData.tabs)) {
-            parsedTabs = initialData.tabs;
+            backendTabs = initialData.tabs;
         } else {
-            parsedTabs = [{ id: "default", title: "Main", layout: [] }];
+            backendTabs = [{ id: "default", title: "Main", layout: [] }];
         }
 
-        setTabs(parsedTabs);
-        if (parsedTabs.length > 0) {
-            setActiveTabId(parsedTabs[0].id);
+        // Get stored state for this specific dashboard
+        const stored = getStoredDashboardState(dashboardID);
+        
+        let finalTabs = backendTabs;
+        let finalActiveTabId = backendTabs[0]?.id || null;
+
+        if (stored.layouts && Object.keys(stored.layouts).length > 0) {
+            // Check for override: Do they have the same tabs and widget count?
+            const storedTabIds = Object.keys(stored.layouts);
+            const backendTabIds = backendTabs.map(t => t.id);
+
+            const tabsMatch = storedTabIds.length === backendTabIds.length && 
+                              storedTabIds.every(id => backendTabIds.includes(id));
+
+            // Check widget IDs in the first tab (heuristic for layout change)
+            let widgetsMatch = true;
+            if (tabsMatch && backendTabs.length > 0) {
+                const firstTabId = backendTabs[0].id;
+                const backendWidgets = backendTabs[0].layout.map(l => l.i).sort().join(",");
+                const storedWidgets = (stored.layouts[firstTabId] || []).map(l => l.i).sort().join(",");
+                if (backendWidgets !== storedWidgets) {
+                    widgetsMatch = false;
+                }
+            }
+
+            if (tabsMatch && widgetsMatch) {
+                // Use stored layout for positioning, but ALWAYS keep backend widget configuration
+                finalTabs = backendTabs.map(bt => {
+                    const storedTabLayout = stored.layouts[bt.id];
+                    if (!storedTabLayout) return bt;
+
+                    const mergedLayout = bt.layout.map(backendItem => {
+                        const storedItem = storedTabLayout.find(si => si.i === backendItem.i);
+                        if (storedItem) {
+                            // Merge: take user-adjustable layout props from stored, but everything else from backend
+                            return {
+                                ...backendItem,
+                                x: storedItem.x,
+                                y: storedItem.y,
+                                w: storedItem.w,
+                                h: storedItem.h,
+                            };
+                        }
+                        return backendItem;
+                    });
+
+                    return {
+                        ...bt,
+                        layout: mergedLayout
+                    };
+                });
+
+                if (stored.activeTabId && backendTabIds.includes(stored.activeTabId)) {
+                    finalActiveTabId = stored.activeTabId;
+                }
+            } else {
+                console.log("[Eagle Persistence] Dashboard changed in dev console. Overriding local state.");
+                // Initialize store with fresh backend layout
+                const initialLayoutsMap: Record<string, LayoutItem[]> = {};
+                backendTabs.forEach(t => { initialLayoutsMap[t.id] = t.layout; });
+                setStoredTabLayouts(dashboardID, initialLayoutsMap);
+            }
+        } else {
+             // First time load: initialize store
+             const initialLayoutsMap: Record<string, LayoutItem[]> = {};
+             backendTabs.forEach(t => { initialLayoutsMap[t.id] = t.layout; });
+             setStoredTabLayouts(dashboardID, initialLayoutsMap);
         }
+
+        setTabs(finalTabs);
+        setActiveTabId(finalActiveTabId);
         setProfileOpen(false);
 
-        // Fetch workbook snapshots for this dashboard
+        // Fetch workbook snapshots
         setIsLoadingSnapshots(true);
-        fetchWorkbookSnapshots(dashboard.dashboardID);
+        fetchWorkbookSnapshots(dashboardID);
     };
 
     const fetchWorkbookSnapshots = async (dashboardId: string) => {
@@ -234,12 +307,23 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     );
 
     const handleLayoutChange = (newLayout: LayoutItem[]) => {
-        if (!activeTabId) return;
+        if (!activeTabId || !selected) return;
         setTabs((prev) =>
             prev.map((tab) =>
                 tab.id === activeTabId ? { ...tab, layout: newLayout } : tab
             )
         );
+        
+        // Strip widget config before saving to local storage (save only layout/positioning)
+        const layoutToStore = newLayout.map(({ widget, ...rest }) => rest);
+        updateStoredTabLayout(selected.dashboardID, activeTabId, layoutToStore as LayoutItem[]);
+    };
+
+    const handleTabChange = (tabId: string) => {
+        setActiveTabId(tabId);
+        if (selected) {
+            setStoredActiveTabId(selected.dashboardID, tabId);
+        }
     };
 
     const handleSignOut = () => {
@@ -433,7 +517,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                         <button
                                             key={tab.id}
                                             id={`tab-btn-${tab.id}`}
-                                            onClick={() => setActiveTabId(tab.id)}
+                                            onClick={() => handleTabChange(tab.id)}
                                             className={cn(
                                                 "group flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-t-xl border-t border-l border-r transition-all duration-300 select-none whitespace-nowrap",
                                                 tab.id === activeTabId
@@ -457,6 +541,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     ) : (
                                         <DashboardCanvas
                                             key={`${selected.dashboardID}-${activeTab.id}`}
+                                            dashboardId={selected.dashboardID}
                                             initialLayout={activeTab.layout}
                                             onLayoutChange={handleLayoutChange}
                                             workbookSnapshots={workbookSnapshots}
