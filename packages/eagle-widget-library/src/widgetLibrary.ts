@@ -8,7 +8,6 @@ import { TextWidgetDef } from "./widgets/TextWidget";
 import { TvCandlestickChartWidgetDef } from "./widgets/TvCandlestickChartWidget";
 import { TvLineChartWidgetDef } from "./widgets/TvLineChartWidget";
 import { RealtimeDataTableWidgetDef } from "./widgets/RealtimeDataTableWidget";
-
 import { TvLiveLineChartWidgetDef } from "./widgets/TvLiveLineChartWidget";
 import { TvLiveCandlestickChartWidgetDef } from "./widgets/TvLiveCandlestickChartWidget";
 import { LiveBarChartWidgetDef } from "./widgets/LiveBarChartWidget";
@@ -27,6 +26,10 @@ import { WatchListWidgetDef } from "./widgets/WatchListWidget";
 import { SheetWidgetDef } from "./widgets/SheetWidget";
 import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
 import { ExpiryCalendarWidgetDef } from "./widgets/ExpiryCalendarWidget";
+import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidget";
+import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
+import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
+import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
 
 export const widgetLibrary = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -57,4 +60,8 @@ export const widgetLibrary = {
     SheetWidget: SheetWidgetDef,
     CartesianHeatmapWidget: CartesianHeatmapWidgetDef,
     ExpiryCalendarWidget: ExpiryCalendarWidgetDef,
+    TraderLimitsRequestWidget: TraderLimitsRequestWidgetDef,
+    TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
+    TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,
+    TraderLimitsApprovalStagesViewWidget: TraderLimitsApprovalStagesViewWidgetDef,
 }

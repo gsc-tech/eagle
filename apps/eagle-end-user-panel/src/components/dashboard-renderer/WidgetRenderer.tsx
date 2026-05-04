@@ -142,6 +142,7 @@ export default function WidgetRenderer({
                 {...(widget?.componentName === "SheetWidget" && {
                     initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
                     initialParameterValues,
+                    getFirebaseToken,
                     onSave: handleSave
                 })}
             />

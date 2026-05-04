@@ -1,6 +1,7 @@
 export type ConnectorType = "marex" | "excel";
 export type ConnectorStatus = "idle" | "connecting" | "connected" | "error" | "failed";
 
+
 export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox';
 
 export interface ParameterDefinition {
@@ -9,6 +10,7 @@ export interface ParameterDefinition {
     type: ParameterType;
     defaultValue?: any;
     options?: { label: string; value: any }[]; // For select type
+    optionsApiUrl?: string;                   // Optional URL to fetch options dynamically
     required?: boolean;
     placeholder?: string;
     groupId?: string;
@@ -22,13 +24,7 @@ export interface ParameterValues {
 export interface DataSlotDefinition {
     id: string;
     label: string;
-    /**
-     * Explicit list of selectable options. When provided, WidgetContainer renders
-     * these instead of deriving them from the ConnectorsContext. The selected value
-     * is stored verbatim in DataBinding.sourceId.
-     */
     options?: { label: string; value: string }[];
-    /** Fallback: filter connectors by this type when options is not provided. */
     sourceType?: string;
 }
 
@@ -36,6 +32,11 @@ export interface DataSlotDefinition {
 export interface DataBinding {
     slotId: string;
     sourceId: string | null;
+}
+
+export interface WidgetEventSubscription {
+    eventType: string;
+    action: 'refetch';
 }
 
 export interface BaseWidgetProps {
@@ -51,6 +52,7 @@ export interface BaseWidgetProps {
     onWidgetStateChange?: (state: any) => void;
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
+    eventSubscriptions?: WidgetEventSubscription[];
 }
 
 export interface NormalizationConfig {

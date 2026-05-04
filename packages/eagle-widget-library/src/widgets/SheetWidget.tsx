@@ -29,6 +29,9 @@ function applyDefaultConditionalFormatting(fWorksheet: any) {
     if (!fWorksheet) return;
 
     try {
+        // Strategy legs: Columns C to N (index 2 to 13)
+        // Data usually starts from Row 4 (index 3).
+        // We use the worksheet's actual row count to avoid "out of bounds" errors.
         const fRange = fWorksheet.getRange(3, 2, 146, 17);
         const rangeDetails = fRange.getRange();
 
@@ -278,6 +281,7 @@ export const SheetWidget: React.FC<SheetWidgetProps> = ({
                 const disposable = univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (event: any) => {
                     const { id } = event;
                     if (id === InsertSheetCommand.id || id === 'sheet.command.insert-sheet') {
+                        // If WE triggered this programmatically (via modal confirmation), let it through.
                         if (isProgrammaticInsertRef.current) return;
                         event.cancel = true;
                         setTimeout(() => { openModalRef.current(); }, 0);

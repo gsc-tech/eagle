@@ -4,71 +4,156 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Root (runs all workspaces via Turbo)
+### Development
 ```bash
-npm run dev      # start all apps in dev mode
-npm run build    # build all packages and apps
-npm run lint     # lint all packages and apps
-```
-
-### Individual apps (run from their directory)
-```bash
-# apps/eagle-dev-console-frontend  — port 5176 (dev), 8283 (test)
-# apps/eagle-end-user-panel        — port 5178 (dev), 8282 (test)
+# Start all apps simultaneously (recommended)
 npm run dev
-npm run build    # tsc -b && vite build
-npm run lint     # eslint .
-npm run preview
+
+# Start a single app
+cd apps/eagle-dev-console-frontend && npm run dev   # http://localhost:5176
+cd apps/eagle-end-user-panel && npm run dev         # http://localhost:5178
+cd packages/eagle-widget-library && npm run dev     # http://localhost:5200
 ```
 
-### Widget library (packages/eagle-widget-library)
+### Build & Lint
 ```bash
-npm run build          # tsc
-npm run storybook      # storybook dev -p 6006
-npm run build-storybook
+npm run build          # Build all packages via Turbo (widget library builds first)
+npm run lint           # Lint all packages via Turbo
+
+# Per-package (run from the package directory)
+npm run build          # tsc -b && vite build  (apps) or tsc (widget library)
+npm run lint           # eslint .
+```
+
+### Type-check only
+```bash
+cd apps/eagle-dev-console-frontend && npx tsc --noEmit
+cd apps/eagle-end-user-panel && npx tsc --noEmit
+cd packages/eagle-widget-library && npx tsc --noEmit
+```
+
+### Widget Library Storybook
+```bash
+cd packages/eagle-widget-library
+npm run storybook      # http://localhost:6006
 ```
 
 ## Architecture
 
-Eagle is a **financial dashboard platform** structured as a Turbo monorepo with two apps and one shared package.
+This is a **Turbo monorepo** with two React SPAs and one shared widget library:
 
-### Workspaces
+```
+apps/eagle-dev-console-frontend/   → Admin/developer UI (port 5176)
+apps/eagle-end-user-panel/         → End-user dashboard UI (port 5178)
+packages/eagle-widget-library/     → Shared widget components (published as @gsc-tech/eagle-widget-library)
+```
 
-| Workspace | Path | Purpose |
-|-----------|------|---------|
-| `eagle-dev-console-frontend` | `apps/eagle-dev-console-frontend` | Admin/developer UI: configure backends, design dashboards, manage widgets and users. Firebase auth. Routes: `/backends`, `/widgets`, `/dashboards`, `/dashboard-builder`, `/users`, `/login` |
-| `eagle-end-user-panel` | `apps/eagle-end-user-panel` | Trader-facing dashboard viewer. localStorage auth. Routes: `/login`, `/home` |
-| `eagle-widget-library` | `packages/eagle-widget-library` | Shared React component library — all widgets, hooks, Zustand stores, and utilities |
+**Turbo build order:** `eagle-widget-library` must build before apps. `turbo run build` handles this via `"dependsOn": ["^build"]`.
 
-### Data flow
+**Local HMR shortcut:** Both apps alias `@gsc-tech/eagle-widget-library` directly to the library's TypeScript source (`packages/eagle-widget-library/src/index.ts`) in their `vite.config.ts`. This means edits to the widget library are reflected immediately in both apps without a rebuild step.
 
-Both apps import widgets from the shared library. During development, Vite path aliases point directly at the library source (`packages/eagle-widget-library/src`) so HMR works without rebuilding the package. Turbo ensures the library is compiled before apps in production builds.
+---
 
-### Widget library internals
+## Widget System
 
-Widgets live in `packages/eagle-widget-library/src/widgets/`. Each widget:
-- Accepts a typed config (parameters driven by `ParameterForm.tsx`)
-- Supports `fetchMode`: `auto` (live WebSocket/polling) or `manual` (on-demand HTTP)
-- Is rendered inside a resizable/draggable `WidgetContainer`
+### Adding a new widget
 
-Widget categories:
-- **Charts**: AmBarChart, AmCandlestick, AreaChart, BarChart, LineChart, HeatMap, PieChart, ScatterPlot, TvCandlestick, TvLineChart, and live variants
-- **Data**: DataTable, RealtimeDataTable, WatchList, WorldMap
-- **Domain**: MarketDepthWidget, MetricWidget, NewsWidget, TextWidget
-- **Advanced**: EconomicCalendarWidget, ExpiryCalendarWidget, SheetWidget, PdfViewerWidget
+1. Create `packages/eagle-widget-library/src/widgets/MyWidget.tsx` exporting a `MyWidgetDef` object:
+   ```ts
+   export const MyWidgetDef = {
+     component: MyWidget,       // React component
+     name: "My Widget",
+     description: "...",
+     defaultProps: { ... },
+   };
+   ```
+2. Register it in `widgetLibrary.ts` — add `MyWidget: MyWidgetDef` to the `widgetLibrary` object.
+3. Re-export it from `index.ts`.
 
-Zustand stores in the library manage cross-widget state: `positionsStore`, `alertsStore`, `realtimeStore`, `sheetStore`.
+### `BaseWidgetProps` (all widgets must accept these)
+Defined in `packages/eagle-widget-library/src/types.ts`:
+- `id` — unique instance ID (injected by `WidgetRenderer`)
+- `apiUrl` — backend endpoint for data fetching
+- `parameters` — `ParameterDefinition[]` for the auto-generated `ParameterForm`
+- `darkMode` — boolean, driven by user's theme toggle
+- `groupedParametersValues` / `onGroupedParametersChange` — cross-widget shared parameter groups
+- `sheetDependency` — subscribe to a `SheetWidget`'s cell data
+- `eventSubscriptions` — subscribe to `widgetEventBus` events to trigger refetch
+- `getFirebaseToken` — injected when `isTokenRequired: true`; returns a Firebase ID token
 
-### Dashboard builder
+### ParameterForm
+`packages/eagle-widget-library/src/components/ParameterForm.tsx` auto-generates form UI from `ParameterDefinition[]`. Parameter types: `text | number | date | select | multiselect | checkbox`. Use `optionsApiUrl` to fetch select options dynamically. Use `groupId` to share a parameter value across multiple widgets on the same dashboard.
 
-The dev console uses React Grid Layout + React DnD to let users drag widgets onto a canvas and configure them. Saved dashboard configs (widget types + positions + parameters) are consumed by the end-user panel at runtime.
+---
 
-## Tech stack
+## Cross-Widget Communication
 
-- **React 19**, **TypeScript 5.9** (strict), **Vite 7**, **Tailwind CSS 4**
-- **React Router v7** for routing in both apps
-- **Zustand** for state; **Firebase** for auth in dev console; localStorage auth in end-user panel
-- **Charting**: recharts, echarts, ag-grid-react, @amcharts/amcharts5, Lightweight Charts (TradingView)
-- **UI**: Radix UI (headless), Lucide React (icons), Framer Motion (animation)
-- **Advanced**: @tiptap (rich text), Univerjs (spreadsheet), MarkerJS2 (image annotation), PDFMake, ExcelJS
-- **Turbo 2.8** orchestrates builds with dependency caching
+Two patterns exist for widgets to react to each other:
+
+### 1. Event Bus (`widgetEventBus`)
+`packages/eagle-widget-library/src/store/widgetEventBus.ts`
+
+```ts
+// Emit (producer widget)
+widgetEventBus.emit(WIDGET_EVENTS.LIMIT_REQUEST_SUBMITTED, payload);
+
+// Subscribe (consumer widget, via BaseWidgetProps)
+eventSubscriptions: [{ eventType: 'trader-limits:request-submitted', action: 'refetch' }]
+```
+
+Standard event types are in `WIDGET_EVENTS`. Add new event types there when introducing new cross-widget flows.
+
+### 2. Sheet Dependency (`sheetStore`)
+`packages/eagle-widget-library/src/store/sheetStore.ts`
+
+A `SheetWidget` writes cell data into `useSheetStore` keyed by `workbookId`. Other widgets declare a `sheetDependency` config and receive debounced callbacks (1 second) when the sheet data changes. `extractSheetAsGrid` and `extractRangeData` are utility functions for reading raw cell values.
+
+---
+
+## State Management
+
+### Dashboard Layout State (end-user panel)
+`apps/eagle-end-user-panel/src/store/dashboardStateStore.ts` — Zustand store persisted to `localStorage` under key `eagle-dashboard-state`.
+
+Keying structure: `dashboardId → tabId → LayoutItem[]`. Also stores per-widget state (`widgetStates`) and the active tab per dashboard.
+
+### Grouped Parameters State (end-user panel)
+`apps/eagle-end-user-panel/src/store/groupedParamsStore.ts` — Zustand store (not persisted). When a `ParameterForm` field has a `groupId`, its value is written here so all widgets with the same `groupId` on the same dashboard share and re-render from one source of truth.
+
+### Sheet Store (widget library)
+`useSheetStore` (Zustand, not persisted) — in-memory workbook data for `SheetWidget` instances. Ephemeral; workbook snapshots for persistence are passed through `onSave` / `initialWorkbookData` props, which the host app (end-user panel) is responsible for storing to its backend.
+
+---
+
+## Dashboard Rendering Flow (End-User Panel)
+
+1. `home.tsx` — fetches dashboard list from backend API using a Firebase auth token. Renders a sidebar of dashboards/tabs.
+2. `Canvas.tsx` — receives `LayoutItem[]` (the published layout) and renders `react-grid-layout`. Handles drag/resize and persists updated layouts to `dashboardStateStore`.
+3. `WidgetRenderer.tsx` — looks up `widgetLibrary[componentName]`, injects all standard props (theme, grouped params, widget state, Firebase token), and renders the component.
+
+---
+
+## Dev Console Flow
+
+1. **Backends page** — operators register backend services by URL. The console calls `GET /widget` on each backend to retrieve widget configurations.
+2. **Dash Builder** (`/dash-builder`) — drag widgets from sidebar onto a `react-grid-layout` canvas. Built with `react-dnd` (sidebar → canvas) and `react-grid-layout` (resize/reorder on canvas). Uses a 12-column grid, 60px row height, 16px margin.
+3. **Publish** — saves the layout to the backend so the end-user panel can fetch and render it.
+
+Widget configs returned by backends follow:
+```json
+{
+  "name": "Order Book",
+  "componentName": "MarketDepthWidget",
+  "defaultProps": { "wsUrl": "...", "parameters": [...], "fetchMode": "manual" }
+}
+```
+
+---
+
+## Key Conventions
+
+- **Path alias:** `@/` maps to `./src/` in all apps. Widget library has no alias.
+- **Theme:** Dark/light is toggled by adding/removing a class on `<html>`. Theme is read from `localStorage` key `"theme"`. Widgets receive `darkMode: boolean` as a prop.
+- **Firebase auth:** Both apps use Firebase Auth. `getToken()` / `getFirebaseToken()` returns an ID token. Widgets that call authenticated endpoints should use `isTokenRequired: true` in their definition so `WidgetRenderer` injects `getFirebaseToken`.
+- **No tests exist** — the `test` script in each app just starts a dev server on a different port (8282/8283), not a test runner.
+- **ESLint** is the only static analysis tool. Run `npm run lint` from root.

@@ -350,13 +350,24 @@ DayButton.displayName = "DayButton";
 
 export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps & { darkMode?: boolean }> = ({
   apiUrl = "http://localhost:8080/api/data",
-  title, parameters, darkMode = false,
-  onGroupedParametersChange, groupedParametersValues, initialWidgetState,
+  title,
+  parameters,
+  darkMode = false,
+  onGroupedParametersChange,
+  groupedParametersValues,
+  initialWidgetState,
+  onWidgetStateChange,
 }) => {
   const defaultParams = useParameterDefaults(parameters);
-  const [currentParams, setCurrentParams] = useState<ParameterValues>(
-    () => initialWidgetState?.parameters ?? defaultParams
-  );
+  const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
+    return initialWidgetState?.parameters || defaultParams;
+  });
+
+  useEffect(() => {
+    if (onWidgetStateChange) {
+      onWidgetStateChange({ parameters: currentParams });
+    }
+  }, [currentParams, onWidgetStateChange]);
 
   // ── Filter state ─────────────────────────────────────────────────────────
   const [importanceFilter, setImportanceFilter] = useState<Set<number>>(() => new Set([1, 2, 3]));
@@ -694,8 +705,10 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps & { da
 
   return (
     <WidgetContainer
-      title={title} parameters={parameters}
-      onParametersChange={setCurrentParams} darkMode={dk}
+      title={title}
+      parameters={parameters}
+      onParametersChange={setCurrentParams}
+      darkMode={darkMode}
       initialParameterValues={currentParams}
       onGroupedParametersChange={onGroupedParametersChange}
       groupedParametersValues={groupedParametersValues}

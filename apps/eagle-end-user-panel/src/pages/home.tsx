@@ -167,6 +167,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         return m;
     }, [marexConnector, excelConnector, marexStatus, excelStatus]);
 
+
     const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
     const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
     const setStoredTabLayouts = useDashboardStateStore((s) => s.setTabLayouts);

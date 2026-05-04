@@ -252,7 +252,7 @@ export const AmBarChartWidget: React.FC<AmBarChartWidgetProps> = ({
                         if (xAxis instanceof am5xy.CategoryAxis) xAxis.data.setAll(processedData);
                     }
 
-                    seriesRefs.current.forEach(series => {
+                            seriesRefs.current.forEach(series => {
                         const isHorizontal = orientation === 'horizontal';
                         const valueField = isHorizontal ? series.get("valueXField") : series.get("valueYField");
 
