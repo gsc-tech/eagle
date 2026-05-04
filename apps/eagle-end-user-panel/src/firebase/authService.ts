@@ -18,11 +18,10 @@ export async function signInWithMicrosoft() {
     const provider = new OAuthProvider('microsoft.com');
     const tenantId = import.meta.env.VITE_MICROSOFT_TENANT_ID;
     
-    if (tenantId) {
-        provider.setCustomParameters({
-            tenant: tenantId
-        });
-    }
+    provider.setCustomParameters({
+        ...(tenantId ? { tenant: tenantId } : {}),
+        prompt: "select_account",
+    });
 
     try {
         await signInWithPopup(auth, provider);

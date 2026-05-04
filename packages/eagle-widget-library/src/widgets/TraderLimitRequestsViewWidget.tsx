@@ -381,6 +381,7 @@ const TableRow = React.memo(({ item, dynamicKeys, darkMode, onInfoClick }: RowPr
 export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetProps> = ({
     initialWidgetState,
     onWidgetStateChange,
+    title,
     apiUrl = "http://localhost:8080/api/limits/history",
     limitHistoryApiUrl,
     auditTrailApiUrl,
@@ -593,7 +594,7 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
 
     return (
         <WidgetContainer
-            title="My Limit Requests"
+            title={title}
             parameters={enrichedParameters}
             onParametersChange={handleParametersChange}
             darkMode={darkMode}
