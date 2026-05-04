@@ -8,7 +8,6 @@ import { TextWidgetDef } from "./widgets/TextWidget";
 import { TvCandlestickChartWidgetDef } from "./widgets/TvCandlestickChartWidget";
 import { TvLineChartWidgetDef } from "./widgets/TvLineChartWidget";
 import { RealtimeDataTableWidgetDef } from "./widgets/RealtimeDataTableWidget";
-
 import { TvLiveLineChartWidgetDef } from "./widgets/TvLiveLineChartWidget";
 import { TvLiveCandlestickChartWidgetDef } from "./widgets/TvLiveCandlestickChartWidget";
 import { LiveBarChartWidgetDef } from "./widgets/LiveBarChartWidget";
