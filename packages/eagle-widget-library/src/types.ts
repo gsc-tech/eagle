@@ -1,3 +1,7 @@
+export type ConnectorType = "marex" | "excel";
+export type ConnectorStatus = "idle" | "connecting" | "connected" | "error" | "failed";
+
+
 export type ParameterType = 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox';
 
 export interface ParameterDefinition {
@@ -16,8 +20,20 @@ export interface ParameterValues {
     [key: string]: any;
 }
 
-// Defines a single event subscription: listen for `eventType` and run `action`.
-// Currently supports 'refetch'; extend the union as new actions are needed.
+/** Declares a data input slot a widget can accept (e.g. "marex positions"). */
+export interface DataSlotDefinition {
+    id: string;
+    label: string;
+    options?: { label: string; value: string }[];
+    sourceType?: string;
+}
+
+/** Maps a slot to a selected value (null = use aggregated / all). */
+export interface DataBinding {
+    slotId: string;
+    sourceId: string | null;
+}
+
 export interface WidgetEventSubscription {
     eventType: string;
     action: 'refetch';
@@ -36,8 +52,6 @@ export interface BaseWidgetProps {
     onWidgetStateChange?: (state: any) => void;
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
-    // Cross-widget event subscriptions. When a subscribed event fires, the
-    // widget performs the specified action (e.g. refetch its data).
     eventSubscriptions?: WidgetEventSubscription[];
 }
 
@@ -56,4 +70,12 @@ export interface SheetDependencyConfig {
         format?: 'grid' | 'records' | 'series';
         normalizationEndpoint?: NormalizationConfig;
     };
+}
+
+/** A configured data connector (one entry per account/source). */
+export interface ConnectorRecord {
+    id: string;
+    type: ConnectorType;
+    name: string;
+    accountId: string;
 }

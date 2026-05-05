@@ -28,6 +28,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@gsc-tech/eagle-widget-library": [
+        "../../packages/eagle-widget-library/src/index.ts"
       ]
     }
   },
