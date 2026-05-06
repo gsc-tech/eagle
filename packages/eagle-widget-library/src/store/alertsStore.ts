@@ -61,7 +61,7 @@ export const useAlertsStore = create<AlertsState>((set, get) => ({
         calendarEvents.forEach((event) => {
             const eventDate = new Date(event.date + "T12:00:00Z");
             const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
-            if (daysAway < 0 || daysAway > 150) return;
+            if (daysAway < 0 || daysAway > 10) return;
 
             const parsed = parseSymbol(`${event.symbol}${event.contractCode}`);
             if (!parsed) return;
@@ -79,7 +79,7 @@ export const useAlertsStore = create<AlertsState>((set, get) => ({
                 excelPosition: pos.excel,
                 activePosition: pos.active,
                 dateType: event.dateType,
-                severity: daysAway <= 2 ? "critical" : "warning",
+                severity: daysAway <= 3 ? "critical" : "warning",
                 addressed: false,
             });
         });
