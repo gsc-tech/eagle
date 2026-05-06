@@ -200,8 +200,8 @@ export interface TraderLimitsRequestWidgetProps extends BaseWidgetProps {
     limitField?: string;
     colorizeNumeric?: boolean;
     allowAddingRows?: boolean;
-    productOptionsFutures?: any[];
-    productOptionsOptions?: any[];
+    productOptionsFuturesApiUrl?: string;
+    productOptionsOptionsApiUrl?: string;
     readOnly?: boolean;
     showRefreshButton?: boolean;
     // eventSubscriptions inherited from BaseWidgetProps
@@ -412,13 +412,6 @@ const TableRow: React.FC<RowProps> = ({
                             productOptions
                                 .filter(p => (p.metadata_sym || p.product) === selectedProduct)
                                 .map(p => p.instrument || p.productName || "")
-                                .filter(Boolean)
-                        )).sort();
-                    } else if (lowKey === "product" && selectedProductName) {
-                        resolvedOptions = Array.from(new Set(
-                            productOptions
-                                .filter(p => (p.instrument || p.productName) === selectedProductName)
-                                .map(p => p.metadata_sym || p.product || "")
                                 .filter(Boolean)
                         )).sort();
                     } else if (lowKey === "exchange" && (selectedProduct || selectedProductName)) {
@@ -793,8 +786,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     limitField,
     colorizeNumeric = true,
     allowAddingRows = true,
-    productOptionsFutures = [],
-    productOptionsOptions = [],
+    productOptionsFuturesApiUrl,
+    productOptionsOptionsApiUrl,
     readOnly = false,
     onGroupedParametersChange,
     groupedParametersValues,
@@ -834,6 +827,30 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
         };
         fetchAccountOptions();
     }, [parameters, getFirebaseToken]);
+
+    const [productOptionsFutures, setProductOptionsFutures] = useState<any[]>([]);
+    const [productOptionsOptions, setProductOptionsOptions] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchProductOptions = async (url: string, setter: (data: any[]) => void) => {
+            try {
+                let fetchUrl = url;
+                const resp = await fetch(fetchUrl);
+                if (resp.ok) {
+                    const raw: any[] = await resp.json();
+                    const mapped = raw
+                        .map(m => ({ metadata_sym: m.metadata_sym, instrument: m.instrument, exchange: m.exchange }))
+                        .sort((a, b) => (a.instrument || '').localeCompare(b.instrument || ''));
+                    setter(mapped);
+                }
+            } catch (err) {
+                console.warn("Failed to fetch product options:", err);
+            }
+        };
+
+        if (productOptionsFuturesApiUrl) fetchProductOptions(productOptionsFuturesApiUrl, setProductOptionsFutures);
+        if (productOptionsOptionsApiUrl) fetchProductOptions(productOptionsOptionsApiUrl, setProductOptionsOptions);
+    }, [productOptionsFuturesApiUrl, productOptionsOptionsApiUrl, getFirebaseToken]);
 
     const [newRows, setNewRows] = useState<number[]>([]);
     const [activeTab, setActiveTab] = useState<'Future' | 'Option'>('Future');
