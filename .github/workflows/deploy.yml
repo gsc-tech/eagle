@@ -1,0 +1,46 @@
+# Builds both frontend SPAs and redeploys them on push to main.
+# Required GitHub Secrets:
+#   VITE_DEV_CONSOLE_API_URL   — e.g. http://console-api.eagle.lan
+#   VITE_END_USER_API_URL      — e.g. http://console-api.eagle.lan
+#   VITE_MICROSOFT_TENANT_ID   — Azure AD tenant ID (optional, can be empty)
+# Required GitHub Variables:
+#   COMPOSE_FILE_PATH          — full path to eagle-infra/docker-compose.yml on the server
+#                                e.g. C:\eagle\eagle-infra\docker-compose.yml
+
+name: Build & Deploy Frontends
+
+on:
+  push:
+    branches: [deploy]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dev-console-frontend
+        run: |
+          docker build `
+            --build-arg BUILD_APP=eagle-dev-console-frontend `
+            --build-arg VITE_API_BASE_URL="${{ secrets.VITE_DEV_CONSOLE_API_URL }}" `
+            -t eagle/dev-console-frontend:latest `
+            -t eagle/dev-console-frontend:${{ github.sha }} `
+            .
+        shell: pwsh
+
+      - name: Build end-user-panel
+        run: |
+          docker build `
+            --build-arg BUILD_APP=eagle-end-user-panel `
+            --build-arg VITE_API_BASE_URL="${{ secrets.VITE_END_USER_API_URL }}" `
+            --build-arg VITE_MICROSOFT_TENANT_ID="${{ secrets.VITE_MICROSOFT_TENANT_ID }}" `
+            -t eagle/end-user-panel:latest `
+            -t eagle/end-user-panel:${{ github.sha }} `
+            .
+        shell: pwsh
+
+      - name: Deploy
+        run: docker compose -f "${{ vars.COMPOSE_FILE_PATH }}" up -d --no-deps dev-console-frontend end-user-panel
+        shell: pwsh
