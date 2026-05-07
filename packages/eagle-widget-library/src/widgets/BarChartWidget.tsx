@@ -2,7 +2,7 @@
 
 import { ColorType, createChart, type HistogramData, HistogramSeries, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BaseWidgetProps, ParameterValues } from "../types";
+import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
 import { useSheetDependency } from "../hooks/useSheetDependency";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";

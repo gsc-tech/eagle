@@ -7,6 +7,7 @@ FROM node:20-alpine AS builder
 ARG BUILD_APP
 ARG VITE_API_BASE_URL
 ARG VITE_MICROSOFT_TENANT_ID
+ARG VITE_MAREX_WS_URL
 
 WORKDIR /app
 
@@ -25,9 +26,10 @@ COPY turbo.json ./
 
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_MICROSOFT_TENANT_ID=$VITE_MICROSOFT_TENANT_ID
+ENV VITE_MAREX_WS_URL=$VITE_MAREX_WS_URL
 
 # Filter by package name (matches the name field in each app's package.json)
-RUN npx turbo run build --filter=${BUILD_APP}...
+RUN NODE_OPTIONS=--max-old-space-size=4096 npx turbo run build --filter=${BUILD_APP}...
 
 # ── Stage 2: serve ───────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runtime

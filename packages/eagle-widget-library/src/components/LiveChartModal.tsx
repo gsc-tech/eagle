@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, LineSeries, Time } from 'lightweight-charts';
+import { createChart, ColorType, LineSeries } from 'lightweight-charts';
+import type { Time } from 'lightweight-charts';
 import { X } from 'lucide-react';
 
 interface LiveChartModalProps {

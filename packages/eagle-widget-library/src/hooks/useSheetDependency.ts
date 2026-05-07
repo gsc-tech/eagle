@@ -1,6 +1,6 @@
 import { useState, useEffect, useId } from 'react';
 import { useSheetStore, extractSheetAsGrid } from '../store/sheetStore';
-import { SheetDependencyConfig } from '../types';
+import type { SheetDependencyConfig } from '../types';
 import { parseRange, normalizeSheetData } from '../utils/sheetParser';
 
 export function useSheetDependency(dependency?: SheetDependencyConfig) {
