@@ -1,5 +1,5 @@
 {
-  "name": "eagle-dev-console",
+  "name": "eagle-dev-console-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,7 +15,7 @@
     "@emotion/styled": "^11.14.1",
     "@firebase/auth": "^1.11.1",
     "@gsc-tech/eagle-widget-library": "*",
-"@mui/styled-engine": "^7.3.7",
+    "@mui/styled-engine": "^7.3.7",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",

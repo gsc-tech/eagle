@@ -1,4 +1,4 @@
-import { SheetDependencyConfig } from '../types';
+import type { SheetDependencyConfig } from '../types';
 
 /** Convert A1, B2 etc. to column index (0-based) */
 export function colLetterToIndex(letter: string): number {

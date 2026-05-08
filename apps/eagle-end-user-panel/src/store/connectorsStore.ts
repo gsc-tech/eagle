@@ -7,7 +7,7 @@ export type { ConnectorRecord };
 export type DataConnectorConfig = ConnectorRecord;
 
 export const NATIVE_CONNECTOR_URLS: Record<ConnectorType, string> = {
-    marex: "ws://192.168.0.25:8001/ws",
+    marex: `ws://${import.meta.env.VITE_MAREX_WS_URL}/ws`,
     excel: "ws://localhost:8004/ws",
 };
 

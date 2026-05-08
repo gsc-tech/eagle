@@ -1,11 +1,10 @@
-import { BaseWidgetProps } from "../types";
+import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useEffect, useState, useRef } from "react";
 import { TrendingUp, Plus, X } from "lucide-react";
 import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
 import { LiveChartModal } from "../components/LiveChartModal";
 import { WidgetContainer } from "../components/WidgetContainer";
 import { useParameterDefaults } from "../hooks/useParameterDefaults";
-import { ParameterValues } from "../types";
 
 
 export interface WatchListWidgetProps extends BaseWidgetProps {

@@ -88,7 +88,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                             />
                         )}
                         {hasDataSlots && (
-                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
                                 {dataSlots!.map((slot) => {
                                     const options: { label: string; value: string }[] = slot.options
                                         ?? (slot.sourceType
@@ -129,7 +129,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                             </div>
                         )}
                         {(headerRight || showRefreshButton) && (
-                            <div className={`${hasDataSlots ? '' : 'ml-auto'} shrink-0 pointer-events-auto flex items-center gap-2`}>
+                            <div className="shrink-0 pointer-events-auto flex items-center gap-2">
                                 {headerRight}
                                 {showRefreshButton && (
                                     <button

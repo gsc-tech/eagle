@@ -6,7 +6,7 @@ const config: Config = {
     content: [
         "./src/**/*.{js,jsx,ts,tsx}",
         "./node_modules/@gsc-tech/eagle-widget-library/dist/**/*.{js,jsx,ts,tsx}",
-        "../packages/eagle-widget-library/src/**/*.{js,jsx,ts,tsx}",
+        "../../packages/eagle-widget-library/src/**/*.{js,jsx,ts,tsx}",
     ],
     theme: { extend: {} },
     plugins: [],
