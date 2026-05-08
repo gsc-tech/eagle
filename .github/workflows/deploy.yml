@@ -5,6 +5,7 @@
 #   VITE_DEV_CONSOLE_API_URL     — e.g. http://console-api.eagle.lan
 #   VITE_END_USER_API_URL        — e.g. http://console-api.eagle.lan
 #   VITE_MICROSOFT_TENANT_ID     — Azure AD tenant ID
+#   VITE_MAREX_WS_URL            — WebSocket URL for Marex feed
 
 name: Build & Push Frontends
 
@@ -53,6 +54,7 @@ jobs:
             BUILD_APP=eagle-end-user-panel
             VITE_API_BASE_URL=${{ secrets.VITE_END_USER_API_URL }}
             VITE_MICROSOFT_TENANT_ID=${{ secrets.VITE_MICROSOFT_TENANT_ID }}
+            VITE_MAREX_WS_URL=${{ secrets.VITE_MAREX_WS_URL }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/eagle-end-user-panel:latest
             ghcr.io/${{ github.repository_owner }}/eagle-end-user-panel:${{ github.sha }}
