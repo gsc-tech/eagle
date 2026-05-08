@@ -73,6 +73,7 @@ const SearchIcon = ({ size = 11 }: { size?: number }) => (
     </svg>
 );
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette — cycles deterministically by group index
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,7 +104,7 @@ interface MultiSelectDropdownProps {
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
 }
- 
+
 function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired, getFirebaseToken }: MultiSelectDropdownProps) {
     const [open, setOpen] = useState(false);
     const [dynamicOptions, setDynamicOptions] = useState<{ label: string, value: any }[] | null>(null);
@@ -115,7 +116,8 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
         top: 0, left: 0, width: 180,
     });
- 
+
+
     const bg          = darkMode ? '#111827' : '#ffffff';
     const border      = darkMode ? '#374151' : '#e5e7eb';
     const text        = darkMode ? '#e5e7eb' : '#111827';
@@ -127,12 +129,12 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
     const searchBg    = darkMode ? '#1f2937' : '#f9fafb';
     const searchBdr   = darkMode ? '#374151' : '#e5e7eb';
- 
+
     const hasFetched = useRef(false);
 
     useEffect(() => {
         hasFetched.current = false;
-        setSearch(''); // Reset search when URL changes
+        setSearch('');
     }, [param.optionsApiUrl]);
 
     useEffect(() => {
@@ -167,7 +169,7 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         }
     }, [param.optionsApiUrl, getFirebaseToken]);
 
-    const options  = dynamicOptions || param.options || [];
+    const options = dynamicOptions || param.options || [];
     const filteredOptions = options.filter(opt =>
         String(opt.label).toLowerCase().includes(search.toLowerCase()) ||
         String(opt.value).toLowerCase().includes(search.toLowerCase())
@@ -177,7 +179,7 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     const reposition = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const w = Math.max(rect.width, 180); // increased min width for search
+        const w = Math.max(rect.width, 180);
         let left = rect.left;
         if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
         setPos({ top: rect.bottom + 4, left, width: w });
@@ -191,7 +193,6 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         reposition();
         window.addEventListener('scroll', reposition, true);
         window.addEventListener('resize', reposition);
-        // Focus search input when opened
         setTimeout(() => searchRef.current?.focus(), 50);
         return () => {
             window.removeEventListener('scroll', reposition, true);
@@ -211,7 +212,7 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         document.addEventListener('mousedown', handle);
         return () => {
             document.removeEventListener('mousedown', handle);
-            setSearch(''); // Clear search on close
+            setSearch('');
         };
     }, [open]);
 
@@ -226,6 +227,8 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
         e.stopPropagation();
         onChange([]);
     };
+
+
     return (
         <>
             {/* Trigger */}
@@ -302,7 +305,6 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
                         animation: 'paramPopoverIn 0.12s cubic-bezier(.16,1,.3,1)',
                     }}
                 >
-                    {/* Search Input */}
                     <div style={{
                         padding: '6px 8px',
                         borderBottom: `1px solid ${searchBdr}`,
@@ -1074,11 +1076,12 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                     );
                 }
                 return (
-                    <select {...common} value={val}
-                        onChange={e => handleChange(param.name, e.target.value, param.groupId)}>
-                        <option value="">{param.label}</option>
-                        {param.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
+                    <SingleSelectDropdown
+                        param={param}
+                        value={val}
+                        darkMode={darkMode}
+                        onChange={(selected) => handleChange(param.name, selected, param.groupId)}
+                    />
                 );
             case 'multiselect': {
                 const arrVal = Array.isArray(val) ? val : (val ? [val] : []);

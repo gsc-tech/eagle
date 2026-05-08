@@ -1,5 +1,5 @@
 import { useDrag } from "react-dnd";
-import type { BackendWidgetConfig } from "@/lib/puck/types";
+import type { BackendWidgetConfig } from "./types";
 import { ChevronDown, ChevronRight, GripVertical, WifiOff, RefreshCw } from "lucide-react";
 import { WIDGET_DRAG_TYPE } from "./types";
 import { useState, useMemo } from "react";

@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss"
-import preset from "@gsc-tech/eagle-widget-library/tailwind.preset.js"
+import preset from "../../packages/eagle-widget-library/tailwind.preset.js"
 
 const config: Config = {
     presets: [preset],

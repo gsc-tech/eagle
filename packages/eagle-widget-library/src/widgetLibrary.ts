@@ -25,6 +25,7 @@ import { WorldMapWidgetDef } from "./widgets/WorldMapWidget";
 import { WatchListWidgetDef } from "./widgets/WatchListWidget";
 import { SheetWidgetDef } from "./widgets/SheetWidget";
 import { CartesianHeatmapWidgetDef } from "./widgets/CartesianHeatmapWidget";
+import { ExpiryCalendarWidgetDef } from "./widgets/ExpiryCalendarWidget";
 import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidget";
 import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
 import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
@@ -58,6 +59,7 @@ export const widgetLibrary = {
     WatchListWidget: WatchListWidgetDef,
     SheetWidget: SheetWidgetDef,
     CartesianHeatmapWidget: CartesianHeatmapWidgetDef,
+    ExpiryCalendarWidget: ExpiryCalendarWidgetDef,
     TraderLimitsRequestWidget: TraderLimitsRequestWidgetDef,
     TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
     TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,

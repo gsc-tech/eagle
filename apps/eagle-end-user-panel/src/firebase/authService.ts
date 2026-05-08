@@ -19,8 +19,8 @@ export async function signInWithMicrosoft() {
     const tenantId = import.meta.env.VITE_MICROSOFT_TENANT_ID;
     
     provider.setCustomParameters({
-        ...(tenantId ? { tenant: tenantId } : {}),
-        prompt: "select_account",
+        prompt: 'select_account',
+        ...(tenantId && { tenant: tenantId })
     });
 
     try {
