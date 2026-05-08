@@ -5,6 +5,11 @@
             "dependsOn": [
                 "^build"
             ],
+            "env": [
+                "VITE_API_BASE_URL",
+                "VITE_MICROSOFT_TENANT_ID",
+                "VITE_MAREX_WS_URL"
+            ],
             "outputs": [
                 "dist/**",
                 "build/**"

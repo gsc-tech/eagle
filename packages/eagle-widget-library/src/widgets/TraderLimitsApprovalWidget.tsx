@@ -511,7 +511,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                    <table className="min-w-max w-full text-left border-collapse table-fixed">
+                    <table className="min-w-max w-full text-left border-collapse">
                         <thead className={`sticky top-0 z-10 ${headerBg} backdrop-blur-sm border-b ${borderColor}`}>
                             <tr>
                                 <th className={`px-4 py-3 w-10 text-center ${headerTextColor}`}>
@@ -530,14 +530,14 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                     if (col.key === 'productName' || col.key === 'trader' || col.key === 'limitType') widthClass = "w-[120px] min-w-[120px]";
 
                                     return (
-                                        <th key={col.key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} ${widthClass} truncate`}>
+                                        <th key={col.key} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} ${widthClass} whitespace-nowrap`}>
                                             {col.label}
                                         </th>
                                     );
                                 })}
                                 <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} w-[100px] min-w-[100px]`}>Requested Limit</th>
                                 <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} w-[150px] min-w-[150px]`}>Reason for Request</th>
-                                <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} min-w-[800px] w-full`}>Remarks</th>
+                                <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} min-w-[200px] whitespace-nowrap`}>Remarks</th>
                                 <th className={`px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor} w-[100px] min-w-[100px]`}>Actions</th>
                             </tr>
                         </thead>
@@ -623,7 +623,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                             </span>
                                         </td>
 
-                                        <td className="px-4 py-3 min-w-[800px] w-full text-center">
+                                        <td className="px-4 py-3 min-w-[200px] text-center">
                                             {isSelectable ? (
                                                 <div className="flex items-center justify-center py-1">
                                                     <Textarea
