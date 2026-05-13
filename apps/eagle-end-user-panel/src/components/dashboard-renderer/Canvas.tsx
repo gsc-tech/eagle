@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { Pencil } from "lucide-react";
 import ReactGridLayout, { useContainerWidth } from "react-grid-layout";
 import { verticalCompactor } from "react-grid-layout/core";
 import "react-grid-layout/css/styles.css";
@@ -12,6 +13,7 @@ import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 interface DashboardCanvasProps {
     dashboardId: string;
     onLayoutChange?: (layout: LayoutItem[]) => void;
+    onEditWidget?: (widgetId: string) => void;
     initialLayout?: LayoutItem[];
     workbookSnapshots?: Record<string, Record<string, any>>;
     onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
@@ -42,6 +44,7 @@ function CompressIcon() {
 export default function DashboardCanvas({
     dashboardId,
     onLayoutChange,
+    onEditWidget,
     initialLayout,
     workbookSnapshots,
     onSaveWorkbook,
@@ -194,6 +197,32 @@ export default function DashboardCanvas({
                                         overflow: isMinimized ? "hidden" : undefined,
                                     }}
                                 >
+                                    {/* Edit button — only for user-added (CSV) widgets */}
+                                    {item.widget?.defaultProps?.localDataConfig && onEditWidget && (
+                                        <button
+                                            title="Edit widget"
+                                            onClick={(e) => { e.stopPropagation(); onEditWidget(item.i); }}
+                                            style={{
+                                                position: "absolute", top: 10, right: 36, zIndex: 20,
+                                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                                width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
+                                                background: "transparent", cursor: "pointer",
+                                                color: isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)",
+                                                transition: "background 0.15s, color 0.15s",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.background = isDark ? "rgba(99,102,241,0.2)" : "rgba(99,102,241,0.1)";
+                                                e.currentTarget.style.color = "#818cf8";
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.background = "transparent";
+                                                e.currentTarget.style.color = isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)";
+                                            }}
+                                        >
+                                            <Pencil size={13} />
+                                        </button>
+                                    )}
+
                                     {/* Minimize / Restore button */}
                                     <button
                                         title={isMinimized ? "Restore widget" : "Minimize widget"}

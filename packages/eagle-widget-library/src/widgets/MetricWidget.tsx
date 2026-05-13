@@ -40,6 +40,7 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
         onGroupedParametersChange,
         initialWidgetState,
         onWidgetStateChange,
+        staticData,
     } = props;
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
@@ -54,6 +55,7 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
     const handleParametersChange = (values: ParameterValues) => {

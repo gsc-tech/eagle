@@ -17,6 +17,7 @@ import {
     AlertCircle,
     Database,
     Bell,
+    Plus,
 } from "lucide-react";
 import { useDataConnectorSync, useAlertsStore, ConnectorsProvider } from "@gsc-tech/eagle-widget-library";
 import type { ConnectorStatus } from "@gsc-tech/eagle-widget-library";
@@ -46,6 +47,8 @@ import {
 import axios from "axios";
 import DashboardCanvas from "@/components/dashboard-renderer/Canvas";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
+import AddWidgetModal from "@/components/AddWidgetModal";
+import EditWidgetModal from "@/components/EditWidgetModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { getToken } from "@/firebase/authService";
@@ -138,6 +141,52 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         return () => unsubscribe();
     }, []);
 
+    // ── Add Widget modal ─────────────────────────────────────────────────────
+    const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
+    const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
+
+    const handleAddWidget = useCallback(
+        ({
+            componentName,
+            widgetTitle,
+            localDataConfig,
+            fieldMapping,
+        }: {
+            componentName: string;
+            widgetTitle: string;
+            localDataConfig: any;
+            fieldMapping: Record<string, string>;
+        }) => {
+            if (!activeTabId || !selected) return;
+            const newItem: LayoutItem = {
+                i: `user-widget-${Date.now()}`,
+                x: 0,
+                y: Infinity, // react-grid-layout places it at the bottom
+                w: 6,
+                h: 5,
+                minW: 2,
+                minH: 2,
+                widget: {
+                    componentName,
+                    name: widgetTitle,
+                    defaultProps: {
+                        ...fieldMapping,
+                        localDataConfig,
+                    },
+                },
+            };
+            setTabs((prev) =>
+                prev.map((tab) =>
+                    tab.id === activeTabId
+                        ? { ...tab, layout: [...tab.layout, newItem] }
+                        : tab
+                )
+            );
+            setAddWidgetModalOpen(false);
+        },
+        [activeTabId, selected]
+    );
+
     // ── Alert history panel ───────────────────────────────────────────────────
     const [alertPanelOpen, setAlertPanelOpen] = useState(false);
     const activeAlertCount = useAlertsStore((s) => s.alerts.filter((a) => !a.addressed).length);
@@ -172,6 +221,37 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
     const setStoredTabLayouts = useDashboardStateStore((s) => s.setTabLayouts);
     const getStoredDashboardState = useDashboardStateStore((s) => s.getDashboardState);
+
+    const editingWidget = useMemo(() => {
+        if (!editingWidgetId) return null;
+        return tabs.find((t) => t.id === activeTabId)?.layout.find((item) => item.i === editingWidgetId) || null;
+    }, [editingWidgetId, tabs, activeTabId]);
+
+    const handleSaveEdit = useCallback(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (widgetId: string, widgetTitle: string, newDefaultProps: Record<string, any>) => {
+            if (!activeTabId || !selected) return;
+            setTabs((prev) => {
+                const newTabs = prev.map((tab) => {
+                    if (tab.id !== activeTabId) return tab;
+                    return {
+                        ...tab,
+                        layout: tab.layout.map((item) =>
+                            item.i !== widgetId
+                                ? item
+                                : { ...item, widget: { ...item.widget, name: widgetTitle, defaultProps: newDefaultProps } }
+                        ),
+                    };
+                });
+                // Persist immediately — handleLayoutChange won't fire for config-only changes
+                const updatedLayout = newTabs.find((t) => t.id === activeTabId)?.layout || [];
+                updateStoredTabLayout(selected.dashboardID, activeTabId, updatedLayout);
+                return newTabs;
+            });
+            setEditingWidgetId(null);
+        },
+        [activeTabId, selected, updateStoredTabLayout]
+    );
 
     // Fetch dashboards on mount
     useEffect(() => {
@@ -230,11 +310,14 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                               storedTabIds.every(id => backendTabIds.includes(id));
 
             // Check widget IDs in the first tab (heuristic for layout change)
+            // Exclude user-added widgets (they have localDataConfig) from comparison
             let widgetsMatch = true;
             if (tabsMatch && backendTabs.length > 0) {
                 const firstTabId = backendTabs[0].id;
                 const backendWidgets = backendTabs[0].layout.map(l => l.i).sort().join(",");
-                const storedWidgets = (stored.layouts[firstTabId] || []).map(l => l.i).sort().join(",");
+                const storedWidgets = (stored.layouts[firstTabId] || [])
+                    .filter(l => !l.widget?.defaultProps?.localDataConfig)
+                    .map(l => l.i).sort().join(",");
                 if (backendWidgets !== storedWidgets) {
                     widgetsMatch = false;
                 }
@@ -261,6 +344,16 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                         return backendItem;
                     });
 
+                    // Append user-added (CSV) widgets that are stored but not in backend layout
+                    const userAddedItems = storedTabLayout.filter(
+                        si => si.widget?.defaultProps?.localDataConfig
+                    );
+                    userAddedItems.forEach(userItem => {
+                        if (!mergedLayout.find(m => m.i === userItem.i)) {
+                            mergedLayout.push(userItem);
+                        }
+                    });
+
                     return {
                         ...bt,
                         layout: mergedLayout
@@ -272,10 +365,19 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 }
             } else {
                 console.log("[Eagle Persistence] Dashboard changed in dev console. Overriding local state.");
-                // Initialize store with fresh backend layout
+                // Re-init from backend but carry over user-added (CSV) widgets
                 const initialLayoutsMap: Record<string, LayoutItem[]> = {};
-                backendTabs.forEach(t => { initialLayoutsMap[t.id] = t.layout; });
+                backendTabs.forEach(t => {
+                    const userAddedItems = (stored.layouts[t.id] || []).filter(
+                        si => si.widget?.defaultProps?.localDataConfig
+                    );
+                    initialLayoutsMap[t.id] = [...t.layout, ...userAddedItems];
+                });
                 setStoredTabLayouts(dashboardID, initialLayoutsMap);
+                finalTabs = backendTabs.map(bt => ({
+                    ...bt,
+                    layout: initialLayoutsMap[bt.id],
+                }));
             }
         } else {
              // First time load: initialize store
@@ -370,8 +472,13 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             )
         );
         
-        // Strip widget config before saving to local storage (save only layout/positioning)
-        const layoutToStore = newLayout.map(({ widget, ...rest }) => rest);
+        // Preserve full config for user-added (CSV) widgets; strip widget config from backend widgets
+        const layoutToStore = newLayout.map((item) => {
+            if (item.widget?.defaultProps?.localDataConfig) return item;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { widget: _w, ...rest } = item;
+            return rest;
+        });
         updateStoredTabLayout(selected.dashboardID, activeTabId, layoutToStore as LayoutItem[]);
     };
 
@@ -619,6 +726,23 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     </div>
                                 </div>
                                 <div id="dashboard-toast-container" className="flex-1 flex items-center justify-end gap-3">
+                                    {/* Add Widget button */}
+                                    <button
+                                        onClick={() => setAddWidgetModalOpen(true)}
+                                        title="Add widget from CSV"
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 7,
+                                            padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+                                            background: "rgba(59,130,246,0.12)",
+                                            border: "1px solid rgba(59,130,246,0.35)",
+                                            color: "#93c5fd",
+                                            fontSize: 13, fontWeight: 700,
+                                            transition: "all 0.15s",
+                                        }}
+                                    >
+                                        <Plus size={15} />
+                                        <span>Add Widget</span>
+                                    </button>
                                     {/* Alert history button */}
                                     <button
                                         onClick={() => setAlertPanelOpen(true)}
@@ -685,6 +809,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                                 dashboardId={selected.dashboardID}
                                                 initialLayout={activeTab.layout}
                                                 onLayoutChange={handleLayoutChange}
+                                                onEditWidget={setEditingWidgetId}
                                                 workbookSnapshots={workbookSnapshots}
                                                 onSaveWorkbook={handleSaveWorkbook}
                                             />
@@ -727,6 +852,21 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 <ConnectorConfig
                     statuses={connectorStatuses}
                     onClose={() => setConnectorConfigOpen(false)}
+                />
+            )}
+
+            {addWidgetModalOpen && (
+                <AddWidgetModal
+                    onClose={() => setAddWidgetModalOpen(false)}
+                    onAdd={handleAddWidget}
+                />
+            )}
+
+            {editingWidget && (
+                <EditWidgetModal
+                    item={editingWidget}
+                    onClose={() => setEditingWidgetId(null)}
+                    onSave={handleSaveEdit}
                 />
             )}
 

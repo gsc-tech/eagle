@@ -6,18 +6,28 @@ interface UseWidgetDataOptions {
     parameters?: ParameterValues;
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
+    staticData?: any[];
 }
 
 export function useWidgetData<T = any>(
     apiUrl: string,
     options?: UseWidgetDataOptions
 ) {
-    const { pollInterval, parameters, isTokenRequired, getFirebaseToken } = options || {};
-    const [data, setData] = useState<T[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { pollInterval, parameters, isTokenRequired, getFirebaseToken, staticData } = options || {};
+    const [data, setData] = useState<T[]>(() => (staticData ? (staticData as T[]) : []));
+    const [loading, setLoading] = useState(!staticData);
     const [error, setError] = useState<Error | null>(null);
 
+    useEffect(() => {
+        if (staticData !== undefined) {
+            setData(staticData as T[]);
+            setLoading(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [JSON.stringify(staticData)]);
+
     const fetchData = useCallback(async (isManualRefetch = false) => {
+        if (staticData !== undefined) return;
         try {
             if (isManualRefetch) {
                 setLoading(true);
@@ -78,9 +88,10 @@ export function useWidgetData<T = any>(
             setError(err instanceof Error ? err : new Error('Unknown error'));
             setLoading(false);
         }
-    }, [apiUrl, isTokenRequired, getFirebaseToken, JSON.stringify(parameters)]);
+    }, [apiUrl, isTokenRequired, getFirebaseToken, JSON.stringify(parameters), staticData !== undefined]);
 
     useEffect(() => {
+        if (staticData !== undefined) return;
         let mounted = true;
         let intervalId: any;
 
@@ -98,7 +109,7 @@ export function useWidgetData<T = any>(
             mounted = false;
             if (intervalId) clearInterval(intervalId);
         };
-    }, [fetchData, pollInterval]);
+    }, [fetchData, pollInterval, staticData !== undefined]);
 
     return { data, loading, error, refetch: () => fetchData(true) };
 }

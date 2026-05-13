@@ -3,6 +3,8 @@ import type { LayoutItem } from "./types";
 import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
+import { useCsvDataStore } from "@/store/csvDataStore";
+import { applyFormulas } from "@/lib/formulaEngine";
 import { getAuth } from "firebase/auth";
 
 interface WidgetRendererProps {
@@ -92,6 +94,16 @@ export default function WidgetRenderer({
         return "";
     }, []);
 
+    // ── Local CSV data injection ───────────────────────────────────────────────
+    const getDataset = useCsvDataStore((s) => s.getDataset);
+    const localDataConfig = widget?.defaultProps?.localDataConfig;
+    const resolvedStaticData = useMemo(() => {
+        if (!localDataConfig) return undefined;
+        const dataset = getDataset(localDataConfig.datasetId);
+        if (!dataset) return undefined;
+        return applyFormulas(dataset.rows, localDataConfig.formulaSteps || []);
+    }, [localDataConfig, getDataset]);
+
     if (!WidgetComponent) {
         return (
             <div className="h-full w-full bg-destructive/10 border-2 border-destructive/20 rounded-xl flex items-center justify-center p-4 backdrop-blur-sm">
@@ -135,6 +147,7 @@ export default function WidgetRenderer({
                 onGroupedParametersChange={handleGroupedParametersChange}
                 initialWidgetState={widgetState}
                 onWidgetStateChange={handleWidgetStateChange}
+                {...(resolvedStaticData !== undefined && { staticData: resolvedStaticData })}
                 // SheetWidget-specific: load saved snapshot and persist on close
                 {...(widget?.defaultProps?.isTokenRequired && {
                     getFirebaseToken,

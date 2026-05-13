@@ -1,3 +1,12 @@
+import type { FormulaStep } from "@/lib/formulaEngine";
+
+export interface LocalDataConfig {
+    datasetId: string;
+    formulaSteps: FormulaStep[];
+    /** widgetField → column name in the dataset (including computed columns). */
+    fieldMapping: Record<string, string>;
+}
+
 export interface LayoutItem {
     i: string; // unique identifier
     x: number;

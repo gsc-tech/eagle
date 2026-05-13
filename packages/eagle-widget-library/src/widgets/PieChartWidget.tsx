@@ -29,6 +29,7 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
     onGroupedParametersChange,
     initialWidgetState,
     onWidgetStateChange,
+    staticData,
 }) => {
     const chartId = useId();
     const rootRef = useRef<any>(null);
@@ -49,6 +50,7 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
 

@@ -788,7 +788,8 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
     isTokenRequired,
     getFirebaseToken,
     columnConfig: propColumnConfig,
-    tabFilterField
+    tabFilterField,
+    staticData,
 }) => {
     const defaultParams = useParameterDefaults(parameters);
     const [currentParams, setCurrentParams] = useState<ParameterValues>(() => {
@@ -815,7 +816,8 @@ export const DataTableWidget: React.FC<DataTableWidgetProps> = ({
         pollInterval: pollInterval,
         parameters: currentParams,
         isTokenRequired,
-        getFirebaseToken
+        getFirebaseToken,
+        staticData,
     });
 
     const [stableData, setStableData] = useState<any[] | null>(null);

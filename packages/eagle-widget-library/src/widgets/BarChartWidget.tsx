@@ -38,6 +38,7 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
     sheetDependency,
     initialWidgetState,
     onWidgetStateChange,
+    staticData,
 }) => {
     const chartContainerRef = useRef<HTMLDivElement | null>(null);
     const chartRef = useRef<IChartApi | null>(null);
@@ -84,6 +85,7 @@ export const BarChartWidget: React.FC<BarChartWidgetProps & { darkMode?: boolean
 
     const { data: routeData } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
     const { sheetData } = useSheetDependency(sheetDependency);

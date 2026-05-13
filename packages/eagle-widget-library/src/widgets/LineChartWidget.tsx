@@ -46,6 +46,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
   sheetDependency,
   initialWidgetState,
   onWidgetStateChange,
+  staticData,
 }) => {
   const chartId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -71,7 +72,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
   }
 
   const { sheetData } = useSheetDependency(sheetDependency);
-  const rawData = sheetDependency?.isDependent ? sheetData : routeData;
+  const rawData = staticData ?? (sheetDependency?.isDependent ? sheetData : routeData);
 
   const handleParametersChange = (values: ParameterValues) => {
     setCurrentParams(values);
@@ -158,12 +159,18 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
 
         // Create series for each config (works for both single and multi)
         seriesConfig.forEach((config) => {
+          // Pass stroke into LineSeries.new() so it takes precedence over the
+          // theme's automatic color-sequence assignment (which would otherwise
+          // win over any post-creation strokes.template.setAll({ stroke: … })).
+          const seriesColor = am5.color(config.color || "#6366f1");
+
           const series = chart.series.push(
             am5xy.LineSeries.new(root, {
               name: config.name,
               xAxis: xAxis,
               yAxis: yAxis,
               valueYField: config.valueField,
+              stroke: seriesColor,
               ...(xAxisType === 'category' ? { categoryXField: dateField } : { valueXField: dateField }),
               tooltip: am5.Tooltip.new(root, {
                 labelText: isMultiSeries ? `${config.name}: {valueY}` : "{valueY}"
@@ -173,7 +180,7 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
 
           // Apply styling
           series.strokes.template.setAll({
-            stroke: am5.color(config.color || "#6366f1"),
+            stroke: seriesColor,
             strokeWidth: config.strokeWidth || 2,
           });
 

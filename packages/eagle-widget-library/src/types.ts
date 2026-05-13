@@ -53,6 +53,8 @@ export interface BaseWidgetProps {
     isTokenRequired?: boolean;
     getFirebaseToken?: () => Promise<string>;
     eventSubscriptions?: WidgetEventSubscription[];
+    /** Injected by the host to bypass API fetching with local data (e.g. CSV). */
+    staticData?: any[];
 }
 
 export interface NormalizationConfig {
