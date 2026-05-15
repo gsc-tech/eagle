@@ -20,15 +20,12 @@ api.interceptors.request.use(async (config) => {
     return config
 })
 
-api.interceptors.request.use(
+api.interceptors.response.use(
     (res) => res,
     (err) => {
         if (err.response?.status === 401) {
-            signOut()
-            // navigate("/login")
-            // handle the navigation to the login page later.
+            signOut();
         }
-
         return Promise.reject(err);
     }
 )

@@ -616,4 +616,7 @@ async function insertSheetIntoWorkbook(
 
 export const SheetWidgetDef = {
     component: SheetWidget,
-};
+    hostBindings: {
+        needsWorkbookSnapshot: true,
+    },
+} satisfies import("../types").WidgetDefinition;

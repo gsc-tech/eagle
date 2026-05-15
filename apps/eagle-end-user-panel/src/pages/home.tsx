@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import eagleLogo from "@/assets/eagle-2.png";
 import eagleDarkLogo from "@/assets/eagle-2-dark.png";
 import {
@@ -44,14 +44,16 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import axios from "axios";
+import { dashboardsApi } from "@/services/dashboardsApi";
+import type { DashboardRecord } from "@/services/dashboardsApi";
 import DashboardCanvas from "@/components/dashboard-renderer/Canvas";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
 import AddWidgetModal from "@/components/AddWidgetModal";
 import EditWidgetModal from "@/components/EditWidgetModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
-import { getToken } from "@/firebase/authService";
+import { useFirebaseToken } from "@/hooks/useFirebaseToken";
+import { useDashboardLoader } from "@/hooks/useDashboardLoader";
 import { auth } from "@/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
@@ -62,11 +64,7 @@ export type Tab = {
     layout: LayoutItem[];
 };
 
-type Dashboard = {
-    dashboardID: string;
-    name: string;
-    publishedLayout: any;
-};
+type Dashboard = DashboardRecord;
 
 // Map dashboard name to icon
 const DASHBOARD_ICONS: Record<string, React.ReactNode> = {
@@ -96,7 +94,7 @@ function connectorStatusColor(status: ConnectorStatus): string {
 
 function ConnectorStatusIcon({ status }: { status: ConnectorStatus }) {
     if (status === "connected")  return <Wifi size={12} />;
-    if (status === "connecting") return <Loader size={12} style={{ animation: "spin 1s linear infinite" }} />;
+    if (status === "connecting") return <Loader size={12} className="animate-spin" />;
     if (status === "error" || status === "failed") return <AlertCircle size={12} />;
     return <WifiOff size={12} />;
 }
@@ -198,9 +196,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const marexConnector = connectors.find((c) => c.type === "marex") ?? null;
     const excelConnector = connectors.find((c) => c.type === "excel") ?? null;
 
-    const getFirebaseToken = useCallback(async () => {
-        try { return await getToken(); } catch { return ""; }
-    }, []);
+    const getFirebaseToken = useFirebaseToken();
 
     const { status: marexStatus } = useDataConnectorSync(
         marexConnector ? { ...marexConnector, wsUrl: NATIVE_CONNECTOR_URLS.marex, getFirebaseToken } : null
@@ -219,8 +215,8 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
     const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
-    const setStoredTabLayouts = useDashboardStateStore((s) => s.setTabLayouts);
-    const getStoredDashboardState = useDashboardStateStore((s) => s.getDashboardState);
+
+    const { loadDashboard } = useDashboardLoader();
 
     const editingWidget = useMemo(() => {
         if (!editingWidgetId) return null;
@@ -255,209 +251,72 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     // Fetch dashboards on mount
     useEffect(() => {
-        const fetchDashboards = async () => {
-            try {
-                const baseURL =
-                    import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
-                const token = await getToken();
-                const resp = await axios.get(`${baseURL}/dashboards/end-user`, {
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
-                const data = resp.data;
-                const filteredData = data.filter(
-                    (d: Dashboard) => d.publishedLayout?.tabs
-                );
-                setDashboards(filteredData);
-            } catch (error) {
-                console.error("Error fetching dashboards:", error);
-            }
-        };
-        fetchDashboards();
+        dashboardsApi
+            .list()
+            .then((data) => setDashboards(data.filter((d) => d.publishedLayout?.tabs)))
+            .catch((err) => console.error("Error fetching dashboards:", err));
     }, []);
 
     // Handle dashboard selection
     const handleSelect = (dashboard: Dashboard) => {
         setSelected(dashboard);
-        const { dashboardID, publishedLayout: initialData } = dashboard;
-
-        // Parse backend tabs
-        let backendTabs: Tab[] = [];
-        if (!initialData) {
-            backendTabs = [{ id: "default", title: "Main", layout: [] }];
-        } else if (Array.isArray(initialData)) {
-            backendTabs = [{ id: "legacy", title: "Main", layout: initialData }];
-        } else if (initialData.tabs && Array.isArray(initialData.tabs)) {
-            backendTabs = initialData.tabs;
-        } else {
-            backendTabs = [{ id: "default", title: "Main", layout: [] }];
-        }
-
-        // Get stored state for this specific dashboard
-        const stored = getStoredDashboardState(dashboardID);
-        
-        let finalTabs = backendTabs;
-        let finalActiveTabId = backendTabs[0]?.id || null;
-
-        if (stored.layouts && Object.keys(stored.layouts).length > 0) {
-            // Check for override: Do they have the same tabs and widget count?
-            const storedTabIds = Object.keys(stored.layouts);
-            const backendTabIds = backendTabs.map(t => t.id);
-
-            const tabsMatch = storedTabIds.length === backendTabIds.length && 
-                              storedTabIds.every(id => backendTabIds.includes(id));
-
-            // Check widget IDs in the first tab (heuristic for layout change)
-            // Exclude user-added widgets (they have localDataConfig) from comparison
-            let widgetsMatch = true;
-            if (tabsMatch && backendTabs.length > 0) {
-                const firstTabId = backendTabs[0].id;
-                const backendWidgets = backendTabs[0].layout.map(l => l.i).sort().join(",");
-                const storedWidgets = (stored.layouts[firstTabId] || [])
-                    .filter(l => !l.widget?.defaultProps?.localDataConfig)
-                    .map(l => l.i).sort().join(",");
-                if (backendWidgets !== storedWidgets) {
-                    widgetsMatch = false;
-                }
-            }
-
-            if (tabsMatch && widgetsMatch) {
-                // Use stored layout for positioning, but ALWAYS keep backend widget configuration
-                finalTabs = backendTabs.map(bt => {
-                    const storedTabLayout = stored.layouts[bt.id];
-                    if (!storedTabLayout) return bt;
-
-                    const mergedLayout = bt.layout.map(backendItem => {
-                        const storedItem = storedTabLayout.find(si => si.i === backendItem.i);
-                        if (storedItem) {
-                            // Merge: take user-adjustable layout props from stored, but everything else from backend
-                            return {
-                                ...backendItem,
-                                x: storedItem.x,
-                                y: storedItem.y,
-                                w: storedItem.w,
-                                h: storedItem.h,
-                            };
-                        }
-                        return backendItem;
-                    });
-
-                    // Append user-added (CSV) widgets that are stored but not in backend layout
-                    const userAddedItems = storedTabLayout.filter(
-                        si => si.widget?.defaultProps?.localDataConfig
-                    );
-                    userAddedItems.forEach(userItem => {
-                        if (!mergedLayout.find(m => m.i === userItem.i)) {
-                            mergedLayout.push(userItem);
-                        }
-                    });
-
-                    return {
-                        ...bt,
-                        layout: mergedLayout
-                    };
-                });
-
-                if (stored.activeTabId && backendTabIds.includes(stored.activeTabId)) {
-                    finalActiveTabId = stored.activeTabId;
-                }
-            } else {
-                console.log("[Eagle Persistence] Dashboard changed in dev console. Overriding local state.");
-                // Re-init from backend but carry over user-added (CSV) widgets
-                const initialLayoutsMap: Record<string, LayoutItem[]> = {};
-                backendTabs.forEach(t => {
-                    const userAddedItems = (stored.layouts[t.id] || []).filter(
-                        si => si.widget?.defaultProps?.localDataConfig
-                    );
-                    initialLayoutsMap[t.id] = [...t.layout, ...userAddedItems];
-                });
-                setStoredTabLayouts(dashboardID, initialLayoutsMap);
-                finalTabs = backendTabs.map(bt => ({
-                    ...bt,
-                    layout: initialLayoutsMap[bt.id],
-                }));
-            }
-        } else {
-             // First time load: initialize store
-             const initialLayoutsMap: Record<string, LayoutItem[]> = {};
-             backendTabs.forEach(t => { initialLayoutsMap[t.id] = t.layout; });
-             setStoredTabLayouts(dashboardID, initialLayoutsMap);
-        }
-
-        setTabs(finalTabs);
-        setActiveTabId(finalActiveTabId);
+        const { tabs: resolvedTabs, activeTabId: resolvedActiveTabId } =
+            loadDashboard(dashboard.dashboardID, dashboard.publishedLayout);
+        setTabs(resolvedTabs);
+        setActiveTabId(resolvedActiveTabId);
         setProfileOpen(false);
-
-        // Fetch workbook snapshots
         setIsLoadingSnapshots(true);
-        fetchWorkbookSnapshots(dashboardID);
+        fetchWorkbookSnapshots(dashboard.dashboardID);
     };
 
-    const fetchWorkbookSnapshots = async (dashboardId: string) => {
-        try {
-            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002/api";
-            // Example endpoint: fetch all snapshots for a dashboard
-            // Adjust endpoint path as needed based on your backend API
-            const token = await getToken();
-            const resp = await axios.get(`${baseURL}/dashboards/snapshots/${dashboardId}`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                }
-            });
-            if (resp.data) {
-                setWorkbookSnapshots(resp.data);
-            } else {
+    const fetchWorkbookSnapshots = (dashboardId: string) => {
+        dashboardsApi
+            .getSnapshots(dashboardId)
+            .then(setWorkbookSnapshots)
+            .catch((err) => {
+                console.error("Error fetching workbook snapshots:", err);
                 setWorkbookSnapshots({});
-            }
-        } catch (error) {
-            console.error("Error fetching workbook snapshots:", error);
-            // Default to empty if not found or errors
-            setWorkbookSnapshots({});
-        } finally {
-            setIsLoadingSnapshots(false);
-        }
+            })
+            .finally(() => setIsLoadingSnapshots(false));
     };
 
-    const handleSaveWorkbook = async (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => {
+    const latestSnapshotsRef = useRef<Record<string, { snapshot: Record<string, any>; parameters: any[] }>>({});
+    const dirtyWidgetsRef = useRef<Set<string>>(new Set());
+
+    // Receiving a snapshot only marks it dirty — the interval does the actual saving.
+    const handleSaveWorkbook = useCallback((widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => {
         if (!selected) return;
-        try {
-            const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:9002";
-            // Example endpoint: save snapshot for a specific widget
-            let token = "";
-            try {
-                token = await getToken();
-            } catch (err) {
-                console.error("Could not get token for snapshot save:", err);
+        latestSnapshotsRef.current[widgetId] = { snapshot, parameters: parameters || [] };
+        dirtyWidgetsRef.current.add(widgetId);
+    }, [selected]);
+
+    // Flush dirty snapshots to the backend every 30 s.
+    // Also flushes on cleanup so switching dashboards doesn't lose the last edit.
+    useEffect(() => {
+        if (!selected) return;
+        const dashboardId = selected.dashboardID;
+
+        const flush = () => {
+            const dirty = [...dirtyWidgetsRef.current];
+            if (dirty.length === 0) return;
+            dirtyWidgetsRef.current.clear();
+
+            for (const widgetId of dirty) {
+                const entry = latestSnapshotsRef.current[widgetId];
+                if (!entry) continue;
+                dashboardsApi
+                    .saveSnapshot(dashboardId, widgetId, entry.snapshot, entry.parameters)
+                    .then(() => setWorkbookSnapshots((prev) => ({ ...prev, [widgetId]: entry })))
+                    .catch((err) => {
+                        console.error("Error saving workbook snapshot:", err);
+                        dirtyWidgetsRef.current.add(widgetId); // retry next interval
+                    });
             }
+        };
 
-            // Using fetch with keepalive: true ensures the request completes
-            // even if the user is in the process of closing the browser window.
-            await fetch(`${baseURL}/dashboards/snapshots/save`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({
-                    dashboardId: selected.dashboardID,
-                    itemId: widgetId,
-                    snapshot: snapshot,
-                    parameters: parameters || [],
-                }),
-            });
-
-            // Update local state immediately
-            setWorkbookSnapshots(prev => ({
-                ...prev,
-                [widgetId]: { snapshot, parameters: parameters || [] }
-            }));
-        } catch (error) {
-            console.error("Error saving workbook snapshot:", error);
-        }
-    };
+        const id = setInterval(flush, 30_000);
+        return () => { clearInterval(id); flush(); };
+    }, [selected]);
 
     const activeTab = useMemo(
         () => tabs.find((t) => t.id === activeTabId) || tabs[0],
@@ -514,10 +373,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     className="w-full h-full object-contain hidden dark:block"
                                 />
                             </div>
-                            <span 
-                                className="font-bold text-lg tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden"
-                                style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.01em" }}
-                            >
+                            <span className="font-bold text-lg tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden [font-family:'Raleway',sans-serif] [letter-spacing:-0.01em]">
                                 Project Eagle
                             </span>
                         </div>
@@ -616,11 +472,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                         const displayStatus = configured ? status : "not set";
                                         return (
                                             <div key={label} className="flex items-center gap-2">
-                                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />
+                                                <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ background: color }} />
                                                 <span className="text-sm font-semibold text-sidebar-foreground flex-1">{label}</span>
-                                                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color }}>
+                                                <span className="flex items-center gap-1 text-xs font-bold" style={{ color }}>
                                                     {configured && <ConnectorStatusIcon status={status} />}
-                                                    <span style={{ textTransform: "capitalize" }}>{displayStatus}</span>
+                                                    <span className="capitalize">{displayStatus}</span>
                                                 </span>
                                             </div>
                                         );
@@ -636,7 +492,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 ].map(({ configured, status }, i) => {
                                     const color = configured ? connectorStatusColor(status) : "#52525b";
                                     return (
-                                        <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block" }} />
+                                        <span key={i} className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
                                     );
                                 })}
                             </div>
@@ -714,10 +570,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 <div className="flex items-start gap-3">
                                     <SidebarTrigger className="mt-0.5 shrink-0" />
                                     <div>
-                                        <h1 
-                                            className="text-2xl font-[800] tracking-tight text-foreground"
-                                            style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.015em" }}
-                                        >
+                                        <h1 className="text-2xl font-[800] tracking-tight text-foreground [font-family:'Raleway',sans-serif] [letter-spacing:-0.015em]">
                                             {selected.name}
                                         </h1>
                                         <p className="text-sm text-muted-foreground mt-0.5">
@@ -730,15 +583,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     <button
                                         onClick={() => setAddWidgetModalOpen(true)}
                                         title="Add widget from CSV"
-                                        style={{
-                                            display: "flex", alignItems: "center", gap: 7,
-                                            padding: "7px 14px", borderRadius: 8, cursor: "pointer",
-                                            background: "rgba(59,130,246,0.12)",
-                                            border: "1px solid rgba(59,130,246,0.35)",
-                                            color: "#93c5fd",
-                                            fontSize: 13, fontWeight: 700,
-                                            transition: "all 0.15s",
-                                        }}
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all duration-150 bg-blue-500/10 border border-blue-500/35 text-blue-300 hover:bg-blue-500/20"
                                     >
                                         <Plus size={15} />
                                         <span>Add Widget</span>
@@ -747,26 +592,20 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     <button
                                         onClick={() => setAlertPanelOpen(true)}
                                         title="Alert History"
-                                        style={{
-                                            position: "relative", display: "flex", alignItems: "center", gap: 7,
-                                            padding: "7px 14px", borderRadius: 8, cursor: "pointer",
-                                            background: activeAlertCount > 0 ? "rgba(239,68,68,0.12)" : "transparent",
-                                            border: `1px solid ${activeAlertCount > 0 ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.1)"}`,
-                                            color: activeAlertCount > 0 ? "#fca5a5" : "#71717a",
-                                            fontSize: 13, fontWeight: 700,
-                                            transition: "all 0.15s",
-                                        }}
+                                        className={cn(
+                                            "relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all duration-150",
+                                            activeAlertCount > 0
+                                                ? "bg-destructive/10 border border-destructive/40 text-red-300 hover:bg-destructive/20"
+                                                : "bg-transparent border border-white/10 text-zinc-500 hover:bg-accent/50 hover:text-foreground"
+                                        )}
                                     >
                                         <Bell size={16} />
                                         <span>Alerts</span>
                                         {totalAlertCount > 0 && (
-                                            <span style={{
-                                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                                minWidth: 20, height: 20, borderRadius: 999,
-                                                background: activeAlertCount > 0 ? "#ef4444" : "#3f3f46",
-                                                color: "#ffffff",
-                                                fontSize: 11, fontWeight: 800, padding: "0 5px",
-                                            }}>
+                                            <span className={cn(
+                                                "inline-flex items-center justify-center min-w-[20px] h-5 rounded-full text-[11px] font-extrabold text-white px-1",
+                                                activeAlertCount > 0 ? "bg-destructive" : "bg-zinc-600"
+                                            )}>
                                                 {totalAlertCount}
                                             </span>
                                         )}
@@ -821,21 +660,12 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                     ) : (
                         /* Empty state */
                         <div className="flex-1 flex items-center justify-center bg-background relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
-                                style={{
-                                    backgroundImage:
-                                        "radial-gradient(circle, currentColor 1px, transparent 1px)",
-                                    backgroundSize: "32px 32px",
-                                }}
-                            />
+                            <div className="absolute inset-0 opacity-[0.03] pointer-events-none [background-image:radial-gradient(circle,currentColor_1px,transparent_1px)] [background-size:32px_32px]" />
                             <div className="text-center space-y-4 animate-in fade-in zoom-in duration-500 px-6">
                                 <div className="w-20 h-20 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-6 transform rotate-6 border border-primary/10">
                                     <BarChart2 className="w-10 h-10 text-primary/40" />
                                 </div>
-                                <h2 
-                                className="text-3xl font-[800] text-foreground/40 mb-3 tracking-tight transition-all duration-700"
-                                style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.015em" }}
-                            >
+                                <h2 className="text-3xl font-[800] text-foreground/40 mb-3 tracking-tight transition-all duration-700 [font-family:'Raleway',sans-serif] [letter-spacing:-0.015em]">
                                 Select a Dashboard
                             </h2>
                                 <p className="text-muted-foreground max-w-[280px] mx-auto text-sm leading-relaxed">
@@ -875,7 +705,6 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 onClose={() => setAlertPanelOpen(false)}
             />
 
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </SidebarProvider>
     );
 }

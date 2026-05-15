@@ -145,13 +145,11 @@ export default function EditWidgetModal({ item, onClose, onSave }: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div
-                className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-zinc-700 shadow-2xl"
-                style={{ background: "#111113" }}
+                className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-zinc-700 shadow-2xl bg-[#111113]"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800">

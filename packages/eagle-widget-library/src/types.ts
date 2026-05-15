@@ -34,8 +34,10 @@ export interface DataBinding {
     sourceId: string | null;
 }
 
+import type { WidgetEventType } from "./store/widgetEventBus";
+
 export interface WidgetEventSubscription {
-    eventType: string;
+    eventType: WidgetEventType;
     action: 'refetch';
 }
 
@@ -80,4 +82,26 @@ export interface ConnectorRecord {
     type: ConnectorType;
     name: string;
     accountId: string;
+}
+
+/**
+ * Declares which host-managed resources a widget always needs injected,
+ * regardless of per-instance backend configuration.
+ *
+ * The host (WidgetRenderer) reads these flags and injects the matching props
+ * generically — no widget-name branching required.
+ *
+ * Note: `getFirebaseToken` is NOT listed here — it is a per-instance concern
+ * configured via `defaultProps.isTokenRequired` in the dev console, not a
+ * widget-level contract.
+ */
+export interface WidgetHostBindings {
+    /** Widget needs the host to inject a persisted workbook snapshot and an onSave callback. */
+    needsWorkbookSnapshot?: boolean;
+}
+
+/** Typed registry entry for every widget in the library. */
+export interface WidgetDefinition<TProps extends BaseWidgetProps = BaseWidgetProps> {
+    component: React.ComponentType<TProps>;
+    hostBindings?: WidgetHostBindings;
 }

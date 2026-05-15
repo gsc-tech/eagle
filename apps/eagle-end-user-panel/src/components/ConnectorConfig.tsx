@@ -3,6 +3,7 @@ import { useConnectorsStore, NATIVE_CONNECTOR_URLS } from "@/store/connectorsSto
 import type { DataConnectorConfig } from "@/store/connectorsStore";
 import type { ConnectorType, ConnectorStatus } from "@gsc-tech/eagle-widget-library";
 import { Plus, Trash2, Wifi, WifiOff, Loader, AlertCircle, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,21 +16,32 @@ interface ConnectorConfigProps {
 // ─── Status Dot ───────────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: ConnectorStatus }) {
-    const map: Record<ConnectorStatus, { color: string; icon: React.ReactNode }> = {
-        connected:  { color: "#22c55e", icon: <Wifi size={10} /> },
-        connecting: { color: "#eab308", icon: <Loader size={10} style={{ animation: "spin 1s linear infinite" }} /> },
-        error:      { color: "#ef4444", icon: <AlertCircle size={10} /> },
-        failed:     { color: "#ef4444", icon: <WifiOff size={10} /> },
-        idle:       { color: "#52525b", icon: <WifiOff size={10} /> },
+    const colorClass: Record<ConnectorStatus, string> = {
+        connected:  "text-green-500",
+        connecting: "text-yellow-500",
+        error:      "text-red-500",
+        failed:     "text-red-500",
+        idle:       "text-zinc-600",
     };
-    const { color, icon } = map[status] ?? map.idle;
+    const icons: Record<ConnectorStatus, React.ReactNode> = {
+        connected:  <Wifi size={10} />,
+        connecting: <Loader size={10} className="animate-spin" />,
+        error:      <AlertCircle size={10} />,
+        failed:     <WifiOff size={10} />,
+        idle:       <WifiOff size={10} />,
+    };
     return (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, color, fontSize: 10, fontWeight: 700 }}>
-            {icon}
-            <span style={{ textTransform: "capitalize" }}>{status}</span>
+        <span className={cn("flex items-center gap-1 text-[10px] font-bold capitalize", colorClass[status] ?? colorClass.idle)}>
+            {icons[status] ?? icons.idle}
+            <span>{status}</span>
         </span>
     );
 }
+
+// ─── Shared input/label class strings ─────────────────────────────────────────
+
+const inputCn = "w-full px-[10px] py-[6px] rounded-md bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs outline-none box-border";
+const labelCn = "text-[10px] font-bold text-zinc-500 uppercase tracking-[0.06em] block mb-1";
 
 // ─── Blank form ───────────────────────────────────────────────────────────────
 
@@ -51,7 +63,7 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
     const [form, setForm]       = useState<Omit<DataConnectorConfig, "id">>(BLANK);
     const [error, setError]     = useState<string | null>(null);
 
-    const openAdd = () => { setForm(BLANK); setEditId(null); setError(null); setAdding(true); };
+    const openAdd  = () => { setForm(BLANK); setEditId(null); setError(null); setAdding(true); };
     const openEdit = (c: DataConnectorConfig) => { setForm({ type: c.type, name: c.name, accountId: c.accountId }); setEditId(c.id); setError(null); setAdding(true); };
     const cancelForm = () => { setAdding(false); setEditId(null); setError(null); };
 
@@ -62,75 +74,49 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
         cancelForm();
     };
 
-    const inputStyle: React.CSSProperties = {
-        width: "100%", padding: "6px 10px", borderRadius: 6,
-        background: "#18181b", border: "1px solid #27272a",
-        color: "#e4e4e7", fontSize: 12, outline: "none",
-        boxSizing: "border-box",
-    };
-    const labelStyle: React.CSSProperties = {
-        fontSize: 10, fontWeight: 700, color: "#71717a",
-        textTransform: "uppercase", letterSpacing: "0.06em",
-        display: "block", marginBottom: 4,
-    };
-
     return (
-        <div style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(2px)",
-        }}>
-            <div style={{
-                background: "#111115", border: "1px solid #27272a", borderRadius: 14,
-                width: 480, maxHeight: "90vh", overflowY: "auto",
-                boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
-                fontFamily: "'Inter', system-ui, sans-serif",
-            }}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/[0.65] backdrop-blur-[2px]">
+            <div className="bg-[#111115] border border-zinc-800 rounded-[14px] w-[480px] max-h-[90vh] overflow-y-auto shadow-[0_32px_80px_rgba(0,0,0,0.7)]">
                 {/* Header */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px 12px", borderBottom: "1px solid #1e1e24" }}>
+                <div className="flex items-center justify-between px-[18px] pt-[14px] pb-3 border-b border-zinc-900">
                     <div>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: "#e4e4e7" }}>Data Connectors</div>
-                        <div style={{ fontSize: 11, color: "#71717a", marginTop: 2 }}>Configure live positions data sources</div>
+                        <div className="text-sm font-extrabold text-zinc-200">Data Connectors</div>
+                        <div className="text-[11px] text-zinc-500 mt-0.5">Configure live positions data sources</div>
                     </div>
-                    <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#52525b", display: "flex" }}>
+                    <button onClick={onClose} className="bg-transparent border-none cursor-pointer text-zinc-600 flex">
                         <X size={16} />
                     </button>
                 </div>
 
                 {/* Connector list */}
-                <div style={{ padding: "10px 18px" }}>
+                <div className="px-[18px] py-2.5">
                     {connectors.length === 0 && !adding && (
-                        <div style={{ textAlign: "center", padding: "24px 0", color: "#52525b", fontSize: 12 }}>
+                        <div className="text-center py-6 text-zinc-600 text-xs">
                             No connectors configured. Add one below.
                         </div>
                     )}
 
                     {connectors.map((c) => (
-                        <div key={c.id} style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            padding: "10px 12px", borderRadius: 8, marginBottom: 6,
-                            background: "#18181b", border: "1px solid #27272a",
-                        }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#e4e4e7" }}>{c.name}</span>
-                                    <span style={{
-                                        fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
-                                        background: c.type === "marex" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.15)",
-                                        color: c.type === "marex" ? "#818cf8" : "#4ade80",
-                                        border: `1px solid ${c.type === "marex" ? "rgba(99,102,241,0.3)" : "rgba(34,197,94,0.3)"}`,
-                                        textTransform: "uppercase",
-                                    }}>
+                        <div key={c.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg mb-1.5 bg-zinc-900 border border-zinc-800">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-[3px]">
+                                    <span className="text-xs font-bold text-zinc-200">{c.name}</span>
+                                    <span className={cn(
+                                        "text-[9px] font-bold px-1.5 py-px rounded uppercase border",
+                                        c.type === "marex"
+                                            ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
+                                            : "bg-green-500/15 text-green-400 border-green-500/30"
+                                    )}>
                                         {c.type}
                                     </span>
                                 </div>
-                                <div style={{ fontSize: 10, color: "#52525b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <div className="text-[10px] text-zinc-600 truncate">
                                     {NATIVE_CONNECTOR_URLS[c.type]} · acct {c.accountId}
                                 </div>
                             </div>
                             <StatusDot status={statuses[c.id] ?? "idle"} />
-                            <button onClick={() => openEdit(c)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#3b82f6", fontWeight: 700 }}>Edit</button>
-                            <button onClick={() => removeConnector(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#52525b", display: "flex" }}>
+                            <button onClick={() => openEdit(c)} className="bg-transparent border-none cursor-pointer text-[10px] text-blue-500 font-bold">Edit</button>
+                            <button onClick={() => removeConnector(c.id)} className="bg-transparent border-none cursor-pointer text-zinc-600 flex">
                                 <Trash2 size={13} />
                             </button>
                         </div>
@@ -138,60 +124,60 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
 
                     {/* Inline add/edit form */}
                     {adding ? (
-                        <div style={{ padding: "12px", borderRadius: 8, background: "#18181b", border: "1px solid #3b82f6", marginTop: 6 }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: "#93c5fd", marginBottom: 12 }}>
+                        <div className="p-3 rounded-lg bg-zinc-900 border border-blue-500 mt-1.5">
+                            <div className="text-[11px] font-extrabold text-blue-300 mb-3">
                                 {editId ? "Edit Connector" : "New Connector"}
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                            <div className="grid grid-cols-2 gap-2.5 mb-2.5">
                                 <div>
-                                    <label style={labelStyle}>Type</label>
+                                    <label className={labelCn}>Type</label>
                                     <select
                                         value={form.type}
                                         onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ConnectorType }))}
-                                        style={{ ...inputStyle }}
+                                        className={inputCn}
                                     >
                                         <option value="marex">Marex (Risk)</option>
                                         <option value="excel">Excel (Positions)</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Name (optional)</label>
+                                    <label className={labelCn}>Name (optional)</label>
                                     <input
                                         type="text" placeholder="e.g. Marex – Desk A"
                                         value={form.name}
                                         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                                        style={inputStyle}
+                                        className={inputCn}
                                     />
                                 </div>
                             </div>
 
-                            <div style={{ marginBottom: 10 }}>
-                                <label style={labelStyle}>WebSocket URL (native)</label>
-                                <div style={{ ...inputStyle, color: "#52525b", userSelect: "none" }}>
+                            <div className="mb-2.5">
+                                <label className={labelCn}>WebSocket URL (native)</label>
+                                <div className={cn(inputCn, "text-zinc-600 select-none")}>
                                     {NATIVE_CONNECTOR_URLS[form.type]}
                                 </div>
                             </div>
 
-                            <div style={{ marginBottom: 12 }}>
-                                <label style={labelStyle}>Account ID</label>
+                            <div className="mb-3">
+                                <label className={labelCn}>Account ID</label>
                                 <input
                                     type="text" placeholder="e.g. 22983"
                                     value={form.accountId}
                                     onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}
-                                    style={inputStyle}
+                                    className={inputCn}
                                 />
                             </div>
 
                             {error && (
-                                <div style={{ fontSize: 11, color: "#f87171", marginBottom: 10 }}>{error}</div>
+                                <div className="text-[11px] text-red-400 mb-2.5">{error}</div>
                             )}
 
-                            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                                <button onClick={cancelForm} style={{ padding: "5px 14px", borderRadius: 6, border: "1px solid #27272a", background: "transparent", color: "#71717a", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                            <div className="flex gap-2 justify-end">
+                                <button onClick={cancelForm} className="px-3.5 py-[5px] rounded-md border border-zinc-800 bg-transparent text-zinc-500 text-xs font-semibold cursor-pointer">
                                     Cancel
                                 </button>
-                                <button onClick={handleSave} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: "#3b82f6", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                                <button onClick={handleSave} className="px-3.5 py-[5px] rounded-md bg-blue-500 text-white text-xs font-bold cursor-pointer border-none">
                                     Save
                                 </button>
                             </div>
@@ -199,13 +185,7 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
                     ) : (
                         <button
                             onClick={openAdd}
-                            style={{
-                                display: "flex", alignItems: "center", gap: 6,
-                                width: "100%", padding: "8px 12px", marginTop: 6,
-                                borderRadius: 8, border: "1px dashed #27272a",
-                                background: "transparent", color: "#52525b",
-                                fontSize: 12, fontWeight: 600, cursor: "pointer",
-                            }}
+                            className="flex items-center gap-1.5 w-full px-3 py-2 mt-1.5 rounded-lg border border-dashed border-zinc-800 bg-transparent text-zinc-600 text-xs font-semibold cursor-pointer"
                         >
                             <Plus size={13} />
                             Add connector
@@ -213,9 +193,8 @@ export function ConnectorConfig({ statuses, onClose }: ConnectorConfigProps) {
                     )}
                 </div>
 
-                <div style={{ height: 10 }} />
+                <div className="h-2.5" />
             </div>
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }

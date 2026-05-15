@@ -3,11 +3,12 @@
 interface AppearanceField {
     prop: string;
     label: string;
-    type: "color" | "boolean" | "number" | "select";
+    type: "color" | "boolean" | "number" | "select" | "text";
     options?: { value: string; label: string }[];
     min?: number;
     max?: number;
     step?: number;
+    placeholder?: string;
     showWhen?: { prop: string; value: any };
 }
 
@@ -28,8 +29,76 @@ const WIDGET_APPEARANCE: Record<string, AppearanceField[]> = {
         { prop: "showYAxis", label: "Show Y Axis", type: "boolean" },
     ],
     LineChartWidget: [
+        // ── Series (first series) ──────────────────────────────────────────────
         { prop: "seriesColor", label: "Line Color", type: "color" },
         { prop: "seriesStrokeWidth", label: "Stroke Width", type: "number", min: 1, max: 8, step: 0.5 },
+        { prop: "seriesDasharray", label: "Dash Array (e.g. 4,4)", type: "text", placeholder: "4,4" },
+        { prop: "seriesFill", label: "Fill Area", type: "boolean" },
+        { prop: "seriesFillOpacity", label: "Fill Opacity", type: "number", min: 0, max: 1, step: 0.05, showWhen: { prop: "seriesFill", value: true } },
+        { prop: "seriesBullets", label: "Show Bullets", type: "boolean" },
+        { prop: "seriesStepped", label: "Step Line", type: "boolean" },
+        // ── Axes ──────────────────────────────────────────────────────────────
+        {
+            prop: "xAxisType",
+            label: "X Axis Type",
+            type: "select",
+            options: [
+                { value: "date", label: "Date" },
+                { value: "category", label: "Category" },
+                { value: "value", label: "Numeric" },
+            ],
+        },
+        {
+            prop: "baseTimeUnit",
+            label: "Time Unit",
+            type: "select",
+            options: [
+                { value: "millisecond", label: "Millisecond" },
+                { value: "second", label: "Second" },
+                { value: "minute", label: "Minute" },
+                { value: "hour", label: "Hour" },
+                { value: "day", label: "Day" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "year", label: "Year" },
+            ],
+            showWhen: { prop: "xAxisType", value: "date" },
+        },
+        { prop: "xAxisDateFormat", label: "Date Format (e.g. MM/dd)", type: "text", placeholder: "MM/dd", showWhen: { prop: "xAxisType", value: "date" } },
+        { prop: "xAxisLabel", label: "X Axis Label", type: "text", placeholder: "X axis" },
+        { prop: "yAxisLabel", label: "Y Axis Label", type: "text", placeholder: "Y axis" },
+        { prop: "yAxisMin", label: "Y Axis Min", type: "number", min: -1e9, max: 1e9, step: 1 },
+        { prop: "yAxisMax", label: "Y Axis Max", type: "number", min: -1e9, max: 1e9, step: 1 },
+        { prop: "dualYAxis", label: "Dual Y Axis", type: "boolean" },
+        { prop: "yAxisRightLabel", label: "Right Y Axis Label", type: "text", placeholder: "Right axis", showWhen: { prop: "dualYAxis", value: true } },
+        // ── Display ───────────────────────────────────────────────────────────
+        { prop: "showGridLines", label: "Show Grid Lines", type: "boolean" },
+        { prop: "showScrollbar", label: "Show Scrollbar", type: "boolean" },
+        { prop: "showLegend", label: "Show Legend", type: "boolean" },
+        {
+            prop: "legendPosition",
+            label: "Legend Position",
+            type: "select",
+            options: [
+                { value: "bottom", label: "Bottom" },
+                { value: "top", label: "Top" },
+                { value: "right", label: "Right" },
+            ],
+            showWhen: { prop: "showLegend", value: true },
+        },
+        {
+            prop: "cursorBehavior",
+            label: "Cursor Behavior",
+            type: "select",
+            options: [
+                { value: "none", label: "None" },
+                { value: "zoomX", label: "Zoom X" },
+                { value: "zoomY", label: "Zoom Y" },
+                { value: "zoomXY", label: "Zoom XY" },
+                { value: "selectX", label: "Select X" },
+            ],
+        },
+        { prop: "showRefreshButton", label: "Show Refresh Button", type: "boolean" },
     ],
     AreaChartWidget: [
         { prop: "lineColor", label: "Line Color", type: "color" },
@@ -64,14 +133,37 @@ const WIDGET_APPEARANCE: Record<string, AppearanceField[]> = {
     DataTableWidget: [],
 };
 
-// LineChartWidget uses a seriesConfig array. We flatten series[0].color / strokeWidth
-// into virtual keys seriesColor / seriesStrokeWidth for the editor, then re-pack on save.
+// LineChartWidget uses a seriesConfig array. We flatten series[0] fields into
+// virtual keys (seriesColor, seriesFill, etc.) for the editor, then re-pack on save.
 export function extractAppearanceValues(componentName: string, defaultProps: Record<string, any>): Record<string, any> {
     if (componentName === "LineChartWidget") {
         const s0 = (defaultProps.seriesConfig as any[])?.[0] || {};
         return {
-            seriesColor: s0.color ?? "#6366f1",
+            // series
+            seriesColor: s0.color ?? "#00998b",
             seriesStrokeWidth: s0.strokeWidth ?? 2,
+            seriesDasharray: s0.strokeDasharray ?? "",
+            seriesFill: s0.fill ?? false,
+            seriesFillOpacity: s0.fillOpacity ?? 0.15,
+            seriesBullets: s0.bullets ?? false,
+            seriesStepped: s0.stepped ?? false,
+            // axes
+            xAxisType: defaultProps.xAxisType ?? "date",
+            baseTimeUnit: defaultProps.baseTimeUnit ?? "day",
+            xAxisDateFormat: defaultProps.xAxisDateFormat ?? "",
+            xAxisLabel: defaultProps.xAxisLabel ?? "",
+            yAxisLabel: defaultProps.yAxisLabel ?? "",
+            yAxisMin: defaultProps.yAxisMin,
+            yAxisMax: defaultProps.yAxisMax,
+            dualYAxis: defaultProps.dualYAxis ?? false,
+            yAxisRightLabel: defaultProps.yAxisRightLabel ?? "",
+            // display
+            showGridLines: defaultProps.showGridLines ?? true,
+            showScrollbar: defaultProps.showScrollbar ?? false,
+            showLegend: defaultProps.showLegend,
+            legendPosition: defaultProps.legendPosition ?? "bottom",
+            cursorBehavior: defaultProps.cursorBehavior ?? "zoomX",
+            showRefreshButton: defaultProps.showRefreshButton ?? false,
         };
     }
     const fields = WIDGET_APPEARANCE[componentName] || [];
@@ -88,15 +180,41 @@ export function applyAppearanceToProps(
     baseProps: Record<string, any>
 ): Record<string, any> {
     if (componentName === "LineChartWidget") {
-        const existing = (baseProps.seriesConfig as any[])?.[0] || { name: "Series" };
-        return {
+        const existing = (baseProps.seriesConfig as any[])?.[0] || { name: "Series", valueField: "value" };
+        const updated: Record<string, any> = {
             ...baseProps,
             seriesConfig: [{
                 ...existing,
                 color: appearance.seriesColor ?? existing.color,
                 strokeWidth: appearance.seriesStrokeWidth ?? existing.strokeWidth,
+                strokeDasharray: appearance.seriesDasharray || undefined,
+                fill: appearance.seriesFill ?? existing.fill,
+                fillOpacity: appearance.seriesFillOpacity ?? existing.fillOpacity,
+                bullets: appearance.seriesBullets ?? existing.bullets,
+                stepped: appearance.seriesStepped ?? existing.stepped,
             }],
+            // axes
+            xAxisType: appearance.xAxisType ?? baseProps.xAxisType,
+            baseTimeUnit: appearance.baseTimeUnit ?? baseProps.baseTimeUnit,
+            xAxisDateFormat: appearance.xAxisDateFormat || undefined,
+            xAxisLabel: appearance.xAxisLabel || undefined,
+            yAxisLabel: appearance.yAxisLabel || undefined,
+            dualYAxis: appearance.dualYAxis ?? baseProps.dualYAxis,
+            yAxisRightLabel: appearance.yAxisRightLabel || undefined,
+            // display
+            showGridLines: appearance.showGridLines ?? baseProps.showGridLines,
+            showScrollbar: appearance.showScrollbar ?? baseProps.showScrollbar,
+            showLegend: appearance.showLegend,
+            legendPosition: appearance.legendPosition ?? baseProps.legendPosition,
+            cursorBehavior: appearance.cursorBehavior ?? baseProps.cursorBehavior,
+            showRefreshButton: appearance.showRefreshButton ?? baseProps.showRefreshButton,
         };
+        // Only set yAxisMin/Max if they have a value
+        if (appearance.yAxisMin !== undefined && appearance.yAxisMin !== "") updated.yAxisMin = Number(appearance.yAxisMin);
+        else delete updated.yAxisMin;
+        if (appearance.yAxisMax !== undefined && appearance.yAxisMax !== "") updated.yAxisMax = Number(appearance.yAxisMax);
+        else delete updated.yAxisMax;
+        return updated;
     }
     return { ...baseProps, ...appearance };
 }
@@ -201,6 +319,16 @@ export default function AppearanceEditor({ componentName, values, onChange }: Pr
                                     <option key={o.value} value={o.value}>{o.label}</option>
                                 ))}
                             </select>
+                        )}
+
+                        {f.type === "text" && (
+                            <input
+                                type="text"
+                                value={values[f.prop] ?? ""}
+                                onChange={(e) => set(f.prop, e.target.value)}
+                                placeholder={f.placeholder ?? ""}
+                                className="w-full text-sm bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-blue-500"
+                            />
                         )}
                     </div>
                 );

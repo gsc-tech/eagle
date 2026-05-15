@@ -44,14 +44,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     return (
         <div className="min-h-screen w-full flex items-center justify-center bg-background relative overflow-hidden">
             {/* Background dot grid */}
-            <div
-                className="absolute inset-0 opacity-[0.04] pointer-events-none"
-                style={{
-                    backgroundImage:
-                        "radial-gradient(circle, currentColor 1px, transparent 1px)",
-                    backgroundSize: "28px 28px",
-                }}
-            />
+            <div className="absolute inset-0 opacity-[0.04] pointer-events-none [background-image:radial-gradient(circle,currentColor_1px,transparent_1px)] [background-size:28px_28px]" />
             {/* Ambient glow */}
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -72,10 +65,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                                 className="w-full h-full object-contain hidden dark:block"
                             />
                         </div>
-                        <h1 
-                            className="text-3xl font-[800] text-foreground"
-                            style={{ fontFamily: "'Raleway', sans-serif", letterSpacing: "-0.02em" }}
-                        >
+                        <h1 className="text-3xl font-[800] text-foreground [font-family:'Raleway',sans-serif] [letter-spacing:-0.02em]">
                             Project Eagle
                         </h1>
                         <p className="text-sm text-muted-foreground mt-1">

@@ -30,9 +30,9 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
         deltaField = "delta",
         positiveColor = "#00C853",
         negativeColor = "#FF1744",
-        neutralColor = darkMode ? "#9CA3AF" : "#9CA3AF",
-        backgroundColor = darkMode ? "#1f2937" : "#ffffff",
-        textColor = darkMode ? "#f3f4f6" : "#111827",
+        neutralColor = "#9CA3AF",
+        backgroundColor,
+        textColor,
         itemsPerRow = 3,
         showDelta = true,
         parameters,
@@ -86,20 +86,16 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
         >
             <div
                 className="w-full h-full overflow-auto p-4"
-                style={{ backgroundColor }}
+                style={backgroundColor ? { backgroundColor } : undefined}
             >
                 {processedData.length === 0 ? (
-                    <div
-                        className="flex flex-col items-center justify-center h-full text-text-muted animate-pulse"
-                    >
+                    <div className="flex flex-col items-center justify-center h-full text-text-muted animate-pulse">
                         <span>No data available</span>
                     </div>
                 ) : (
                     <div
                         className="grid gap-3"
-                        style={{
-                            gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`
-                        }}
+                        style={{ gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))` }}
                     >
                         {processedData.map((item, index) => {
                             const deltaValue = parseFloat(item.delta);
@@ -119,24 +115,18 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
                             return (
                                 <div
                                     key={index}
-                                    className={`flex flex-col p-4 rounded-xl border shadow-sm hover:shadow-premium-hover transition-all duration-300 group cursor-default ${darkMode
-                                        ? 'bg-gray-800 border-gray-700'
-                                        : 'bg-bg-card border-border-light'
-                                        }`}
-                                    style={{
-                                        backgroundColor: (backgroundColor === '#ffffff' || backgroundColor === '#1f2937') ? undefined : backgroundColor, // Use class bg if default
-                                    }}
+                                    className="flex flex-col p-4 rounded-xl border shadow-sm hover:shadow-premium-hover transition-all duration-300 group cursor-default bg-bg-card dark:bg-[#1a1a1a] border-border-light dark:border-[#2e2e2e]"
                                 >
                                     <div
-                                        className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 truncate group-hover:text-chart-primary dark:group-hover:text-gray-100 transition-colors"
+                                        className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 truncate group-hover:text-chart-primary dark:group-hover:text-[#f5f5f5] transition-colors"
                                         title={item.label}
                                     >
                                         {item.label}
                                     </div>
                                     <div className="flex items-end justify-between gap-2">
                                         <div
-                                            className="text-2xl font-bold tracking-tight truncate leading-none"
-                                            style={{ color: textColor }}
+                                            className="text-2xl font-bold tracking-tight truncate leading-none text-gray-900 dark:text-[#f5f5f5]"
+                                            style={textColor ? { color: textColor } : undefined}
                                             title={String(item.value)}
                                         >
                                             {item.value}
@@ -147,7 +137,7 @@ export const MetricWidget: React.FC<MetricWidgetProps & { darkMode?: boolean }> 
                                                 className="flex items-center text-xs font-bold px-1.5 py-0.5 rounded-full bg-opacity-10"
                                                 style={{
                                                     color: deltaColor,
-                                                    backgroundColor: `${deltaColor}15` // 15% opacity hex
+                                                    backgroundColor: `${deltaColor}15`,
                                                 }}
                                             >
                                                 <DeltaIcon size={12} className="mr-0.5 stroke-[3px]" />

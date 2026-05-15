@@ -63,15 +63,15 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
     return (
         <div
             className={`w-full h-full border overflow-hidden flex flex-col shadow-premium transition-all duration-300 hover:shadow-premium-hover ${darkMode
-                ? 'dark bg-[#1f2937] border-gray-700 text-gray-100'
+                ? 'dark bg-[#1a1a1a] border-[#2e2e2e] text-[#f0f0f0]'
                 : 'bg-white border-border-light text-text-primary'
                 }`}
         >
             {hasTitleOrParams && (
-                <div className={`${darkMode ? 'bg-[#1f2937]' : 'bg-white'} shrink-0`}>
+                <div className={`${darkMode ? 'bg-[#141414]' : 'bg-white'} shrink-0`}>
                     <div className="drag-handle flex items-center gap-3 px-3 py-2">
                         {title && (
-                            <h3 className={`text-sm font-semibold whitespace-nowrap shrink-0 ${darkMode ? 'text-gray-100' : 'text-text-primary'}`}>
+                            <h3 className={`text-sm font-semibold whitespace-nowrap shrink-0 ${darkMode ? 'text-[#f0f0f0]' : 'text-text-primary'}`}>
                                 {title}
                             </h3>
                         )}
@@ -103,7 +103,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                     const currentSourceId = dataBindings?.find((b) => b.slotId === slot.id)?.sourceId ?? '';
                                     return (
                                         <label key={slot.id} className="flex items-center gap-1 pointer-events-auto">
-                                            <span className={`text-xs font-medium whitespace-nowrap ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            <span className={`text-xs font-medium whitespace-nowrap ${darkMode ? 'text-[#909090]' : 'text-gray-500'}`}>
                                                 {slot.label}:
                                             </span>
                                             <select
@@ -111,7 +111,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                                 onChange={(e) => handleSlotChange(slot.id, e.target.value || null)}
                                                 className={`text-xs border rounded px-1.5 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400 ${
                                                     darkMode
-                                                        ? 'bg-gray-700 border-gray-600 text-gray-100'
+                                                        ? 'bg-[#222222] border-[#333333] text-[#f0f0f0]'
                                                         : 'bg-white border-gray-300 text-gray-700'
                                                 }`}
                                             >
@@ -136,7 +136,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                         onClick={handleRefresh}
                                         title="Refresh data"
                                         className={`p-1.5 rounded-md transition-colors ${darkMode
-                                            ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                                            ? 'text-[#909090] hover:text-[#f0f0f0] hover:bg-[#252525]'
                                             : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                                         }`}
                                     >
@@ -150,19 +150,13 @@ export const WidgetContainer: React.FC<WidgetContainerProps & { darkMode?: boole
                                             strokeWidth={2.5}
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
-                                            style={isSpinning ? { animation: 'widget-spin 0.6s linear' } : undefined}
+                                            className={isSpinning ? "animate-widget-spin" : ""}
                                         >
                                             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
                                             <path d="M21 3v5h-5" />
                                             <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
                                             <path d="M8 16H3v5" />
                                         </svg>
-                                        <style>{`
-                                            @keyframes widget-spin {
-                                                from { transform: rotate(0deg); }
-                                                to   { transform: rotate(360deg); }
-                                            }
-                                        `}</style>
                                     </button>
                                 )}
                             </div>

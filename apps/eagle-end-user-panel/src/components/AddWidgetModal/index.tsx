@@ -3,6 +3,7 @@ import { X, ChevronRight } from "lucide-react";
 import { useCsvDataStore, type CsvDataset } from "@/store/csvDataStore";
 import type { FormulaStep } from "@/lib/formulaEngine";
 import type { LocalDataConfig } from "@/components/dashboard-renderer/types";
+import AppearanceEditor, { applyAppearanceToProps, extractAppearanceValues } from "@/components/EditWidgetModal/AppearanceEditor";
 import { CURATED_WIDGETS } from "./widgetTypes";
 import StepSelectWidget from "./StepSelectWidget";
 import StepCsvUpload from "./StepCsvUpload";
@@ -19,7 +20,7 @@ interface Props {
     }) => void;
 }
 
-const STEPS = ["Select Widget", "Load Data", "Transform", "Map Fields"];
+const STEPS = ["Select Widget", "Load Data", "Transform", "Map Fields", "Appearance"];
 
 export default function AddWidgetModal({ onClose, onAdd }: Props) {
     const [step, setStep] = useState(0);
@@ -29,6 +30,7 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
     const [formulaSteps, setFormulaSteps] = useState<FormulaStep[]>([]);
     const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
     const [widgetTitle, setWidgetTitle] = useState("");
+    const [appearanceValues, setAppearanceValues] = useState<Record<string, unknown>>({});
 
     const { datasets, addDataset, removeDataset, saveFormulas } = useCsvDataStore();
     const existingDatasets = Object.values(datasets);
@@ -47,10 +49,23 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
         return [...activeDataset.headers, ...computed];
     }, [activeDataset, formulaSteps]);
 
+    // When the user reaches the Appearance step, seed defaults based on any
+    // field mapping already chosen (e.g. seriesValueField → seriesConfig[0]).
+    const seedAppearanceDefaults = (component: string, mapping: Record<string, string>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const baseProps: Record<string, any> = {};
+        if (component === "LineChartWidget") {
+            baseProps.seriesConfig = [{ name: "Series", valueField: mapping.seriesValueField ?? "value", color: "#00998b", strokeWidth: 2 }];
+            if (mapping.dateField) baseProps.dateField = mapping.dateField;
+            baseProps.xAxisType = "category";
+        }
+        setAppearanceValues(extractAppearanceValues(component, baseProps));
+    };
+
     const isStepValid = (): boolean => {
         if (step === 0) return !!selectedComponent;
         if (step === 1) return !!activeDataset;
-        if (step === 2) return true; // formula step is always optional
+        if (step === 2) return true;
         if (step === 3) {
             if (!selectedComponent) return false;
             const requiredFields = (WIDGET_FIELDS[selectedComponent] || [])
@@ -58,10 +73,14 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                 .map((f) => f.field);
             return requiredFields.every((f) => !!fieldMapping[f]);
         }
+        if (step === 4) return true;
         return true;
     };
 
     const handleNext = () => {
+        if (step === 3 && selectedComponent) {
+            seedAppearanceDefaults(selectedComponent, fieldMapping);
+        }
         if (step < STEPS.length - 1) {
             setStep((s) => s + 1);
         } else {
@@ -72,7 +91,6 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
     const handleConfirm = () => {
         if (!selectedComponent || !activeDataset) return;
 
-        // Persist dataset if it's newly uploaded
         if (pendingDataset) {
             addDataset(pendingDataset);
         }
@@ -85,12 +103,12 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
             fieldMapping,
         };
 
-        // Build widget-specific defaultProps from fieldMapping
+        // Build base props from field mapping then apply appearance on top
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const widgetDefaultProps: Record<string, any> = {};
+        let widgetDefaultProps: Record<string, any> = {};
         if (selectedComponent === "LineChartWidget" && fieldMapping.seriesValueField) {
             widgetDefaultProps.seriesConfig = [
-                { name: "Series", valueField: fieldMapping.seriesValueField, color: "#6366f1", strokeWidth: 2 },
+                { name: "Series", valueField: fieldMapping.seriesValueField, color: "#00998b", strokeWidth: 2 },
             ];
             if (fieldMapping.dateField) widgetDefaultProps.dateField = fieldMapping.dateField;
             widgetDefaultProps.xAxisType = "category";
@@ -99,6 +117,8 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                 widgetDefaultProps[widgetField] = colName;
             });
         }
+
+        widgetDefaultProps = applyAppearanceToProps(selectedComponent, appearanceValues as Record<string, unknown>, widgetDefaultProps);
 
         onAdd({
             componentName: selectedComponent,
@@ -131,13 +151,11 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div
-                className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-zinc-700 shadow-2xl"
-                style={{ background: "#111113" }}
+                className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-zinc-700 shadow-2xl bg-[#111113]"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800">
@@ -156,7 +174,7 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                 </div>
 
                 {/* Step bar */}
-                <div className="flex items-center gap-0 px-6 pt-5 pb-3">
+                <div className="flex items-center gap-0 px-6 pt-5 pb-3 overflow-x-auto">
                     {STEPS.map((label, i) => (
                         <div key={i} className="flex items-center">
                             <div className="flex items-center gap-2">
@@ -172,7 +190,7 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                                     {i < step ? "✓" : i + 1}
                                 </div>
                                 <span
-                                    className={`text-xs font-medium ${
+                                    className={`text-xs font-medium whitespace-nowrap ${
                                         i === step ? "text-blue-400" : i < step ? "text-zinc-300" : "text-zinc-600"
                                     }`}
                                 >
@@ -219,6 +237,13 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                             widgetTitle={widgetTitle}
                             onMappingChange={setFieldMapping}
                             onTitleChange={setWidgetTitle}
+                        />
+                    )}
+                    {step === 4 && selectedComponent && (
+                        <AppearanceEditor
+                            componentName={selectedComponent}
+                            values={appearanceValues as Record<string, unknown>}
+                            onChange={setAppearanceValues}
                         />
                     )}
                 </div>

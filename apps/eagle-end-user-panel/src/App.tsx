@@ -4,10 +4,17 @@ import LoginPage from "@/pages/login";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./index.css";
+import { useFirebaseToken } from "@/hooks/useFirebaseToken";
 
-// Apply saved theme on startup
-const savedTheme = localStorage.getItem("theme") || "dark";
-document.documentElement.classList.add(savedTheme);
+// Apply saved theme before first render to avoid flash-of-wrong-theme.
+// Reads the Zustand-persisted state directly since the store hasn't hydrated yet.
+try {
+    const persisted = JSON.parse(localStorage.getItem("eagle-theme") || "{}");
+    const isDark = persisted?.state?.isDark ?? true;
+    document.documentElement.classList.add(isDark ? "dark" : "light");
+} catch {
+    document.documentElement.classList.add("dark");
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(

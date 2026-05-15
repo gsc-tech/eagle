@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import ReactGridLayout, { useContainerWidth } from "react-grid-layout";
 import { verticalCompactor } from "react-grid-layout/core";
@@ -7,6 +7,7 @@ import "react-resizable/css/styles.css";
 import type { LayoutItem } from "./types";
 import { GRID_COLS, GRID_ROW_HEIGHT, GRID_MARGIN } from "./types";
 import WidgetRenderer from "./WidgetRenderer";
+import { WidgetOverlayButton } from "./WidgetOverlayButton";
 import type { Layout } from "react-grid-layout";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 
@@ -50,15 +51,6 @@ export default function DashboardCanvas({
     onSaveWorkbook,
 }: DashboardCanvasProps) {
     const [layoutItems, setLayoutItems] = useState<LayoutItem[]>(initialLayout || []);
-
-    // Track theme for dark-mode-aware hover colours
-    const [isDark, setIsDark] = useState(() => (localStorage.getItem("theme") || "dark") === "dark");
-    useEffect(() => {
-        const sync = () => setIsDark((localStorage.getItem("theme") || "dark") === "dark");
-        window.addEventListener("storage", sync);
-        window.addEventListener("theme-change", sync);
-        return () => { window.removeEventListener("storage", sync); window.removeEventListener("theme-change", sync); };
-    }, []);
 
     /** key = widget id, value = original h before minimizing */
     const [savedHeights, setSavedHeights] = useState<Record<string, number>>({});
@@ -199,53 +191,24 @@ export default function DashboardCanvas({
                                 >
                                     {/* Edit button — only for user-added (CSV) widgets */}
                                     {item.widget?.defaultProps?.localDataConfig && onEditWidget && (
-                                        <button
+                                        <WidgetOverlayButton
                                             title="Edit widget"
+                                            variant="accent"
                                             onClick={(e) => { e.stopPropagation(); onEditWidget(item.i); }}
-                                            style={{
-                                                position: "absolute", top: 10, right: 36, zIndex: 20,
-                                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                                width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
-                                                background: "transparent", cursor: "pointer",
-                                                color: isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)",
-                                                transition: "background 0.15s, color 0.15s",
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = isDark ? "rgba(99,102,241,0.2)" : "rgba(99,102,241,0.1)";
-                                                e.currentTarget.style.color = "#818cf8";
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.background = "transparent";
-                                                e.currentTarget.style.color = isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)";
-                                            }}
+                                            className="absolute top-[10px] right-[36px] z-20"
                                         >
                                             <Pencil size={13} />
-                                        </button>
+                                        </WidgetOverlayButton>
                                     )}
 
                                     {/* Minimize / Restore button */}
-                                    <button
+                                    <WidgetOverlayButton
                                         title={isMinimized ? "Restore widget" : "Minimize widget"}
                                         onClick={(e) => { e.stopPropagation(); toggleMinimize(item.i); }}
-                                        style={{
-                                            position: "absolute", top: 10, right: 10, zIndex: 20,
-                                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                            width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
-                                            background: "transparent", cursor: "pointer",
-                                            color: isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)",
-                                            transition: "background 0.15s, color 0.15s",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.07)";
-                                            e.currentTarget.style.color = isDark ? "#f9fafb" : "#111827";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = "transparent";
-                                            e.currentTarget.style.color = isDark ? "rgba(156,163,175,0.85)" : "rgba(107,114,128,0.8)";
-                                        }}
+                                        className="absolute top-[10px] right-[10px] z-20"
                                     >
                                         {isMinimized ? <ExpandIcon /> : <CompressIcon />}
-                                    </button>
+                                    </WidgetOverlayButton>
 
                                     <WidgetRenderer
                                         dashboardId={dashboardId}
