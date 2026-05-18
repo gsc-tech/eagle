@@ -1003,7 +1003,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     }, [limitsData, dataKeys, productOptionsFutures, productOptionsOptions, accountNumbersOptions]);
 
     const handleAddNewRow = () => {
-        setNewRows(prev => [...prev, Date.now()]);
+        setNewRows(prev => [Date.now(), ...prev]);
     };
 
     const handleRemoveNewRow = (id: number) => {
@@ -1542,23 +1542,6 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                             </tr>
                         </thead>
                         <tbody>
-                            {/* Existing Rows */}
-                            {paginatedLimitsData.map(({ row, originalIdx }) => (
-                                <TableRow
-                                    key={`existing-${originalIdx}`}
-                                    data={row}
-                                    columns={dataKeys}
-                                    darkMode={darkMode}
-                                    resolvedLimitField={resolvedLimitField}
-                                    colorizeNumeric={colorizeNumeric}
-                                    onSubmit={handleSubmit}
-                                    showRequestCols={showRequestCols}
-                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${originalIdx}`]: s }))}
-                                    readOnly={readOnly}
-                                    activeTab={activeTab}
-                                />
-                            ))}
-
                             {/* New Rows */}
                             {newRows.map((rid) => (
                                 <TableRow
@@ -1576,6 +1559,23 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
                                     readOnly={readOnly}
                                     productOptions={activeTab == 'Future' ? productOptionsFutures : productOptionsOptions}
+                                    activeTab={activeTab}
+                                />
+                            ))}
+
+                            {/* Existing Rows */}
+                            {paginatedLimitsData.map(({ row, originalIdx }) => (
+                                <TableRow
+                                    key={`existing-${originalIdx}`}
+                                    data={row}
+                                    columns={dataKeys}
+                                    darkMode={darkMode}
+                                    resolvedLimitField={resolvedLimitField}
+                                    colorizeNumeric={colorizeNumeric}
+                                    onSubmit={handleSubmit}
+                                    showRequestCols={showRequestCols}
+                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${originalIdx}`]: s }))}
+                                    readOnly={readOnly}
                                     activeTab={activeTab}
                                 />
                             ))}
