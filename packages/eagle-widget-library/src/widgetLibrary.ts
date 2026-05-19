@@ -1,3 +1,4 @@
+import type { WidgetDefinition } from "./types";
 import { AmCandlestickChartWidgetDef } from "./widgets/AmCandlestickChartWidget";
 import { BarChartWidgetDef } from "./widgets/BarChartWidget";
 import { DataTableWidgetDef } from "./widgets/DataTableWidget";
@@ -31,7 +32,7 @@ import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsV
 import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
 import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
 
-export const widgetLibrary = {
+export const widgetLibrary: Record<string, WidgetDefinition> = {
     AmBarChartWidget: AmBarChartWidgetDef,
     AmCandlestickChartWidget: AmCandlestickChartWidgetDef,
     AreaChartWidget: AreaChartWidgetDef,

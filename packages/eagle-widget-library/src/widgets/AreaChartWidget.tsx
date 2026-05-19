@@ -33,6 +33,7 @@ export const AreaChartWidget: React.FC<AreaChartWidgetProps & { darkMode?: boole
     groupedParametersValues,
     initialWidgetState,
     onWidgetStateChange,
+    staticData,
 }) => {
     const rootRef = useRef<any>(null);
     const chartRef = useRef<any>(null);
@@ -54,6 +55,7 @@ export const AreaChartWidget: React.FC<AreaChartWidgetProps & { darkMode?: boole
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
     const handleParametersChange = (values: ParameterValues) => {

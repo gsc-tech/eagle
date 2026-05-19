@@ -1,9 +1,13 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import type { LayoutItem } from "./types";
 import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
+import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
-import { getAuth } from "firebase/auth";
+import { useCsvDataStore } from "@/store/csvDataStore";
+import { useThemeStore } from "@/store/themeStore";
+import { useFirebaseToken } from "@/hooks/useFirebaseToken";
+import { applyFormulas } from "@/lib/formulaEngine";
 
 interface WidgetRendererProps {
     dashboardId: string;
@@ -35,24 +39,7 @@ export default function WidgetRenderer({
     // console.log("workbook inside widget renderer", initialWorkbookData);
 
     // ── Theme ──────────────────────────────────────────────────────────────────
-    const [theme, setTheme] = useState<string>(
-        () => localStorage.getItem("theme") || "dark"
-    );
-
-    useEffect(() => {
-        const handleThemeChange = () => {
-            const newTheme = localStorage.getItem("theme") || "dark";
-            setTheme(newTheme);
-        };
-
-        window.addEventListener("storage", handleThemeChange);
-        window.addEventListener("theme-change", handleThemeChange);
-
-        return () => {
-            window.removeEventListener("storage", handleThemeChange);
-            window.removeEventListener("theme-change", handleThemeChange);
-        };
-    }, []);
+    const isDark = useThemeStore((s) => s.isDark);
 
     // ── Grouped params (Zustand) ───────────────────────────────────────────────
     // Read the whole map so every widget re-renders when any group changes.
@@ -74,23 +61,24 @@ export default function WidgetRenderer({
     );
 
     // ── Widget component lookup ────────────────────────────────────────────────
-    const WidgetComponent = useMemo(() => {
-        const entry =
-            widgetLibrary[widget?.componentName as keyof typeof widgetLibrary];
-        return entry?.component;
-    }, [widget?.componentName]);
+    const widgetEntry = useMemo(
+        () => widgetLibrary[widget?.componentName as keyof typeof widgetLibrary],
+        [widget?.componentName]
+    );
+    const WidgetComponent = widgetEntry?.component;
+    const hostBindings = widgetEntry?.hostBindings;
 
-    const getFirebaseToken = useCallback(async () => {
-        try {
-            const auth = getAuth();
-            if (auth?.currentUser) {
-                return await auth.currentUser.getIdToken(true);
-            }
-        } catch (err) {
-            console.error("[WidgetRenderer] Failed to get robust firebase token", err);
-        }
-        return "";
-    }, []);
+    const getFirebaseToken = useFirebaseToken();
+
+    // ── Local CSV data injection ───────────────────────────────────────────────
+    const getDataset = useCsvDataStore((s) => s.getDataset);
+    const localDataConfig = widget?.defaultProps?.localDataConfig;
+    const resolvedStaticData = useMemo(() => {
+        if (!localDataConfig) return undefined;
+        const dataset = getDataset(localDataConfig.datasetId);
+        if (!dataset) return undefined;
+        return applyFormulas(dataset.rows, localDataConfig.formulaSteps || []);
+    }, [localDataConfig, getDataset]);
 
     if (!WidgetComponent) {
         return (
@@ -113,10 +101,10 @@ export default function WidgetRenderer({
     }, [widget?.defaultProps]);
 
     const initialParameterValues = useMemo(() => {
-        if (widget?.componentName !== "SheetWidget") return EMPTY_OBJ;
-        if (!initialWorkbookData?.parameters) return widget.defaultProps?.initialParameterValues || EMPTY_OBJ;
+        if (!hostBindings?.needsWorkbookSnapshot) return EMPTY_OBJ;
+        if (!initialWorkbookData?.parameters) return widget?.defaultProps?.initialParameterValues || EMPTY_OBJ;
         return initialWorkbookData.parameters.reduce((acc: any, curr: any) => ({ ...acc, ...curr }), {});
-    }, [widget?.componentName, initialWorkbookData?.parameters, widget?.defaultProps?.initialParameterValues]);
+    }, [hostBindings?.needsWorkbookSnapshot, initialWorkbookData?.parameters, widget?.defaultProps?.initialParameterValues]);
 
     const handleSave = useCallback((snapshot: Record<string, any>, parameters?: any[]) => {
         if (onSaveWorkbook) {
@@ -126,26 +114,27 @@ export default function WidgetRenderer({
 
     return (
         <div className="h-full w-full overflow-hidden flex flex-col">
-            <WidgetComponent
-                {...otherDefaultProps}
-                id={layoutItem.i}
-                title={widget?.name}
-                darkMode={theme === "dark"}
-                groupedParametersValues={groupedParametersValues}
-                onGroupedParametersChange={handleGroupedParametersChange}
-                initialWidgetState={widgetState}
-                onWidgetStateChange={handleWidgetStateChange}
-                // SheetWidget-specific: load saved snapshot and persist on close
-                {...(widget?.defaultProps?.isTokenRequired && {
-                    getFirebaseToken,
-                })}
-                {...(widget?.componentName === "SheetWidget" && {
-                    initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
-                    initialParameterValues,
-                    getFirebaseToken,
-                    onSave: handleSave
-                })}
-            />
+            <WidgetErrorBoundary widgetName={widget?.componentName}>
+                <WidgetComponent
+                    {...otherDefaultProps}
+                    id={layoutItem.i}
+                    title={widget?.name}
+                    darkMode={isDark}
+                    groupedParametersValues={groupedParametersValues}
+                    onGroupedParametersChange={handleGroupedParametersChange}
+                    initialWidgetState={widgetState}
+                    onWidgetStateChange={handleWidgetStateChange}
+                    {...(resolvedStaticData !== undefined && { staticData: resolvedStaticData })}
+                    // Per-instance token injection: set via defaultProps.isTokenRequired in dev console
+                    {...(widget?.defaultProps?.isTokenRequired && { getFirebaseToken })}
+                    // Host-binding: workbook snapshot injection (declared in widget definition)
+                    {...(hostBindings?.needsWorkbookSnapshot && {
+                        initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
+                        initialParameterValues,
+                        onSave: handleSave,
+                    })}
+                />
+            </WidgetErrorBoundary>
         </div>
     );
 }

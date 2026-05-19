@@ -37,6 +37,7 @@ export const ScatterPlotWidget: React.FC<ScatterPlotWidgetProps & { darkMode?: b
     onGroupedParametersChange,
     initialWidgetState,
     onWidgetStateChange,
+    staticData,
 }) => {
     const rootRef = useRef<any>(null);
     const chartRef = useRef<any>(null);
@@ -58,6 +59,7 @@ export const ScatterPlotWidget: React.FC<ScatterPlotWidgetProps & { darkMode?: b
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
     const handleParametersChange = (values: ParameterValues) => {

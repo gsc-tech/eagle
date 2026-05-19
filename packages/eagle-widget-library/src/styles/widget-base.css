@@ -1,0 +1,38 @@
+/* ── Thin scrollbar ── used by calendar widgets, sidebar lists */
+.widget-scrollbar::-webkit-scrollbar        { width: 4px; height: 4px; }
+.widget-scrollbar::-webkit-scrollbar-track  { background: transparent; }
+.widget-scrollbar::-webkit-scrollbar-thumb  { background: #d1d5db; border-radius: 9999px; }
+.dark .widget-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
+
+/* ── Chunky scrollbar ── DataTableWidget */
+.chunky-scrollbar::-webkit-scrollbar        { width: 15px !important; height: 15px !important; }
+.chunky-scrollbar::-webkit-scrollbar-track  { background: #f1f5f9; }
+.dark .chunky-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+.chunky-scrollbar::-webkit-scrollbar-thumb  { background: #a1a1aa; border-radius: 6px; border: 3px solid #f1f5f9; background-clip: padding-box; }
+.dark .chunky-scrollbar::-webkit-scrollbar-thumb { background: #6b7280; border-color: #1f2937; }
+.chunky-scrollbar::-webkit-scrollbar-thumb:hover { background: #71717a; }
+.dark .chunky-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── DataTableWidget: AG Grid chunky scrollbar height override */
+.chunky-grid .ag-body-horizontal-scroll,
+.chunky-grid .ag-body-horizontal-scroll-viewport,
+.chunky-grid .ag-body-horizontal-scroll-container,
+.chunky-grid .ag-horizontal-left-spacer,
+.chunky-grid .ag-horizontal-right-spacer { height: 15px !important; min-height: 15px !important; max-height: 15px !important; }
+.chunky-grid ::-webkit-scrollbar { width: 15px !important; height: 15px !important; }
+
+/* ── DataTableWidget: AG Grid header alignment */
+.centered-header .ag-header-cell-label,
+.centered-header .ag-header-group-cell-label { justify-content: center !important; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── TraderLimits: row hover effect */
+.tlr-row:hover { background: rgba(0,153,139,0.06) !important; box-shadow: inset 3px 0 0 #00998b; }
+
+/* ── Form controls: remove browser spinners */
+.tlr-no-spinner::-webkit-inner-spin-button,
+.tlr-no-spinner::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tlr-no-spinner { -moz-appearance: textfield; }
+
+/* ── Select: remove native arrow */
+select.tlr-select { -webkit-appearance: none !important; -moz-appearance: none !important; appearance: none !important; }

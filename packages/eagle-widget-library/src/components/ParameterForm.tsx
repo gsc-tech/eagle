@@ -118,17 +118,17 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
     });
 
 
-    const bg          = darkMode ? '#111827' : '#ffffff';
-    const border      = darkMode ? '#374151' : '#e5e7eb';
-    const text        = darkMode ? '#e5e7eb' : '#111827';
-    const subtext     = darkMode ? '#6b7280' : '#9ca3af';
-    const hoverBg     = darkMode ? '#1f2937' : '#f3f4f6';
+    const bg          = darkMode ? '#141414' : '#ffffff';
+    const border      = darkMode ? '#2e2e2e' : '#e5e7eb';
+    const text        = darkMode ? '#f0f0f0' : '#111827';
+    const subtext     = darkMode ? '#909090' : '#9ca3af';
+    const hoverBg     = darkMode ? '#222222' : '#f3f4f6';
     const pillBg      = darkMode ? '#1e3a5f' : '#dbeafe';
     const pillText    = darkMode ? '#93c5fd' : '#1d4ed8';
-    const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
-    const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
-    const searchBg    = darkMode ? '#1f2937' : '#f9fafb';
-    const searchBdr   = darkMode ? '#374151' : '#e5e7eb';
+    const triggerBg   = darkMode ? '#1e1e1e' : 'rgba(255,255,255,0.6)';
+    const triggerBdr  = darkMode ? '#2e2e2e' : '#d1d5db';
+    const searchBg    = darkMode ? '#1e1e1e' : '#f9fafb';
+    const searchBdr   = darkMode ? '#2e2e2e' : '#e5e7eb';
 
     const hasFetched = useRef(false);
 
@@ -371,7 +371,7 @@ function MultiSelectDropdown({ param, value, darkMode, onChange, isTokenRequired
                                     <span style={{
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                                        border: `1.5px solid ${isChecked ? '#3b82f6' : (darkMode ? '#4b5563' : '#d1d5db')}`,
+                                        border: `1.5px solid ${isChecked ? '#3b82f6' : (darkMode ? '#3a3a3a' : '#d1d5db')}`,
                                         background: isChecked ? '#3b82f6' : 'transparent',
                                         transition: 'all 0.12s',
                                     }}>
@@ -428,13 +428,13 @@ function SingleSelectDropdown({ param, value, darkMode, onChange }: SingleSelect
         top: 0, left: 0, width: 180,
     });
 
-    const bg          = darkMode ? '#111827' : '#ffffff';
-    const border      = darkMode ? '#374151' : '#e5e7eb';
-    const text        = darkMode ? '#e5e7eb' : '#111827';
-    const subtext     = darkMode ? '#6b7280' : '#9ca3af';
-    const hoverBg     = darkMode ? '#1f2937' : '#f3f4f6';
-    const triggerBg   = darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)';
-    const triggerBdr  = darkMode ? '#374151' : '#d1d5db';
+    const bg          = darkMode ? '#141414' : '#ffffff';
+    const border      = darkMode ? '#2e2e2e' : '#e5e7eb';
+    const text        = darkMode ? '#f0f0f0' : '#111827';
+    const subtext     = darkMode ? '#909090' : '#9ca3af';
+    const hoverBg     = darkMode ? '#222222' : '#f3f4f6';
+    const triggerBg   = darkMode ? '#1e1e1e' : 'rgba(255,255,255,0.6)';
+    const triggerBdr  = darkMode ? '#2e2e2e' : '#d1d5db';
 
     const options  = param.options ?? [];
 
@@ -679,13 +679,13 @@ function GroupPopover({
         return () => document.removeEventListener('mousedown', handleMouseDown);
     }, [onClose, triggerRef]);
 
-    const bg = darkMode ? '#111827' : '#ffffff';
-    const border = darkMode ? '#374151' : '#e5e7eb';
-    const text = darkMode ? '#f9fafb' : '#111827';
-    const subtext = darkMode ? '#6b7280' : '#9ca3af';
-    const inputBg = darkMode ? '#1f2937' : '#f9fafb';
-    const inputBorder = darkMode ? '#374151' : '#d1d5db';
-    const rowHover = darkMode ? '#1f2937' : '#f3f4f6';
+    const bg = darkMode ? '#141414' : '#ffffff';
+    const border = darkMode ? '#2e2e2e' : '#e5e7eb';
+    const text = darkMode ? '#f0f0f0' : '#111827';
+    const subtext = darkMode ? '#909090' : '#9ca3af';
+    const inputBg = darkMode ? '#1e1e1e' : '#f9fafb';
+    const inputBorder = darkMode ? '#2e2e2e' : '#d1d5db';
+    const rowHover = darkMode ? '#222222' : '#f3f4f6';
 
     return createPortal(
         <>
@@ -1033,10 +1033,10 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
     const inputStyle: React.CSSProperties = {
         fontSize: 11,
         padding: '3px 6px',
-        border: `1px solid ${darkMode ? '#374151' : '#d1d5db'}`,
+        border: `1px solid ${darkMode ? '#2e2e2e' : '#d1d5db'}`,
         borderRadius: 5,
-        background: darkMode ? '#1f2937' : 'rgba(255,255,255,0.6)',
-        color: darkMode ? '#e5e7eb' : '#111827',
+        background: darkMode ? '#1e1e1e' : 'rgba(255,255,255,0.6)',
+        color: darkMode ? '#f0f0f0' : '#111827',
         maxWidth: 120,
         outline: 'none',
         transition: 'border-color 0.15s',
@@ -1108,7 +1108,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                         style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             width: 15, height: 15, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
-                            border: `1.5px solid ${!!val ? '#3b82f6' : (darkMode ? '#4b5563' : '#d1d5db')}`,
+                            border: `1.5px solid ${!!val ? '#3b82f6' : (darkMode ? '#3a3a3a' : '#d1d5db')}`,
                             background: !!val ? '#3b82f6' : 'transparent',
                             transition: 'all 0.15s',
                             outline: 'none',
@@ -1143,7 +1143,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                                 htmlFor={param.name}
                                 style={{
                                     fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap',
-                                    color: darkMode ? '#9ca3af' : '#6b7280', cursor: 'default',
+                                    color: darkMode ? '#909090' : '#6b7280', cursor: 'default',
                                 }}
                             >
                                 {param.label}
@@ -1156,7 +1156,7 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                         {/* Checkbox inline label */}
                         {param.type === 'checkbox' && (
                             <label htmlFor={param.name}
-                                style={{ fontSize: 11, color: darkMode ? '#9ca3af' : '#6b7280', cursor: 'pointer' }}>
+                                style={{ fontSize: 11, color: darkMode ? '#909090' : '#6b7280', cursor: 'pointer' }}>
                                 {param.label}
                             </label>
                         )}
@@ -1201,13 +1201,13 @@ export const ParameterForm: React.FC<ParameterFormProps> = ({
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             width: 20, height: 20, borderRadius: 5, border: 'none',
                                             background: 'transparent',
-                                            color: darkMode ? '#94a3b8' : '#4b5563',
+                                            color: darkMode ? '#909090' : '#4b5563',
                                             cursor: 'pointer', opacity: darkMode ? 0.5 : 0.4,
                                             transition: 'opacity 0.15s, background 0.15s',
                                         }}
                                         onMouseEnter={e => {
                                             (e.currentTarget as HTMLElement).style.opacity = '1';
-                                            (e.currentTarget as HTMLElement).style.background = darkMode ? '#374151' : '#f3f4f6';
+                                            (e.currentTarget as HTMLElement).style.background = darkMode ? '#252525' : '#f3f4f6';
                                         }}
                                         onMouseLeave={e => {
                                             (e.currentTarget as HTMLElement).style.opacity = darkMode ? '0.5' : '0.4';

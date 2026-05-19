@@ -1,3 +1,5 @@
+import "./styles/widget-base.css";
+
 export * from "./widgets/AmBarChartWidget";
 export * from "./widgets/AmCandlestickChartWidget";
 export * from "./widgets/PdfViewerWidget";

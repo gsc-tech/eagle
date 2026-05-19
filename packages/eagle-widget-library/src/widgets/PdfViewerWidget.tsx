@@ -7,12 +7,12 @@ import { useParameterDefaults } from "../hooks/useParameterDefaults";
 import { Upload, X, FileText, AlertCircle } from "lucide-react";
 
 export interface PdfViewerWidgetProps extends BaseWidgetProps {
-    initialPdfUrl?: string; // Optional URL to load initially
+    initialPdfUrl?: string;
     darkMode?: boolean;
 }
 
 export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
-    apiUrl, // Not strictly used for upload, but good for conformity
+    apiUrl,
     title,
     parameters,
     initialPdfUrl,
@@ -32,6 +32,7 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
             onWidgetStateChange({ parameters: currentParams });
         }
     }, [currentParams, onWidgetStateChange]);
+
     const [pdfUrl, setPdfUrl] = useState<string | null>(initialPdfUrl || null);
     const [fileName, setFileName] = useState<string | null>(initialPdfUrl ? "Document.pdf" : null);
     const [error, setError] = useState<string | null>(null);
@@ -56,30 +57,20 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
     };
 
     const handleRemove = () => {
-        if (pdfUrl && !initialPdfUrl) {
-            URL.revokeObjectURL(pdfUrl);
-        }
+        if (pdfUrl && !initialPdfUrl) URL.revokeObjectURL(pdfUrl);
         setPdfUrl(null);
         setFileName(null);
         setError(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     useEffect(() => {
         return () => {
-            // Cleanup blob URL on unmount if it was created locally
-            if (pdfUrl && !initialPdfUrl) {
-                URL.revokeObjectURL(pdfUrl);
-            }
+            if (pdfUrl && !initialPdfUrl) URL.revokeObjectURL(pdfUrl);
         };
     }, [pdfUrl, initialPdfUrl]);
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
+    const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -107,18 +98,17 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
             onGroupedParametersChange={onGroupedParametersChange}
             groupedParametersValues={groupedParametersValues}
         >
-            <div className={`flex flex-col h-full w-full ${pdfUrl ? 'min-h-[500px]' : ''} ${darkMode ? "text-white" : "text-gray-900"}`}>
+            <div className={`flex flex-col h-full w-full ${pdfUrl ? 'min-h-[500px]' : ''} text-gray-900 dark:text-white`}>
 
-                {/* Header / Controls */}
                 {pdfUrl && (
-                    <div className={`flex items-center justify-between p-2 text-sm border-b ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="flex items-center justify-between p-2 text-sm border-b border-gray-200 dark:border-[#2e2e2e] bg-gray-50 dark:bg-[#1a1a1a]">
                         <div className="flex items-center gap-2 truncate">
                             <FileText className="w-4 h-4 text-primary" />
                             <span className="font-medium truncate max-w-[200px]">{fileName}</span>
                         </div>
                         <button
                             onClick={handleRemove}
-                            className={`p-1 rounded-md hover:bg-opacity-80 transition-colors ${darkMode ? "hover:bg-gray-700 text-gray-400 hover:text-white" : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"}`}
+                            className="p-1 rounded-md hover:bg-opacity-80 transition-colors text-gray-500 dark:text-[#909090] hover:bg-gray-200 dark:hover:bg-[#222222] hover:text-gray-900 dark:hover:text-white"
                             title="Close PDF"
                         >
                             <X className="w-4 h-4" />
@@ -126,23 +116,18 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
                     </div>
                 )}
 
-                {/* Main Content */}
                 <div className="flex-1 relative overflow-hidden h-full">
                     {!pdfUrl ? (
                         <div
-                            className={`flex flex-col items-center justify-center h-full border-2 border-dashed rounded-lg m-4 transition-colors
-                                ${darkMode
-                                    ? "border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-gray-500 text-gray-400"
-                                    : "border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-gray-400 text-gray-500"
-                                }`}
+                            className="flex flex-col items-center justify-center h-full border-2 border-dashed rounded-lg m-4 transition-colors border-gray-300 dark:border-[#2e2e2e] bg-gray-50 dark:bg-[#1a1a1a]/50 hover:bg-gray-100 dark:hover:bg-[#222222] hover:border-gray-400 dark:hover:border-[#606060] text-gray-500 dark:text-[#909090]"
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
                         >
                             <div className="flex flex-col items-center p-6 text-center">
-                                <div className={`p-4 rounded-full mb-4 ${darkMode ? "bg-gray-700" : "bg-gray-200"}`}>
-                                    <Upload className={`w-8 h-8 ${darkMode ? "text-gray-300" : "text-gray-600"}`} />
+                                <div className="p-4 rounded-full mb-4 bg-gray-200 dark:bg-[#2e2e2e]">
+                                    <Upload className="w-8 h-8 text-gray-600 dark:text-[#e0e0e0]" />
                                 </div>
-                                <h3 className={`text-lg font-semibold mb-1 ${darkMode ? "text-white" : "text-gray-900"}`}>
+                                <h3 className="text-lg font-semibold mb-1 text-gray-900 dark:text-white">
                                     Upload PDF
                                 </h3>
                                 <p className="text-sm mb-6 max-w-xs opacity-80">
@@ -158,11 +143,7 @@ export const PdfViewerWidget: React.FC<PdfViewerWidgetProps> = ({
                                 />
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`px-4 py-2 rounded-md font-medium text-sm transition-colors
-                                        ${darkMode
-                                            ? "bg-blue-600 text-white hover:bg-blue-500"
-                                            : "bg-blue-600 text-white hover:bg-blue-700"
-                                        }`}
+                                    className="px-4 py-2 rounded-md font-medium text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     Choose File
                                 </button>
