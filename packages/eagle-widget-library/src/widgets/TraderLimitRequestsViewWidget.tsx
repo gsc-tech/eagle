@@ -76,7 +76,7 @@ const INSTRUMENT_STYLES: Record<InstrumentType, { bg: string; text: string; bord
 };
 
 const InstrumentTypeBadge = ({ type, darkMode }: { type?: InstrumentType; darkMode: boolean }) => {
-    if (!type) return <span className={`text-[11px] italic ${darkMode ? "text-gray-600" : "text-gray-400"}`}>—</span>;
+    if (!type) return <span className="text-[11px] italic text-gray-400 dark:text-[#3a3a3a]">—</span>;
     const s = INSTRUMENT_STYLES[type];
     return (
         <span
@@ -146,7 +146,7 @@ const ACTION_CONFIG: Record<string, ActionConfig> = {
 
 const FALLBACK_ACTION_CONFIG: ActionConfig = {
     icon: AlertCircle,
-    color: "#374151", darkColor: "#9ca3af",
+    color: "#374151", darkColor: "#909090",
     bg: "#f3f4f6", darkBg: "rgba(107,114,128,0.15)",
     label: "",
 };
@@ -172,31 +172,23 @@ const truncateId = (id: string) => {
 };
 
 const AuditTrailModal = ({ data, darkMode, onClose }: { data: any[]; darkMode: boolean; onClose: () => void }) => {
-    const panelBg = darkMode ? "bg-gray-900" : "bg-white";
-    const borderCol = darkMode ? "border-gray-800" : "border-gray-200";
-    const textMain = darkMode ? "text-gray-100" : "text-gray-900";
-    const textSub = darkMode ? "text-gray-400" : "text-gray-500";
-    const textBody = darkMode ? "text-gray-200" : "text-gray-600";
-    const lineBg = darkMode ? "bg-gray-800" : "bg-gray-200";
-    const countBg = darkMode ? "bg-gray-800 text-gray-400" : "bg-gray-100 text-gray-500";
-
     return (
         <div
-            className={`absolute right-0 top-0 bottom-0 w-80 flex flex-col border-l z-20 ${panelBg} ${borderCol}`}
+            className="absolute right-0 top-0 bottom-0 w-80 flex flex-col border-l z-20 bg-white dark:bg-[#141414] border-gray-200 dark:border-[#2e2e2e]"
             style={{ boxShadow: darkMode ? "-6px 0 24px rgba(0,0,0,0.5)" : "-6px 0 24px rgba(0,0,0,0.08)" }}
         >
             {/* Header */}
-            <div className={`flex items-center justify-between px-4 py-3 border-b ${borderCol} flex-shrink-0`}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#2e2e2e] flex-shrink-0">
                 <div className="flex items-center gap-2">
-                    <Clock size={15} style={{ color: "#00998b" }} />
-                    <span className={`text-sm font-semibold ${textMain}`}>Audit Trail</span>
-                    <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${countBg}`}>
+                    <Clock size={15} className="text-petrol" />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-[#f5f5f5]">Audit Trail</span>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-[#1a1a1a] text-gray-500 dark:text-[#909090]">
                         {data.length}
                     </span>
                 </div>
                 <button
                     onClick={onClose}
-                    className={`p-1 rounded transition-colors ${darkMode ? "hover:bg-gray-800 text-gray-500 hover:text-gray-300" : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"}`}
+                    className="p-1 rounded transition-colors text-gray-400 dark:text-[#606060] hover:bg-gray-100 dark:hover:bg-[#222222] hover:text-gray-600 dark:hover:text-[#e0e0e0]"
                 >
                     <X size={14} />
                 </button>
@@ -205,10 +197,9 @@ const AuditTrailModal = ({ data, darkMode, onClose }: { data: any[]; darkMode: b
             {/* Timeline */}
             <div className="flex-1 overflow-y-auto px-4 py-4">
                 <div className="relative">
-                    {/* Continuous vertical line — runs center-of-icon to center-of-last-icon */}
                     {data.length > 1 && (
                         <div
-                            className={`absolute left-[15px] top-8 w-px ${lineBg}`}
+                            className="absolute left-[15px] top-8 w-px bg-gray-200 dark:bg-[#1a1a1a]"
                             style={{ bottom: "32px" }}
                         />
                     )}
@@ -230,7 +221,7 @@ const AuditTrailModal = ({ data, darkMode, onClose }: { data: any[]; darkMode: b
                                         style={{
                                             backgroundColor: iconBg,
                                             border: `2px solid ${iconColor}`,
-                                            boxShadow: `0 0 0 2px ${darkMode ? "#111827" : "#fff"}`,
+                                            boxShadow: `0 0 0 2px ${darkMode ? "#141414" : "#fff"}`,
                                         }}
                                     >
                                         <Icon size={13} style={{ color: iconColor }} />
@@ -247,12 +238,12 @@ const AuditTrailModal = ({ data, darkMode, onClose }: { data: any[]; darkMode: b
                                             {config.label}
                                         </span>
                                     </div>
-                                    <p className={`text-xs leading-relaxed ${textBody} mb-1.5`}>{entry.details}</p>
-                                    <div className={`flex items-center gap-1.5 ${textSub}`}>
+                                    <p className="text-xs leading-relaxed text-gray-600 dark:text-[#f0f0f0] mb-1.5">{entry.details}</p>
+                                    <div className="flex items-center gap-1.5 text-gray-500 dark:text-[#909090]">
                                         <User size={10} />
-                                        <span className={`text-[10px] font-mono truncate`}>{truncateId(entry.performed_by)}</span>
+                                        <span className="text-[10px] font-mono truncate">{truncateId(entry.performed_by)}</span>
                                         <span className="mx-0.5">·</span>
-                                        <span className={`text-[10px] tabular-nums`}>{datetime}</span>
+                                        <span className="text-[10px] tabular-nums">{datetime}</span>
                                     </div>
                                 </div>
                             </div>
@@ -274,18 +265,18 @@ interface RowProps {
 }
 
 const TableRow = React.memo(({ item, dynamicKeys, darkMode, onInfoClick }: RowProps) => {
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const textColor = darkMode ? "text-gray-300" : "text-gray-700";
-    const subText = darkMode ? "text-gray-500" : "text-gray-400";
+    const borderColor = "border-gray-100 dark:border-[#1a1a1a]";
+    const textColor = "text-gray-700 dark:text-[#e0e0e0]";
+    const subText = "text-gray-400 dark:text-[#606060]";
 
     const requestedLimit = Number(item.requestedLimit || 0);
     const previousLimit = Number(item.previousLimit || 0);
     const delta = requestedLimit - previousLimit;
-    const deltaColor = delta > 0 ? "text-green-500" : delta < 0 ? "text-red-500" : (darkMode ? "text-gray-500" : "text-gray-400");
+    const deltaColor = delta > 0 ? "text-green-500" : delta < 0 ? "text-red-500" : "text-gray-400 dark:text-[#606060]";
     const deltaPrefix = delta > 0 ? "+" : "";
 
     return (
-        <tr className={`group transition-colors ${darkMode ? "hover:bg-gray-800/50" : "hover:bg-gray-50/50"} border-b ${borderColor}`}>
+        <tr className={`group transition-colors hover:bg-gray-50/50 dark:hover:bg-[#222222]/50 border-b ${borderColor}`}>
             <td className={`${textColor} px-4 py-3 text-center text-sm font-mono`}>
                 {item.account}
             </td>
@@ -340,7 +331,7 @@ const TableRow = React.memo(({ item, dynamicKeys, darkMode, onInfoClick }: RowPr
                 <div className="flex flex-col items-center gap-0.5 min-w-[140px]">
                     {item.reviewer ? (
                         <>
-                            <div className="flex items-center gap-1 text-xs font-bold" style={{ color: "#00998b" }}>
+                            <div className="flex items-center gap-1 text-xs font-bold text-petrol">
                                 <User size={11} />
                                 <span>{item.reviewer}</span>
                             </div>
@@ -364,10 +355,7 @@ const TableRow = React.memo(({ item, dynamicKeys, darkMode, onInfoClick }: RowPr
             <td className="px-4 py-3 text-center">
                 <button
                     onClick={() => onInfoClick(item)}
-                    className={`p-2 rounded-md transition ${darkMode
-                        ? "hover:bg-gray-800 text-gray-400 hover:text-gray-200"
-                        : "hover:bg-gray-100 text-gray-500 hover:text-gray-700"
-                        }`}
+                    className="p-2 rounded-md transition text-gray-500 dark:text-[#909090] hover:bg-gray-100 dark:hover:bg-[#222222] hover:text-gray-700 dark:hover:text-[#f0f0f0]"
                 >
                     <Info size={16} />
                 </button>
@@ -576,11 +564,10 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
 
     useEffect(() => { setCurrentPage(1); }, [currentParams]);
 
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
-    const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
+    const borderColor = "border-gray-100 dark:border-[#1a1a1a]";
+    const headerBg = "bg-gray-50/50 dark:bg-[#141414]/50";
 
-    const thClass = `px-4 py-3 text-xs font-bold uppercase tracking-wider text-center ${headerTextColor}`;
+    const thClass = "px-4 py-3 text-xs font-bold uppercase tracking-wider text-center text-gray-500 dark:text-[#909090]";
 
     // Total columns = dynamic keys + fixed specials (Current, Requested, Instrument, Status, Timeline, Comments)
     const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -606,12 +593,12 @@ export const TraderLimitRequestsViewWidget: React.FC<MyLimitRequestsViewWidgetPr
             showRefreshButton={showRefreshButton}
             onRefresh={refetch}
         >
-            <div className={`relative flex flex-col h-full w-full overflow-hidden ${darkMode ? "bg-gray-950 text-gray-100" : "bg-white text-gray-900"}`}>
+            <div className="relative flex flex-col h-full w-full overflow-hidden bg-white dark:bg-[#0f0f0f] text-gray-900 dark:text-[#f5f5f5]">
 
                 {/* Info bar */}
-                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] ${headerTextColor} border-b ${borderColor}`}>
+                <div className={`flex items-center justify-between gap-2 px-4 py-2 text-[11px] text-gray-500 dark:text-[#909090] border-b ${borderColor}`}>
                     <div className="flex items-center gap-2">
-                        <Info size={14} style={{ color: "#00998b" }} />
+                        <Info size={14} className="text-petrol" />
                         <span>View the status of your submitted limit requests.</span>
                     </div>
                 </div>

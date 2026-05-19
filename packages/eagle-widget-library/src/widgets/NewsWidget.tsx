@@ -1,7 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, ExternalLink, Newspaper } from "lucide-react";
+import { Clock, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { BaseWidgetProps, ParameterValues } from "../types";
 import { useWidgetData } from "../hooks/useWidgetData";
@@ -85,35 +85,32 @@ export const NewsWidget: React.FC<BaseWidgetProps & { darkMode?: boolean }> = ({
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.1 }}
-                            className={`p-4 border-b cursor-pointer transition-colors ${darkMode
-                                ? 'border-gray-800 hover:bg-gray-800'
-                                : 'border-gray-100 hover:bg-bg-light'
-                                }`}
+                            className="p-4 border-b cursor-pointer transition-colors border-gray-100 dark:border-[#1a1a1a] hover:bg-bg-light dark:hover:bg-[#222222]"
                         >
                             <div className="flex justify-between items-center mb-2">
                                 <span
                                     className="text-[10px] font-semibold px-2 py-0.5 rounded-xl uppercase"
                                     style={{
                                         backgroundColor: `${getCategoryColor(item.category)}20`,
-                                        color: getCategoryColor(item.category)
+                                        color: getCategoryColor(item.category),
                                     }}
                                 >
                                     {item.category}
                                 </span>
-                                <span className={`text-[11px] flex items-center ${darkMode ? 'text-gray-400' : 'text-text-secondary'}`}>
+                                <span className="text-[11px] flex items-center text-text-secondary dark:text-[#909090]">
                                     <Clock size={12} className="mr-1" />
                                     {formatTime(item.timestamp)}
                                 </span>
                             </div>
-                            <h3 className={`text-sm font-semibold m-0 mb-1 leading-snug ${darkMode ? 'text-gray-100' : 'text-text-primary'}`}>
+                            <h3 className="text-sm font-semibold m-0 mb-1 leading-snug text-text-primary dark:text-[#f5f5f5]">
                                 {item.headline}
                             </h3>
-                            <p className={`text-xs m-0 mb-2 leading-relaxed ${darkMode ? 'text-gray-400' : 'text-text-muted'}`}>
+                            <p className="text-xs m-0 mb-2 leading-relaxed text-text-muted dark:text-[#909090]">
                                 {item.summary}
                             </p>
                             <a
                                 href={item.url}
-                                className={`text-[11px] ${darkMode ? 'text-blue-400' : 'text-blue-600'} no-underline flex items-center font-medium`}
+                                className="text-[11px] text-blue-600 dark:text-blue-400 no-underline flex items-center font-medium"
                             >
                                 Read more <ExternalLink size={12} className="ml-1" />
                             </a>

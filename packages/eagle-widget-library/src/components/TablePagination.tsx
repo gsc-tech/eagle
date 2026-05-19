@@ -24,16 +24,16 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
     darkMode,
     pageSizeOptions = [25, 50, 100, 200],
 }) => {
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const bgColor = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
-    const textColor = darkMode ? "text-gray-400" : "text-gray-500";
+    const borderColor = darkMode ? "border-[#2a2a2a]" : "border-gray-100";
+    const bgColor = darkMode ? "bg-[#0f0f0f]" : "bg-gray-50/50";
+    const textColor = darkMode ? "text-[#909090]" : "text-gray-500";
 
     const btnBase = "h-6 min-w-[24px] px-1.5 text-xs rounded border transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed";
     const btnActive = darkMode
-        ? "bg-[#00998b]/20 text-[#00998b] border-[#00998b]/40"
-        : "bg-[#00998b]/10 text-[#00998b] border-[#00998b]/30";
+        ? "bg-[#2a2a2a] text-[#e0e0e0] border-[#505050]"
+        : "bg-gray-200 text-gray-800 border-gray-400";
     const btnDefault = darkMode
-        ? "bg-transparent border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+        ? "bg-transparent border-[#2a2a2a] text-[#909090] hover:bg-[#1a1a1a] hover:text-[#e0e0e0]"
         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50";
 
     const start = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -61,7 +61,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
                         onPageSizeChange(Number(e.target.value));
                         onPageChange(1);
                     }}
-                    className={`border rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#00998b] ${darkMode ? "bg-gray-800 border-gray-700 text-gray-300" : "bg-white border-gray-200 text-gray-700"
+                    className={`border rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#505050] ${darkMode ? "bg-[#1a1a1a] border-[#2a2a2a] text-[#e0e0e0]" : "bg-white border-gray-200 text-gray-700"
                         }`}
                 >
                     {pageSizeOptions.map((s) => <option key={s} value={s}>{s}</option>)}

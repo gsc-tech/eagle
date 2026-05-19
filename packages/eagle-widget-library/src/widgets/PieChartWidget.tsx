@@ -29,6 +29,7 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
     onGroupedParametersChange,
     initialWidgetState,
     onWidgetStateChange,
+    staticData,
 }) => {
     const chartId = useId();
     const rootRef = useRef<any>(null);
@@ -49,6 +50,7 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
 
     const { data } = useWidgetData(apiUrl as string, {
         parameters: currentParams,
+        staticData,
     });
 
 
@@ -105,7 +107,7 @@ export const PieChartWidget: React.FC<PieChartWidgetProps & { darkMode?: boolean
                 series.slices.template.setAll({
                     tooltipText: "{category}: {valuePercentTotal.formatNumber('0.00')}% ({value})",
                     cornerRadius: 5,
-                    stroke: darkMode ? am5.color(0x1f2937) : am5.color(0xffffff),
+                    stroke: darkMode ? am5.color(0x1a1a1a) : am5.color(0xffffff),
                     strokeWidth: 2,
                 });
 

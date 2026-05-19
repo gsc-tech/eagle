@@ -24,9 +24,9 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
 
         const variants = {
             primary: "text-white shadow-sm active:scale-95",
-            secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700",
-            ghost: "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400",
-            outline: "border border-gray-200 bg-transparent hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800",
+            secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-[#1a1a1a] dark:text-[#f5f5f5] dark:hover:bg-[#222222]",
+            ghost: "hover:bg-gray-100 dark:hover:bg-[#1a1a1a] text-gray-600 dark:text-[#909090]",
+            outline: "border border-gray-200 bg-transparent hover:bg-gray-100 dark:border-[#2e2e2e] dark:hover:bg-[#1a1a1a]",
             destructive: "text-white shadow-sm active:scale-95 hover:brightness-110"
         };
         const sizes = {
@@ -83,8 +83,8 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
             ref={ref}
             className={`flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 tlr-no-spinner 
             ${darkMode
-                    ? 'border-gray-800 bg-gray-900 text-gray-100 placeholder:text-gray-500'
-                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400'} 
+                    ? 'border-[#2e2e2e] bg-[#141414] text-[#f5f5f5] placeholder:text-[#606060]'
+                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400'}
             ${className}`}
             style={{
                 ...props.style,
@@ -135,7 +135,7 @@ const Select = ({ options, value, onChange, placeholder, darkMode, className }: 
                 }}
                 className={`flex h-9 items-center justify-between rounded-md border px-3 py-1 text-[11px] shadow-sm cursor-pointer transition-all
                 ${darkMode
-                        ? 'border-gray-800 bg-gray-900 text-gray-100 hover:bg-gray-800'
+                        ? 'border-[#2e2e2e] bg-[#141414] text-[#f5f5f5] hover:bg-[#1a1a1a]'
                         : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'}`}
                 style={{ borderColor: isOpen ? petrolColor : undefined }}
             >
@@ -145,13 +145,13 @@ const Select = ({ options, value, onChange, placeholder, darkMode, className }: 
 
             {isOpen && (
                 <div className={`absolute z-[110] mt-1 w-full rounded-md border shadow-xl overflow-hidden animate-in fade-in zoom-in duration-150
-                    ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+                    ${darkMode ? 'bg-[#141414] border-[#2e2e2e]' : 'bg-white border-gray-200'}`}>
 
-                    <div className={`flex items-center gap-2 px-2 py-1.5 border-b ${darkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+                    <div className={`flex items-center gap-2 px-2 py-1.5 border-b ${darkMode ? 'border-[#2e2e2e]' : 'border-gray-100'}`}>
                         <Search size={12} className="opacity-40" />
                         <input
                             ref={inputRef}
-                            className={`w-full bg-transparent border-none focus:outline-none text-[11px] ${darkMode ? 'text-gray-100' : 'text-gray-900'}`}
+                            className={`w-full bg-transparent border-none focus:outline-none text-[11px] ${darkMode ? 'text-[#f5f5f5]' : 'text-gray-900'}`}
                             placeholder="Search..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -160,7 +160,7 @@ const Select = ({ options, value, onChange, placeholder, darkMode, className }: 
                     </div>
 
                     <div
-                        className="overflow-y-auto py-1 custom-scrollbar"
+                        className="overflow-y-auto py-1 widget-scrollbar"
                         style={{ maxHeight: '240px' }}
                     >
                         {filteredOptions.length > 0 ? (
@@ -172,8 +172,8 @@ const Select = ({ options, value, onChange, placeholder, darkMode, className }: 
                                         setIsOpen(false);
                                     }}
                                     className={`px-3 py-2 text-[11px] cursor-pointer flex items-center justify-between
-                                        ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}
-                                        ${value === opt ? (darkMode ? 'bg-gray-800 text-[#00998b]' : 'bg-gray-50 text-[#00998b]') : ''}`}
+                                        ${darkMode ? 'hover:bg-[#222222]' : 'hover:bg-gray-50'}
+                                        ${value === opt ? (darkMode ? 'bg-[#222222] text-[#00998b]' : 'bg-gray-50 text-[#00998b]') : ''}`}
                                 >
                                     <span className="truncate pr-2">{opt}</span>
                                     {value === opt && <Check size={12} className="shrink-0" />}
@@ -340,7 +340,7 @@ const TableRow: React.FC<RowProps> = ({
     const renderValue = (key: string, val: any) => {
         if (isNew && isEditing) {
             if (key.toLowerCase().includes("limit")) {
-                return <span className={darkMode ? "text-gray-500 italic text-xs" : "text-gray-400 italic text-xs"}>0</span>;
+                return <span className={darkMode ? "text-[#606060] italic text-xs" : "text-gray-400 italic text-xs"}>0</span>;
             }
 
             if (columnOptions[key]) {
@@ -467,8 +467,8 @@ const TableRow: React.FC<RowProps> = ({
         return <span className="font-medium">{val ?? "—"}</span>;
     };
 
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const textColor = darkMode ? "text-gray-300" : "text-gray-700";
+    const borderColor = darkMode ? "border-[#1a1a1a]" : "border-gray-100";
+    const textColor = darkMode ? "text-[#e0e0e0]" : "text-gray-700";
 
     return (
         <>
@@ -476,7 +476,7 @@ const TableRow: React.FC<RowProps> = ({
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
                 className={`tlr-row group transition-all duration-200 border-b ${borderColor} relative
-                    ${darkMode ? 'hover:bg-gray-800/40' : 'hover:bg-gray-50/40'} 
+                    ${darkMode ? 'hover:bg-[#222222]/40' : 'hover:bg-gray-50/40'}
                     ${isNew ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : ''}
                     ${isHovered ? 'z-10 -translate-y-0.5' : ''}
                 `}
@@ -641,14 +641,14 @@ interface ImportPreviewModalProps {
 const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose, onConfirm, data, darkMode, isSubmitting, activeTab }) => {
     if (!isOpen) return null;
 
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const headerBg = darkMode ? "bg-gray-900" : "bg-gray-50";
+    const borderColor = darkMode ? "border-[#1a1a1a]" : "border-gray-100";
+    const headerBg = darkMode ? "bg-[#141414]" : "bg-gray-50";
 
     const missingReasonsCount = data.filter(r => !r.reason || r.reason.trim().length < 5).length;
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}>
-            <div className={`flex flex-col rounded-lg shadow-2xl border ${borderColor} ${darkMode ? 'bg-gray-950 text-white' : 'bg-white text-gray-900'}`}
+            <div className={`flex flex-col rounded-lg shadow-2xl border ${borderColor} ${darkMode ? 'bg-[#0f0f0f] text-white' : 'bg-white text-gray-900'}`}
                 style={{ width: '900px', maxWidth: '100%', height: '75vh', display: 'flex', flexDirection: 'column' }}>
 
                 {/* Header */}
@@ -659,20 +659,20 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                         </div>
                         <div>
                             <h3 className="font-bold text-lg">Review Import Changes</h3>
-                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <p className={`text-xs ${darkMode ? 'text-[#909090]' : 'text-gray-500'}`}>
                                 {data.length} rows identified with limit changes.
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className={`p-1 rounded-full transition-colors ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}>
+                    <button onClick={onClose} className={`p-1 rounded-full transition-colors ${darkMode ? 'hover:bg-[#222222]' : 'hover:bg-gray-100'}`}>
                         <LucideX size={20} />
                     </button>
                 </div>
 
                 {/* Scrollable Table */}
-                <div className="overflow-y-auto custom-scrollbar flex-1" style={{ minHeight: 0 }}>
+                <div className="overflow-y-auto widget-scrollbar flex-1" style={{ minHeight: 0 }}>
                     <table className="w-full text-sm border-collapse">
-                        <thead className={`sticky top-0 z-10 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+                        <thead className={`sticky top-0 z-10 ${darkMode ? 'bg-[#141414]' : 'bg-gray-50'}`}>
                             <tr className={`border-b ${borderColor}`}>
                                 <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Account</th>
                                 <th className="px-4 py-3 text-left font-semibold text-xs uppercase tracking-widest opacity-60">Product</th>
@@ -686,7 +686,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({ isOpen, onClose
                             {data.map((row, idx) => {
                                 const isReasonValid = row.reason && row.reason.trim().length >= 5;
                                 return (
-                                    <tr key={idx} className={`${darkMode ? 'hover:bg-gray-900/50' : 'hover:bg-gray-50'}`}>
+                                    <tr key={idx} className={`${darkMode ? 'hover:bg-[#141414]/50' : 'hover:bg-gray-50'}`}>
                                         <td className="px-4 py-3 font-mono text-xs">{row.account}</td>
                                         <td className="px-4 py-3 font-bold" style={{ color: '#00998b' }}>{row.product}</td>
                                         <td className="px-4 py-3 text-xs opacity-70">{row.productName}</td>
@@ -1355,9 +1355,9 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     useEffect(() => { setCurrentPage(1); }, [activeTab, currentParams]);
 
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
-    const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
+    const borderColor = darkMode ? "border-[#1a1a1a]" : "border-gray-100";
+    const headerBg = darkMode ? "bg-[#141414]/50" : "bg-gray-50/50";
+    const headerTextColor = darkMode ? "text-[#909090]" : "text-gray-500";
 
     return (
         <WidgetContainer
@@ -1373,59 +1373,13 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             showRefreshButton={showRefreshButton}
             onRefresh={refetch}
         >
-            <style>{`
-                /* KILL ALL DEFAULT SELECT ARROWS */
-                select {
-                    -webkit-appearance: none !important;
-                    -moz-appearance: none !important;
-                    appearance: none !important;
-                }
-                
-                select::-ms-expand {
-                    display: none !important;
-                }
 
-                /* Hide number input spinners globally */
-                .tlr-no-spinner::-webkit-inner-spin-button,
-                .tlr-no-spinner::-webkit-outer-spin-button {
-                    -webkit-appearance: none;
-                    margin: 0;
-                }
-                .tlr-no-spinner {
-                    -moz-appearance: textfield;
-                }
-
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 5px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #00998b50;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #00998b;
-                }
-
-                /* Row hover effect */
-                tbody .tlr-row {
-                    transition: background-color 0.15s ease-in-out;
-                }
-
-                tbody .tlr-row:hover {
-                    background-color: rgba(0, 153, 139, 0.18) !important;
-                    box-shadow: inset 3px 0 0 #00998b !important;
-                }
-            `}</style>
-
-            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
+            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-[#0f0f0f] text-[#f5f5f5]' : 'bg-white text-gray-900'}`}>
                 {/* Blurrable Content Wrapper */}
                 <div className={`flex-1 min-h-0 flex flex-col transition-all duration-500 ease-in-out ${isImportModalOpen ? 'blur-[12px] pointer-events-none opacity-40 scale-[0.98]' : 'blur-0 opacity-100 scale-100'}`}>
 
                 {/* Brand Header Custom Integration */}
-                <div className={`flex items-center justify-end px-4 py-2 border-b ${darkMode ? 'bg-gray-950 border-gray-800' : 'bg-gray-50 border-gray-200'}`}>
+                <div className={`flex items-center justify-end px-4 py-2 border-b ${darkMode ? 'bg-[#0f0f0f] border-[#1a1a1a]' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="flex items-center gap-2">
                         {!readOnly && (
                             <>
@@ -1479,7 +1433,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
 
                 {/* Tab Bar with Counts */}
-                <div className={`flex border-b px-4 ${darkMode ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200'}`}>
+                <div className={`flex border-b px-4 ${darkMode ? 'bg-[#0f0f0f] border-[#1a1a1a]' : 'bg-gray-50/50 border-gray-200'}`}>
                     {['Future', 'Option'].map(tab => {
                         const count = tab === 'Future' 
                             ? (rawData?.filter((i:any) => (i.category||i.instrumentType||'').toLowerCase().includes('future')).length || 0) 
@@ -1491,7 +1445,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
                                 className={`px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all relative
-                                    ${isActive ? '' : (darkMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}
+                                    ${isActive ? '' : (darkMode ? 'text-[#606060] hover:text-[#e0e0e0]' : 'text-gray-400 hover:text-gray-600')}`}
                                 style={{ 
                                     color: isActive ? '#00998b' : undefined,
                                     boxShadow: isActive ? 'inset 0 -4px 0 #00998b' : 'none'
@@ -1500,10 +1454,10 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                 <div className="flex items-center gap-2">
                                     {tab}S
                                     <span 
-                                        className={`px-1.5 py-0.5 rounded-sm text-[9px] font-black ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}
-                                        style={{ 
+                                        className={`px-1.5 py-0.5 rounded-sm text-[9px] font-black ${darkMode ? 'bg-[#1a1a1a]' : 'bg-gray-200'}`}
+                                        style={{
                                             backgroundColor: isActive ? '#00998b20' : undefined,
-                                            color: isActive ? '#00998b' : (darkMode ? '#4b5563' : '#6b7280')
+                                            color: isActive ? '#00998b' : (darkMode ? '#3a3a3a' : '#6b7280')
                                         }}
                                     >
                                         {count}
@@ -1514,7 +1468,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                     })}
                 </div>
 
-                <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
+                <div className="flex-1 min-h-0 overflow-auto widget-scrollbar">
                     <table className="w-full border-collapse text-left">
                         <thead 
                             className={`${isImportModalOpen ? 'opacity-40' : 'sticky top-0 z-10 backdrop-blur-sm'} ${headerBg} border-b ${borderColor}`}

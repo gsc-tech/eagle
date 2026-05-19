@@ -21,9 +21,9 @@ const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HT
 
         const variants = {
             primary: "text-white shadow-sm active:scale-95 border-transparent",
-            secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 border-transparent",
-            ghost: "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 border-transparent",
-            outline: "border-gray-200 bg-transparent hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
+            secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-[#1a1a1a] dark:text-[#f5f5f5] dark:hover:bg-[#222222] border-transparent",
+            ghost: "hover:bg-gray-100 dark:hover:bg-[#1a1a1a] text-gray-600 dark:text-[#909090] border-transparent",
+            outline: "border-gray-200 bg-transparent hover:bg-gray-100 dark:border-[#2e2e2e] dark:hover:bg-[#1a1a1a]"
         };
         const sizes = {
             sm: "h-7 px-2 text-[10px]",
@@ -92,8 +92,8 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
             ref={ref}
             className={`flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 tlr-no-spinner
             ${darkMode
-                    ? 'border-gray-800 bg-gray-900 text-gray-100 placeholder:text-gray-500 focus-visible:ring-[#00998b]'
-                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#00998b]'} 
+                    ? 'border-[#2e2e2e] bg-[#141414] text-[#f5f5f5] placeholder:text-[#606060] focus-visible:ring-[#00998b]'
+                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#00998b]'}
             ${className || ''}`}
             style={{
                 ...props.style,
@@ -110,8 +110,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttribu
             ref={ref}
             className={`flex w-full rounded-md border px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50
             ${darkMode
-                    ? 'border-gray-800 bg-gray-900 text-gray-100 placeholder:text-gray-500 focus-visible:ring-[#00998b]'
-                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#00998b]'} 
+                    ? 'border-[#2e2e2e] bg-[#141414] text-[#f5f5f5] placeholder:text-[#606060] focus-visible:ring-[#00998b]'
+                    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#00998b]'}
             ${className || ''}`}
             style={{
                 ...props.style,
@@ -400,11 +400,11 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
     const selectableRequests = requests.filter(r => r.status === "PENDING" || r.status === "ACKNOWLEDGED");
     const isAllSelected = selectablePageRequests.length > 0 && selectablePageRequests.every(r => selectedIds.has(r.id));
 
-    const borderColor = darkMode ? "border-gray-800" : "border-gray-100";
-    const headerBg = darkMode ? "bg-gray-900/50" : "bg-gray-50/50";
-    const textColor = darkMode ? "text-gray-300" : "text-gray-700";
-    const subTextColor = darkMode ? "text-gray-400" : "text-gray-500";
-    const headerTextColor = darkMode ? "text-gray-400" : "text-gray-500";
+    const borderColor = darkMode ? "border-[#1a1a1a]" : "border-gray-100";
+    const headerBg = darkMode ? "bg-[#141414]/50" : "bg-gray-50/50";
+    const textColor = darkMode ? "text-[#e0e0e0]" : "text-gray-700";
+    const subTextColor = darkMode ? "text-[#909090]" : "text-gray-500";
+    const headerTextColor = darkMode ? "text-[#909090]" : "text-gray-500";
 
     const renderValue = (key: string, val: any) => {
         if (key === 'requestedAt' && val) {
@@ -445,17 +445,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             showRefreshButton={showRefreshButton}
             onRefresh={refetch}
         >
-            <style>{`
-                .tlr-no-spinner::-webkit-inner-spin-button,
-                .tlr-no-spinner::-webkit-outer-spin-button {
-                    -webkit-appearance: none;
-                    margin: 0;
-                }
-                .tlr-no-spinner {
-                    -moz-appearance: textfield;
-                }
-            `}</style>
-            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'}`}>
+            <div className={`flex flex-col h-full w-full overflow-hidden ${darkMode ? 'bg-[#0f0f0f] text-[#f5f5f5]' : 'bg-white text-gray-900'}`}>
 
                 <div className={`flex items-center justify-between px-4 py-2 text-[11px] border-b ${borderColor} transition-colors ${selectedIds.size > 0 ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : ''}`}>
                     <div className="flex items-center gap-2">
@@ -470,7 +460,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                             variant="outline"
                             size="sm"
                             onClick={handleExport}
-                            className="h-8 text-[11px] gap-1 px-3 border-gray-200 dark:border-gray-700"
+                            className="h-8 text-[11px] gap-1 px-3 border-gray-200 dark:border-[#2e2e2e]"
                             title="Export approval requests to Excel"
                         >
                             <Download size={14} /> Export
@@ -550,14 +540,14 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                     <tr
                                         key={req.id}
                                         className={`group transition-colors border-b ${borderColor} 
-                                            ${isSelected ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : (darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50/50')}
+                                            ${isSelected ? (darkMode ? 'bg-[#00998b]/10' : 'bg-[#00998b]/5') : (darkMode ? 'hover:bg-[#222222]/50' : 'hover:bg-gray-50/50')}
                                             ${!isSelectable ? 'opacity-70' : ''}`}
                                     >
                                         <td className="px-4 py-3 text-center">
                                             <button
                                                 onClick={() => { if (isSelectable) toggleSelect(req.id, req.status); }}
                                                 disabled={!isSelectable}
-                                                className={`transition-colors ${isSelectable ? `hover:text-[#00998b] ${subTextColor}` : 'opacity-30 cursor-not-allowed text-gray-400'}`}
+                                                className={`transition-colors ${isSelectable ? `hover:text-[#00998b] ${subTextColor}` : 'opacity-30 cursor-not-allowed text-[#909090]'}`}
                                             >
                                                 {isSelected ? <CheckSquare size={16} className="text-[#00998b]" /> : <Square size={16} />}
                                             </button>
@@ -590,7 +580,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
                                                                 ? { color: '#22c55e' }
                                                                 : req.requestedLimit < req.previousLimit
                                                                     ? { color: '#ef4444' }
-                                                                    : { color: darkMode ? '#9ca3af' : '#6b7280' }
+                                                                    : { color: darkMode ? '#909090' : '#6b7280' }
                                                             }
                                                         >
                                                             {req.requestedLimit > req.previousLimit ? '(+' : '('}
