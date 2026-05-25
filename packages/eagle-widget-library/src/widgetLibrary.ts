@@ -31,6 +31,17 @@ import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidge
 import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
 import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
 import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
+import { SeasonalityExpressionBuilderWidgetDef } from "./widgets/falconWidgets/SeasonalityExpressionBuilderWidget";
+import { SeasonalityStackedChartWidgetDef } from "./widgets/falconWidgets/SeasonalityStackedChartWidget";
+import { SeasonalityMonthlyChartWidgetDef } from "./widgets/falconWidgets/SeasonalityMonthlyChartWidget";
+import { SeasonalityAverageChartWidgetDef } from "./widgets/falconWidgets/SeasonalityAverageChartWidget";
+import { SeasonalityHeatmapWidgetDef } from "./widgets/falconWidgets/SeasonalityHeatmapWidget";
+import { SeasonalityStackedChartWithBuilderWidgetDef } from "./widgets/falconWidgets/SeasonalityStackedChartWithBuilderWidget";
+import { SeasonalityMonthlyChartWithBuilderWidgetDef } from "./widgets/falconWidgets/SeasonalityMonthlyChartWithBuilderWidget";
+import { SeasonalityAverageChartWithBuilderWidgetDef } from "./widgets/falconWidgets/SeasonalityAverageChartWithBuilderWidget";
+import { SeasonalityHeatmapWithBuilderWidgetDef } from "./widgets/falconWidgets/SeasonalityHeatmapWithBuilderWidget";
+import { SeasonalityWatchlistWidgetDef } from "./widgets/falconWidgets/SeasonalityWatchlistWidget";
+import { SeasonalityAlertsWidgetDef } from "./widgets/falconWidgets/SeasonalityAlertsWidget";
 
 export const widgetLibrary: Record<string, WidgetDefinition> = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -65,4 +76,16 @@ export const widgetLibrary: Record<string, WidgetDefinition> = {
     TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
     TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,
     TraderLimitsApprovalStagesViewWidget: TraderLimitsApprovalStagesViewWidgetDef,
+    // ── Seasonality category ─────────────────────────────────────────────────
+    SeasonalityExpressionBuilderWidget: SeasonalityExpressionBuilderWidgetDef,
+    SeasonalityStackedChartWidget: SeasonalityStackedChartWidgetDef,
+    SeasonalityMonthlyChartWidget: SeasonalityMonthlyChartWidgetDef,
+    SeasonalityAverageChartWidget: SeasonalityAverageChartWidgetDef,
+    SeasonalityHeatmapWidget: SeasonalityHeatmapWidgetDef,
+    SeasonalityStackedChartWithBuilderWidget: SeasonalityStackedChartWithBuilderWidgetDef,
+    SeasonalityMonthlyChartWithBuilderWidget: SeasonalityMonthlyChartWithBuilderWidgetDef,
+    SeasonalityAverageChartWithBuilderWidget: SeasonalityAverageChartWithBuilderWidgetDef,
+    SeasonalityHeatmapWithBuilderWidget: SeasonalityHeatmapWithBuilderWidgetDef,
+    SeasonalityWatchlistWidget: SeasonalityWatchlistWidgetDef,
+    SeasonalityAlertsWidget: SeasonalityAlertsWidgetDef,
 }

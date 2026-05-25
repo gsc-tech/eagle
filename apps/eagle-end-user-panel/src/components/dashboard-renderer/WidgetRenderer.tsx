@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from "react";
 import type { LayoutItem } from "./types";
 import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
+import type { AddWidgetTarget } from "@gsc-tech/eagle-widget-library";
 import { WidgetErrorBoundary } from "./WidgetErrorBoundary";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
@@ -11,11 +12,22 @@ import { applyFormulas } from "@/lib/formulaEngine";
 
 interface WidgetRendererProps {
     dashboardId: string;
+    tabId?: string;
     layoutItem: LayoutItem;
     /** Pre-loaded Univer workbook snapshot for SheetWidget (from your database). */
     initialWorkbookData?: Record<string, any>;
     /** Called when a SheetWidget unmounts so you can persist the snapshot to your database. */
     onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
+    /**
+     * When true, injects addWidgetToDashboard into the widget.
+     * Must be false (or omitted) for operator-published read-only dashboards.
+     */
+    isUserEditable?: boolean;
+    /**
+     * Provided by the host (Canvas → home.tsx) to handle the actual UI state update
+     * when a widget spawns a new widget onto the dashboard.
+     */
+    onAddWidgetToDashboard?: (target: AddWidgetTarget) => Promise<void>;
 }
 
 const EMPTY_OBJ = {};
@@ -23,9 +35,12 @@ const EMPTY_MAP = {};
 
 export default function WidgetRenderer({
     dashboardId,
+    tabId,
     layoutItem,
     initialWorkbookData,
     onSaveWorkbook,
+    isUserEditable,
+    onAddWidgetToDashboard,
 }: WidgetRendererProps) {
     const { widget } = layoutItem;
 
@@ -35,6 +50,15 @@ export default function WidgetRenderer({
     const handleWidgetStateChange = useCallback((state: any) => {
         setWidgetState(dashboardId, layoutItem.i, state);
     }, [dashboardId, layoutItem.i, setWidgetState]);
+
+    // Only expose addWidgetToDashboard on user-editable dashboards.
+    const addWidgetToDashboard = useCallback(
+        (target: AddWidgetTarget) => {
+            if (!onAddWidgetToDashboard) return Promise.resolve();
+            return onAddWidgetToDashboard(target);
+        },
+        [onAddWidgetToDashboard]
+    );
 
     // console.log("workbook inside widget renderer", initialWorkbookData);
 
@@ -132,6 +156,11 @@ export default function WidgetRenderer({
                         initialWorkbookData: initialWorkbookData?.snapshot || initialWorkbookData,
                         initialParameterValues,
                         onSave: handleSave,
+                    })}
+                    // Only injected on user-editable dashboards (not operator-published templates)
+                    {...(isUserEditable && {
+                        addWidgetToDashboard,
+                        ...(tabId && { widgetTarget: { dashboardId, tabId } }),
                     })}
                 />
             </WidgetErrorBoundary>

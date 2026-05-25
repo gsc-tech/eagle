@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
+import { GRID_COLS } from "@/components/dashboard-renderer/types";
+import { findBestFitPosition } from "@gsc-tech/eagle-widget-library";
+import type { AddWidgetTarget } from "@gsc-tech/eagle-widget-library";
 
 interface DashboardState {
     /** dashboardId -> activeTabId */
@@ -20,6 +23,16 @@ interface DashboardState {
         widgetStates: Record<string, any>;
     };
     clearDashboardState: (dashboardId: string) => void;
+    /**
+     * Adds a widget to a dashboard tab using findBestFitPosition to avoid overlap.
+     * Updates persisted store state; callers are responsible for syncing local UI state.
+     */
+    addItem: (target: AddWidgetTarget) => LayoutItem;
+    /**
+     * Instantiates a pre-built dashboard template for the current user.
+     * Stub — implemented in T7.1 when template infrastructure exists.
+     */
+    instantiateTemplate: (templateId: string) => void;
 }
 
 export const useDashboardStateStore = create<DashboardState>()(
@@ -81,6 +94,36 @@ export const useDashboardStateStore = create<DashboardState>()(
                         widgetStates: newWidgetStates,
                     };
                 }),
+
+            addItem: (target) => {
+                const { dashboardId, tabId, widget } = target;
+                const currentLayout = get().layouts[dashboardId]?.[tabId] || [];
+                const { w, h } = widget.suggestedSize ?? { w: 3, h: 4 };
+                const { x, y } = findBestFitPosition(currentLayout, w, h, GRID_COLS);
+                const newItem: LayoutItem = {
+                    i: `user-widget-${Date.now()}`,
+                    x, y, w, h,
+                    widget: {
+                        componentName: widget.componentName,
+                        defaultProps: { ...widget.defaultProps, userAdded: true },
+                    },
+                };
+                set((state) => ({
+                    layouts: {
+                        ...state.layouts,
+                        [dashboardId]: {
+                            ...(state.layouts[dashboardId] || {}),
+                            [tabId]: [...currentLayout, newItem],
+                        },
+                    },
+                }));
+                return newItem;
+            },
+
+            instantiateTemplate: (_templateId) => {
+                // Stub — implemented in T7.1 when template infrastructure exists.
+                console.warn('[dashboardStateStore] instantiateTemplate: not yet implemented');
+            },
         }),
         {
             name: "eagle-dashboard-state",

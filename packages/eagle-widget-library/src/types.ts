@@ -41,6 +41,18 @@ export interface WidgetEventSubscription {
     action: 'refetch';
 }
 
+/** Payload for programmatically adding a widget to a user-editable dashboard tab. */
+export interface AddWidgetTarget {
+    dashboardId: string;
+    tabId: string;
+    widget: {
+        componentName: string;
+        defaultProps: Record<string, unknown>;
+        /** Preferred grid size — host uses findBestFitPosition to place it. */
+        suggestedSize?: { w: number; h: number };
+    };
+}
+
 export interface BaseWidgetProps {
     id?: string;
     apiUrl?: string;
@@ -57,6 +69,18 @@ export interface BaseWidgetProps {
     eventSubscriptions?: WidgetEventSubscription[];
     /** Injected by the host to bypass API fetching with local data (e.g. CSV). */
     staticData?: any[];
+    /**
+     * Injected by WidgetRenderer only on user-editable dashboards.
+     * Allows a widget to spawn another widget on any dashboard tab at runtime.
+     * Not injected for operator-published (read-only) dashboards.
+     */
+    addWidgetToDashboard?: (target: AddWidgetTarget) => Promise<void>;
+    /**
+     * Identifies the dashboard tab this widget lives on.
+     * Injected alongside addWidgetToDashboard so widgets can target the
+     * correct tab when spawning new widgets.
+     */
+    widgetTarget?: { dashboardId: string; tabId: string };
 }
 
 export interface NormalizationConfig {
@@ -104,4 +128,6 @@ export interface WidgetHostBindings {
 export interface WidgetDefinition<TProps extends BaseWidgetProps = BaseWidgetProps> {
     component: React.ComponentType<TProps>;
     hostBindings?: WidgetHostBindings;
+    /** Display category in the widget tray. Defaults to "General" when omitted. */
+    category?: string;
 }

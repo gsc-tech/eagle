@@ -15,8 +15,25 @@ export interface HeatmapApiDataConfig {
 export interface CartesianHeatmapWidgetProps extends BaseWidgetProps {
     xLabels?: string[];
     yLabels?: string[];
+    /** Pre-fetched data array — bypasses apiUrl/sheetDependency when provided. */
+    staticData?: unknown[];
     heatmapGroups?: { name: string; rows: number[]; min: number; max: number; colors: string[] }[];
     apiDataConfig?: HeatmapApiDataConfig;
+    /**
+     * Replace the auto-built visualMap entirely. Use when the auto piecewise
+     * scale (product-group colored) doesn't fit — e.g. seasonality's
+     * diverging red/white/green scale.
+     */
+    visualMapOverride?: unknown;
+    /**
+     * Transforms the raw cell value before it appears in tooltips / labels.
+     * Auto-built tooltip applies this; the auto label uses the formatted
+     * string too. Group-placeholder cells (value <= GROUP_ID_OFFSET) are
+     * still rendered as "—" regardless of this formatter.
+     */
+    valueFormatter?: (v: number) => string;
+    /** Rotate x-axis labels by this many degrees. Useful when labels overlap (e.g. seasonality dates). */
+    xAxisLabelRotate?: number;
 }
 
 // ─── Product groups lookup ────────────────────────────────────────────────────

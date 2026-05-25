@@ -19,8 +19,8 @@ import {
     Bell,
     Plus,
 } from "lucide-react";
-import { useDataConnectorSync, useAlertsStore, ConnectorsProvider } from "@gsc-tech/eagle-widget-library";
-import type { ConnectorStatus } from "@gsc-tech/eagle-widget-library";
+import { useDataConnectorSync, useAlertsStore, ConnectorsProvider, findBestFitPosition, falconApiClient, useAvailableDashboardsStore, useSeasonalityWatchlistStore } from "@gsc-tech/eagle-widget-library";
+import type { ConnectorStatus, AddWidgetTarget } from "@gsc-tech/eagle-widget-library";
 import { useConnectorsStore, NATIVE_CONNECTOR_URLS } from "@/store/connectorsStore";
 import { AlertBanner } from "@/components/AlertBanner";
 import { ConnectorConfig } from "@/components/ConnectorConfig";
@@ -48,7 +48,8 @@ import { dashboardsApi } from "@/services/dashboardsApi";
 import type { DashboardRecord } from "@/services/dashboardsApi";
 import DashboardCanvas from "@/components/dashboard-renderer/Canvas";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
-import AddWidgetModal from "@/components/AddWidgetModal";
+import { GRID_COLS } from "@/components/dashboard-renderer/types";
+import AddWidgetModal, { type AddWidgetConfig } from "@/components/AddWidgetModal";
 import EditWidgetModal from "@/components/EditWidgetModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ import { useDashboardLoader } from "@/hooks/useDashboardLoader";
 import { auth } from "@/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
+import { useSeasonalityNavigation } from "@/hooks/useSeasonalityNavigation";
 
 export type Tab = {
     id: string;
@@ -144,33 +146,22 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
 
     const handleAddWidget = useCallback(
-        ({
-            componentName,
-            widgetTitle,
-            localDataConfig,
-            fieldMapping,
-        }: {
-            componentName: string;
-            widgetTitle: string;
-            localDataConfig: any;
-            fieldMapping: Record<string, string>;
-        }) => {
+        ({ componentName, widgetTitle, defaultProps, localDataConfig, suggestedSize }: AddWidgetConfig) => {
             if (!activeTabId || !selected) return;
+            const activeLayout = tabs.find((t) => t.id === activeTabId)?.layout ?? [];
+            const { w, h } = suggestedSize ?? { w: 6, h: 5 };
+            const { x, y } = findBestFitPosition(activeLayout, w, h, GRID_COLS);
             const newItem: LayoutItem = {
                 i: `user-widget-${Date.now()}`,
-                x: 0,
-                y: Infinity, // react-grid-layout places it at the bottom
-                w: 6,
-                h: 5,
+                x, y, w, h,
                 minW: 2,
                 minH: 2,
                 widget: {
                     componentName,
                     name: widgetTitle,
-                    defaultProps: {
-                        ...fieldMapping,
-                        localDataConfig,
-                    },
+                    defaultProps: localDataConfig
+                        ? { ...defaultProps, localDataConfig, userAdded: true }
+                        : { ...defaultProps, userAdded: true },
                 },
             };
             setTabs((prev) =>
@@ -182,7 +173,47 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             );
             setAddWidgetModalOpen(false);
         },
-        [activeTabId, selected]
+        [activeTabId, selected, tabs]
+    );
+
+    const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
+    const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
+    const getDashboardState = useDashboardStateStore((s) => s.getDashboardState);
+
+    // ── addWidgetToDashboard (programmatic widget spawning from within a widget) ─
+    const handleAddWidgetToDashboard = useCallback(
+        async (target: AddWidgetTarget) => {
+            const { dashboardId, tabId, widget } = target;
+            const { w, h } = widget.suggestedSize ?? { w: 3, h: 4 };
+            const newItem: LayoutItem = {
+                i: `user-widget-${Date.now()}`,
+                x: 0, y: 0, w, h,
+                widget: {
+                    componentName: widget.componentName,
+                    defaultProps: { ...widget.defaultProps, userAdded: true },
+                },
+            };
+
+            if (dashboardId === selected?.dashboardID) {
+                // Current dashboard: update React state so the widget appears immediately.
+                const currentLayout = tabs.find((t) => t.id === tabId)?.layout || [];
+                const { x, y } = findBestFitPosition(currentLayout, w, h, GRID_COLS);
+                const positioned = { ...newItem, x, y };
+                setTabs((prev) =>
+                    prev.map((tab) =>
+                        tab.id === tabId ? { ...tab, layout: [...tab.layout, positioned] } : tab
+                    )
+                );
+                updateStoredTabLayout(dashboardId, tabId, [...currentLayout, positioned]);
+            } else {
+                // Different dashboard: persist to store only — the widget will appear next time
+                // the user navigates to that dashboard.
+                const storedLayout = getDashboardState(dashboardId)?.layouts?.[tabId] ?? [];
+                const { x, y } = findBestFitPosition(storedLayout, w, h, GRID_COLS);
+                updateStoredTabLayout(dashboardId, tabId, [...storedLayout, { ...newItem, x, y }]);
+            }
+        },
+        [tabs, selected, updateStoredTabLayout, getDashboardState]
     );
 
     // ── Alert history panel ───────────────────────────────────────────────────
@@ -198,6 +229,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     const getFirebaseToken = useFirebaseToken();
 
+    useEffect(() => {
+        falconApiClient.init(import.meta.env.VITE_FALCON_MIDDLEWARE_BACKEND ?? "", getFirebaseToken);
+    }, [getFirebaseToken]);
+
+    const fetchWatchlists = useSeasonalityWatchlistStore((s) => s.fetchLists);
+    useEffect(() => {
+        fetchWatchlists().catch((e) => console.error("[home] fetchWatchlists failed", e));
+    }, [fetchWatchlists]);
+
     const { status: marexStatus } = useDataConnectorSync(
         marexConnector ? { ...marexConnector, wsUrl: NATIVE_CONNECTOR_URLS.marex, getFirebaseToken } : null
     );
@@ -212,9 +252,6 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         return m;
     }, [marexConnector, excelConnector, marexStatus, excelStatus]);
 
-
-    const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
-    const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
 
     const { loadDashboard } = useDashboardLoader();
 
@@ -249,13 +286,45 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         [activeTabId, selected, updateStoredTabLayout]
     );
 
+    const handleRemoveWidget = useCallback(
+        (widgetId: string) => {
+            if (!activeTabId || !selected) return;
+            setTabs((prev) => {
+                const newTabs = prev.map((tab) => {
+                    if (tab.id !== activeTabId) return tab;
+                    return { ...tab, layout: tab.layout.filter((item) => item.i !== widgetId) };
+                });
+                const updatedLayout = newTabs.find((t) => t.id === activeTabId)?.layout || [];
+                updateStoredTabLayout(selected.dashboardID, activeTabId, updatedLayout);
+                return newTabs;
+            });
+        },
+        [activeTabId, selected, updateStoredTabLayout]
+    );
+
+    const setAvailableDashboards = useAvailableDashboardsStore((s) => s.setDashboards);
+
     // Fetch dashboards on mount
     useEffect(() => {
         dashboardsApi
             .list()
-            .then((data) => setDashboards(data.filter((d) => d.publishedLayout?.tabs)))
+            .then((data) => {
+                const filtered = data.filter((d) => d.publishedLayout?.tabs);
+                setDashboards(filtered);
+                // Populate the widget-library store so AddToWatchlistModal can read dashboard/tab list.
+                setAvailableDashboards(
+                    filtered.map((d) => ({
+                        id: d.dashboardID,
+                        name: d.name,
+                        tabs: (d.publishedLayout?.tabs ?? []).map((t: any) => ({
+                            id: t.id,
+                            title: t.title,
+                        })),
+                    }))
+                );
+            })
             .catch((err) => console.error("Error fetching dashboards:", err));
-    }, []);
+    }, [setAvailableDashboards]);
 
     // Handle dashboard selection
     const handleSelect = (dashboard: Dashboard) => {
@@ -331,9 +400,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             )
         );
         
-        // Preserve full config for user-added (CSV) widgets; strip widget config from backend widgets
+        // Preserve full config for user-added widgets (CSV or programmatically spawned);
+        // strip widget config from operator-published backend widgets (position-only).
         const layoutToStore = newLayout.map((item) => {
-            if (item.widget?.defaultProps?.localDataConfig) return item;
+            if (item.widget?.defaultProps?.localDataConfig || item.widget?.defaultProps?.userAdded) return item;
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { widget: _w, ...rest } = item;
             return rest;
@@ -347,6 +417,31 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             setStoredActiveTabId(selected.dashboardID, tabId);
         }
     };
+
+    // Right-click → open-in-builder navigation (T7.2). Hook subscribes to the
+    // event bus; `selectDashboard` / `setActiveTab` callbacks defer to the
+    // existing handlers so dashboard switching and tab switching reuse the
+    // same persistence / snapshot-fetch path as a manual sidebar click.
+    useSeasonalityNavigation({
+        selectDashboard: (dashboardId) => {
+            const d = dashboards.find((x) => x.dashboardID === dashboardId);
+            if (!d) {
+                console.warn("[home] selectDashboard: dashboard not found in list:", dashboardId, "available:", dashboards.map(x => x.dashboardID));
+                return false;
+            }
+            const isSameDashboard = selected?.dashboardID === dashboardId;
+            console.log("[home] selectDashboard:", dashboardId, "| isSameDashboard:", isSameDashboard, "| isLoadingSnapshots (current):", isLoadingSnapshots);
+            if (!isSameDashboard) {
+                console.log("[home] selectDashboard: switching to new dashboard — will trigger fetchWorkbookSnapshots (isLoadingSnapshots will become true)");
+                handleSelect(d);
+            }
+            return true;
+        },
+        setActiveTab: (tabId) => {
+            console.log("[home] setActiveTab:", tabId, "| isLoadingSnapshots (current):", isLoadingSnapshots);
+            handleTabChange(tabId);
+        },
+    });
 
     const handleSignOut = () => {
         onLogout();
@@ -638,7 +733,11 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                             <div className="flex-1 min-h-0 relative overflow-hidden">
                                 {activeTab && (
                                     isLoadingSnapshots ? (
-                                        <div className="h-full flex items-center justify-center">
+                                        // While snapshots are loading the Canvas doesn't mount — any pending
+                                        // builder nav payload written before this point will survive in the
+                                        // pendingBuilderNavStore until the Canvas (and widget) eventually mounts.
+                                        (() => { console.log("[home] Canvas gated by isLoadingSnapshots=true — builder widget not yet mounted, tab:", activeTab?.id); return null; })()
+                                        || <div className="h-full flex items-center justify-center">
                                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                                         </div>
                                     ) : (
@@ -646,11 +745,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                             <DashboardCanvas
                                                 key={`${selected.dashboardID}-${activeTab.id}`}
                                                 dashboardId={selected.dashboardID}
+                                                tabId={activeTab.id}
                                                 initialLayout={activeTab.layout}
                                                 onLayoutChange={handleLayoutChange}
                                                 onEditWidget={setEditingWidgetId}
+                                                onRemoveWidget={handleRemoveWidget}
                                                 workbookSnapshots={workbookSnapshots}
                                                 onSaveWorkbook={handleSaveWorkbook}
+                                                isUserEditable={true}
+                                                onAddWidgetToDashboard={handleAddWidgetToDashboard}
                                             />
                                         </ConnectorsProvider>
                                     )

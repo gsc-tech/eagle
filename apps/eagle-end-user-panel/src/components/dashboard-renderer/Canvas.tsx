@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import ReactGridLayout, { useContainerWidth } from "react-grid-layout";
 import { verticalCompactor } from "react-grid-layout/core";
 import "react-grid-layout/css/styles.css";
@@ -10,14 +10,21 @@ import WidgetRenderer from "./WidgetRenderer";
 import { WidgetOverlayButton } from "./WidgetOverlayButton";
 import type { Layout } from "react-grid-layout";
 import { useGroupedParamsStore } from "@/store/groupedParamsStore";
+import type { AddWidgetTarget } from "@gsc-tech/eagle-widget-library";
 
 interface DashboardCanvasProps {
     dashboardId: string;
+    tabId?: string;
     onLayoutChange?: (layout: LayoutItem[]) => void;
     onEditWidget?: (widgetId: string) => void;
+    onRemoveWidget?: (widgetId: string) => void;
     initialLayout?: LayoutItem[];
     workbookSnapshots?: Record<string, Record<string, any>>;
     onSaveWorkbook?: (widgetId: string, snapshot: Record<string, any>, parameters?: any[]) => void;
+    /** When true, widgets receive the addWidgetToDashboard capability. */
+    isUserEditable?: boolean;
+    /** Called by a widget when it wants to spawn another widget onto this dashboard. */
+    onAddWidgetToDashboard?: (target: AddWidgetTarget) => Promise<void>;
 }
 
 const MINIMIZED_H = 1;
@@ -44,11 +51,15 @@ function CompressIcon() {
 
 export default function DashboardCanvas({
     dashboardId,
+    tabId,
     onLayoutChange,
     onEditWidget,
+    onRemoveWidget,
     initialLayout,
     workbookSnapshots,
     onSaveWorkbook,
+    isUserEditable,
+    onAddWidgetToDashboard,
 }: DashboardCanvasProps) {
     const [layoutItems, setLayoutItems] = useState<LayoutItem[]>(initialLayout || []);
 
@@ -189,15 +200,34 @@ export default function DashboardCanvas({
                                         overflow: isMinimized ? "hidden" : undefined,
                                     }}
                                 >
-                                    {/* Edit button — only for user-added (CSV) widgets */}
+                                    {/* Buttons are stacked right-to-left: minimize → edit → remove */}
+                                    {/* Each button is 26px wide + 10px gap = 36px per slot */}
+
+                                    {/* Edit button — only for CSV widgets */}
                                     {item.widget?.defaultProps?.localDataConfig && onEditWidget && (
                                         <WidgetOverlayButton
                                             title="Edit widget"
                                             variant="accent"
                                             onClick={(e) => { e.stopPropagation(); onEditWidget(item.i); }}
-                                            className="absolute top-[10px] right-[36px] z-20"
+                                            className={`absolute top-[10px] z-20 ${
+                                                item.widget?.defaultProps?.userAdded && onRemoveWidget
+                                                    ? "right-[62px]"
+                                                    : "right-[36px]"
+                                            }`}
                                         >
                                             <Pencil size={13} />
+                                        </WidgetOverlayButton>
+                                    )}
+
+                                    {/* Remove button — only for user-added widgets */}
+                                    {item.widget?.defaultProps?.userAdded && onRemoveWidget && (
+                                        <WidgetOverlayButton
+                                            title="Remove widget"
+                                            variant="destructive"
+                                            onClick={(e) => { e.stopPropagation(); onRemoveWidget(item.i); }}
+                                            className="absolute top-[10px] right-[36px] z-20"
+                                        >
+                                            <Trash2 size={13} />
                                         </WidgetOverlayButton>
                                     )}
 
@@ -212,9 +242,12 @@ export default function DashboardCanvas({
 
                                     <WidgetRenderer
                                         dashboardId={dashboardId}
+                                        tabId={tabId}
                                         layoutItem={item}
                                         initialWorkbookData={workbookSnapshots?.[item.i]}
                                         onSaveWorkbook={onSaveWorkbook}
+                                        isUserEditable={isUserEditable}
+                                        onAddWidgetToDashboard={onAddWidgetToDashboard}
                                     />
                                 </div>
                             </div>

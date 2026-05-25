@@ -20,10 +20,14 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
     yLabels,
     heatmapGroups,
     apiDataConfig,
+    visualMapOverride,
+    valueFormatter,
+    xAxisLabelRotate,
     onGroupedParametersChange,
     groupedParametersValues,
     apiUrl = null,
     sheetDependency,
+    staticData,
     isTokenRequired,
     getFirebaseToken,
     initialWidgetState,
@@ -53,7 +57,7 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
     }
 
     const { sheetData } = useSheetDependency(sheetDependency);
-    const rawData = sheetDependency?.isDependent ? sheetData : routeData;
+    const rawData = staticData ?? (sheetDependency?.isDependent ? sheetData : routeData);
 
     const [stabledData, setOptimizedData] = React.useState<any>(null);
     const prevDataRef = React.useRef<string>("");
@@ -84,10 +88,15 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
                     finalYLabels.indexOf(d.$y || d.y || d.name || "Y"),
                     Number(d.$value !== undefined ? d.$value : d.value !== undefined ? d.value : 0),
                 ]);
+            // Group placeholders only make sense when the caller has supplied
+            // `heatmapGroups`. Otherwise (e.g. seasonality use), preserve real
+            // zero/NaN values as data — rewriting them to a group offset would
+            // hide them behind the "—" placeholder label.
+            const hasGroups = (heatmapGroups?.length ?? 0) > 0;
             const finalData = mappedData.map((d: any) => {
                 const group = (heatmapGroups || []).find((g) => g.rows.includes(d[1]));
                 const groupName = group?.name || "Other";
-                if (d[2] === 0 || isNaN(d[2])) {
+                if (hasGroups && (d[2] === 0 || isNaN(d[2]))) {
                     const gid = GROUP_IDS[groupName] || GROUP_IDS["Other"];
                     return [d[0], d[1], GROUP_ID_OFFSET - gid, groupName];
                 }
@@ -113,7 +122,10 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
         };
     }, [xLabels, yLabels, heatmapGroups, stabledData, sheetDependency, apiDataConfig]);
 
-    const option = useMemo(() => (parsed ? buildChartOption(parsed, darkMode) : {}), [parsed, darkMode]);
+    const option = useMemo(
+        () => (parsed ? buildChartOption(parsed, darkMode, { visualMapOverride, valueFormatter, xAxisLabelRotate }) : {}),
+        [parsed, darkMode, visualMapOverride, valueFormatter, xAxisLabelRotate],
+    );
 
     const chartWidth = useMemo(() => {
         const count = parsed?.xLabels.length || (xLabels?.length ?? fallbackXLabels.length);
@@ -148,7 +160,7 @@ export const CartesianHeatmapWidget: React.FC<CartesianHeatmapWidgetProps> = ({
                 <>
                     <div className="w-full h-full overflow-x-auto overflow-y-hidden custom-scrollbar">
                         <div style={{ width: chartWidth, height: "100%", minWidth: "100%" }}>
-                            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} theme={darkMode ? "dark" : "light"} />
+                            <ReactECharts option={option} notMerge style={{ height: "100%", width: "100%" }} theme={darkMode ? "dark" : "light"} />
                         </div>
                     </div>
                     <style>{`

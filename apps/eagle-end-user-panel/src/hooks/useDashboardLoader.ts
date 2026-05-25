@@ -10,7 +10,8 @@ function parseBackendTabs(publishedLayout: any): Tab[] {
 }
 
 function isUserAdded(item: LayoutItem): boolean {
-    return Boolean(item.widget?.defaultProps?.localDataConfig);
+    return Boolean(item.widget?.defaultProps?.localDataConfig) ||
+        Boolean(item.widget?.defaultProps?.userAdded);
 }
 
 /**

@@ -282,7 +282,39 @@ export function processApiData(records: any[], config: HeatmapApiDataConfig): Pa
 
 // ─── Chart option builder ─────────────────────────────────────────────────────
 
-export function buildChartOption(parsed: ParsedHeatmapData, darkMode: boolean) {
+export interface BuildChartOptionExtras {
+    /** Replaces the auto-built `visualMap` field entirely. */
+    visualMapOverride?: unknown;
+    /** Transforms the raw value for display in tooltip + cell labels. */
+    valueFormatter?: (v: number) => string;
+    /** Rotate x-axis labels by this many degrees. */
+    xAxisLabelRotate?: number;
+}
+
+export function buildChartOption(
+    parsed: ParsedHeatmapData,
+    darkMode: boolean,
+    extras: BuildChartOptionExtras = {},
+) {
+    const { visualMapOverride, valueFormatter, xAxisLabelRotate } = extras;
+    const fmt = (v: number) =>
+        v <= GROUP_ID_OFFSET ? "—" : (valueFormatter ? valueFormatter(v) : String(v));
+
+    // If a value formatter is set, swap each series' label formatter so cell
+    // labels match the tooltip display. Cloning preserves the existing series
+    // shape (data, emphasis, type, etc.).
+    const series = valueFormatter
+        ? parsed.series.map((s: any) => ({
+              ...s,
+              label: {
+                  ...(s.label ?? {}),
+                  show: s.label?.show ?? true,
+                  fontSize: s.label?.fontSize ?? 10,
+                  formatter: (p: any) => fmt(p.data[2]),
+              },
+          }))
+        : parsed.series;
+
     return {
         tooltip: {
             position: "top",
@@ -294,10 +326,10 @@ export function buildChartOption(parsed: ParsedHeatmapData, darkMode: boolean) {
                 const [xIdx, yIdx, val, groupName] = params.value;
                 const xLabel = parsed.xLabels[xIdx];
                 const yLabel = parsed.yLabels[yIdx];
-                const displayValue = val <= GROUP_ID_OFFSET ? "-" : val;
+                const displayValue = fmt(val);
                 return `
                     <div style="font-family:inherit;min-width:120px;">
-                        <div style="font-size:10px;color:${darkMode ? "#94a3b8" : "#64748b"};margin-bottom:2px;text-transform:uppercase;letter-spacing:0.05em;">${groupName}</div>
+                        <div style="font-size:10px;color:${darkMode ? "#94a3b8" : "#64748b"};margin-bottom:2px;text-transform:uppercase;letter-spacing:0.05em;">${groupName ?? ""}</div>
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
                             <span style="font-weight:600;">${yLabel} <span style="font-weight:400;color:${darkMode ? "#64748b" : "#94a3b8"};margin-left:4px;">${xLabel}</span></span>
                             <span style="font-weight:700;font-size:14px;color:${val > 0 ? "#22c55e" : val < 0 && val > GROUP_ID_OFFSET ? "#ef4444" : "inherit"}">${displayValue}</span>
@@ -310,14 +342,14 @@ export function buildChartOption(parsed: ParsedHeatmapData, darkMode: boolean) {
         xAxis: {
             type: "category", data: parsed.xLabels,
             splitArea: { show: true },
-            axisLabel: { interval: 0, rotate: 0, fontSize: 10 },
+            axisLabel: { interval: 0, rotate: xAxisLabelRotate ?? 0, fontSize: 10 },
         },
         yAxis: {
             type: "category", data: parsed.yLabels,
             splitArea: { show: true },
             axisLabel: { fontSize: 10 },
         },
-        visualMap: parsed.visualMaps,
-        series: parsed.series,
+        visualMap: visualMapOverride !== undefined ? visualMapOverride : parsed.visualMaps,
+        series,
     };
 }

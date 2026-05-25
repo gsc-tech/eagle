@@ -1,6 +1,7 @@
 import { useState } from "react";
 import DashboardPage from "@/pages/home";
 import LoginPage from "@/pages/login";
+import { QuickViewChartModal } from "@/components/QuickViewChartModal";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./index.css";
@@ -44,6 +45,7 @@ export default function App() {
     <>
       <ToastContainer position="top-right" />
       <DashboardPage onLogout={handleLogout} />
+      <QuickViewChartModal />
     </>
   );
 }
