@@ -1,0 +1,36 @@
+{
+  "name": "@gsc-tech/backoffice-core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.10",
+    "lucide-react": "^0.554.0",
+    "mathjs": "^14.0.0",
+    "tailwind-merge": "^2.3.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.2.3",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19 || ^18"
+  }
+}

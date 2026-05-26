@@ -6,6 +6,9 @@ import {
     ScatterChart,
     Table2,
     LayoutDashboard,
+    BarChartHorizontal,
+    BookOpen,
+    TableProperties,
 } from "lucide-react";
 
 export interface CuratedWidget {
@@ -13,6 +16,8 @@ export interface CuratedWidget {
     label: string;
     description: string;
     icon: React.ElementType;
+    /** If true: added directly without CSV upload steps. */
+    isBackOffice?: boolean;
 }
 
 export const CURATED_WIDGETS: CuratedWidget[] = [
@@ -58,4 +63,28 @@ export const CURATED_WIDGETS: CuratedWidget[] = [
         description: "Show key numbers with optional delta indicators",
         icon: LayoutDashboard,
     },
+];
+
+export const BACKOFFICE_WIDGETS: CuratedWidget[] = [
+    {
+        componentName: "BackOfficeTopbarWidget",
+        label: "BO Topbar",
+        description: "Account + date filter bar. Place at the top of a BackOffice dashboard.",
+        icon: BarChartHorizontal,
+        isBackOffice: true,
+    },
+    {
+        componentName: "FinancialAnalysisWidget",
+        label: "Financial Chart",
+        description: "Configurable chart / table / KPI powered by BackOffice financial data.",
+        icon: TrendingUp,
+        isBackOffice: true,
+    },
+    {
+        componentName: "StatementTabsWidget",
+        label: "Statement Tabs",
+        description: "Daily / Weekly / Monthly financial statement table.",
+        icon: TableProperties,
+        isBackOffice: true,
+    }
 ];

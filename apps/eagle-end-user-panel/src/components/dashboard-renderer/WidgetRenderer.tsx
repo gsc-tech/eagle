@@ -30,11 +30,23 @@ export default function WidgetRenderer({
     const { widget } = layoutItem;
 
     const setWidgetState = useDashboardStateStore((s) => s.setWidgetState);
+    const setWidgetConfigOverride = useDashboardStateStore((s) => s.setWidgetConfigOverride);
     const widgetState = useDashboardStateStore((s) => s.widgetStates[dashboardId]?.[layoutItem.i]);
+    const widgetConfigOverride = useDashboardStateStore(
+        (s) => s.widgetConfigOverrides[dashboardId]?.[layoutItem.i]
+    );
+    const widgetPropsOverride = useDashboardStateStore(
+        (s) => s.widgetPropsOverrides[dashboardId]?.[layoutItem.i]
+    );
 
     const handleWidgetStateChange = useCallback((state: any) => {
         setWidgetState(dashboardId, layoutItem.i, state);
     }, [dashboardId, layoutItem.i, setWidgetState]);
+
+    const handleUpdateWidgetConfig = useCallback((patch: Record<string, any>) => {
+        const existing = useDashboardStateStore.getState().widgetConfigOverrides[dashboardId]?.[layoutItem.i] ?? {};
+        setWidgetConfigOverride(dashboardId, layoutItem.i, { ...existing, ...patch });
+    }, [dashboardId, layoutItem.i, setWidgetConfigOverride]);
 
     // console.log("workbook inside widget renderer", initialWorkbookData);
 
@@ -97,8 +109,17 @@ export default function WidgetRenderer({
 
     const otherDefaultProps = useMemo(() => {
         const { initialParameterValues: _, ...rest } = widget?.defaultProps || EMPTY_OBJ;
-        return rest;
-    }, [widget?.defaultProps]);
+        let result = rest;
+        // Merge v2 WidgetConfig override for FinancialAnalysisWidget and similar
+        if (widgetConfigOverride && result.widgetConfig) {
+            result = { ...result, widgetConfig: { ...result.widgetConfig, ...widgetConfigOverride } };
+        }
+        // Merge plain props override for StatementTabsWidget and similar
+        if (widgetPropsOverride) {
+            result = { ...result, ...widgetPropsOverride };
+        }
+        return result;
+    }, [widget?.defaultProps, widgetConfigOverride, widgetPropsOverride]);
 
     const initialParameterValues = useMemo(() => {
         if (!hostBindings?.needsWorkbookSnapshot) return EMPTY_OBJ;
@@ -133,6 +154,8 @@ export default function WidgetRenderer({
                         initialParameterValues,
                         onSave: handleSave,
                     })}
+                    // Inject config update callback for v2 BackOffice widgets (FinancialAnalysisWidget, etc.)
+                    {...(otherDefaultProps.widgetConfig && { onUpdateWidgetConfig: handleUpdateWidgetConfig })}
                 />
             </WidgetErrorBoundary>
         </div>

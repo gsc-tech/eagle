@@ -1,3 +1,9 @@
+/* ── BackOffice table slim scrollbar — used by BackofficeDataTableWidget */
+.shadcn-scrollbar::-webkit-scrollbar        { width: 6px; height: 6px; }
+.shadcn-scrollbar::-webkit-scrollbar-track  { background: transparent; }
+.shadcn-scrollbar::-webkit-scrollbar-thumb  { background: #d1d5db; border-radius: 9999px; }
+.dark .shadcn-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
+
 /* ── Thin scrollbar ── used by calendar widgets, sidebar lists */
 .widget-scrollbar::-webkit-scrollbar        { width: 4px; height: 4px; }
 .widget-scrollbar::-webkit-scrollbar-track  { background: transparent; }

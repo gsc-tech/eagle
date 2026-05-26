@@ -31,6 +31,10 @@ import { TraderLimitsRequestWidgetDef } from "./widgets/TraderLimitsRequestWidge
 import { TraderLimitRequestsViewWidgetDef } from "./widgets/TraderLimitRequestsViewWidget";
 import { TraderLimitsApprovalWidgetDef } from "./widgets/TraderLimitsApprovalWidget";
 import { TraderLimitsApprovalStagesViewWidgetDef } from "./widgets/TraderLimitsApprovalStagesViewWidget";
+import { BackOfficeTopbarWidgetDef } from "./widgets/backOfficeWidgets/BackOfficeTopbarWidget";
+import { FinancialAnalysisWidgetDef } from "./widgets/backOfficeWidgets/FinancialAnalysisWidget";
+import { StatementTabsWidgetDef } from "./widgets/backOfficeWidgets/StatementTabsWidget";
+import { StatementTabsContainerWidgetDef } from "./widgets/backOfficeWidgets/StatementTabsContainerWidget";
 
 export const widgetLibrary: Record<string, WidgetDefinition> = {
     AmBarChartWidget: AmBarChartWidgetDef,
@@ -65,4 +69,8 @@ export const widgetLibrary: Record<string, WidgetDefinition> = {
     TraderLimitRequestsViewWidget: TraderLimitRequestsViewWidgetDef,
     TraderLimitsApprovalWidget: TraderLimitsApprovalWidgetDef,
     TraderLimitsApprovalStagesViewWidget: TraderLimitsApprovalStagesViewWidgetDef,
+    BackOfficeTopbarWidget: BackOfficeTopbarWidgetDef,
+    FinancialAnalysisWidget: FinancialAnalysisWidgetDef,
+    StatementTabsWidget: StatementTabsWidgetDef,
+    StatementTabsContainerWidget: StatementTabsContainerWidgetDef,
 }

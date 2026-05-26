@@ -189,8 +189,10 @@ export default function DashboardCanvas({
                                         overflow: isMinimized ? "hidden" : undefined,
                                     }}
                                 >
-                                    {/* Edit button — only for user-added (CSV) widgets */}
-                                    {item.widget?.defaultProps?.localDataConfig && onEditWidget && (
+                                    {/* Edit button — CSV widgets, BackOffice v2 widgets, and StatementTabsWidget */}
+                                    {(item.widget?.defaultProps?.localDataConfig ||
+                                      item.widget?.defaultProps?.widgetConfig?.version === "v2" ||
+                                      item.widget?.componentName === "StatementTabsWidget") && onEditWidget && (
                                         <WidgetOverlayButton
                                             title="Edit widget"
                                             variant="accent"

@@ -18,6 +18,7 @@ import {
     Database,
     Bell,
     Plus,
+    FlaskConical,
 } from "lucide-react";
 import { useDataConnectorSync, useAlertsStore, ConnectorsProvider } from "@gsc-tech/eagle-widget-library";
 import type { ConnectorStatus } from "@gsc-tech/eagle-widget-library";
@@ -50,6 +51,9 @@ import DashboardCanvas from "@/components/dashboard-renderer/Canvas";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
 import AddWidgetModal from "@/components/AddWidgetModal";
 import EditWidgetModal from "@/components/EditWidgetModal";
+import BackOfficeWidgetConfigEditor from "@/components/BackOfficeWidgetConfigEditor";
+import StatementTabsEditor from "@/components/StatementTabsEditor";
+import MeasureRegistryDrawer from "@/components/MeasureRegistryDrawer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useFirebaseToken } from "@/hooks/useFirebaseToken";
@@ -57,6 +61,7 @@ import { useDashboardLoader } from "@/hooks/useDashboardLoader";
 import { auth } from "@/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
+import { backofficePresetDashboard, BACKOFFICE_PRESET_ID } from "@/presets/backofficePresetDashboard";
 
 export type Tab = {
     id: string;
@@ -141,6 +146,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     // ── Add Widget modal ─────────────────────────────────────────────────────
     const [addWidgetModalOpen, setAddWidgetModalOpen] = useState(false);
+    const [measureRegistryOpen, setMeasureRegistryOpen] = useState(false);
     const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
 
     const handleAddWidget = useCallback(
@@ -167,10 +173,9 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 widget: {
                     componentName,
                     name: widgetTitle,
-                    defaultProps: {
-                        ...fieldMapping,
-                        localDataConfig,
-                    },
+                    defaultProps: localDataConfig
+                        ? { ...fieldMapping, localDataConfig }
+                        : { ...fieldMapping },
                 },
             };
             setTabs((prev) =>
@@ -215,6 +220,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
     const setStoredActiveTabId = useDashboardStateStore((s) => s.setActiveTabId);
     const updateStoredTabLayout = useDashboardStateStore((s) => s.updateTabLayout);
+    const clearDashboardState = useDashboardStateStore((s) => s.clearDashboardState);
 
     const { loadDashboard } = useDashboardLoader();
 
@@ -249,12 +255,19 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         [activeTabId, selected, updateStoredTabLayout]
     );
 
-    // Fetch dashboards on mount
+    // Fetch dashboards on mount; always prepend the BackOffice preset template.
     useEffect(() => {
         dashboardsApi
             .list()
-            .then((data) => setDashboards(data.filter((d) => d.publishedLayout?.tabs)))
-            .catch((err) => console.error("Error fetching dashboards:", err));
+            .then((data) => {
+                const backendDashboards = data.filter((d) => d.publishedLayout?.tabs);
+                setDashboards([backofficePresetDashboard, ...backendDashboards]);
+            })
+            .catch((err) => {
+                console.error("Error fetching dashboards:", err);
+                // Still show the preset even when the backend is unreachable.
+                setDashboards([backofficePresetDashboard]);
+            });
     }, []);
 
     // Handle dashboard selection
@@ -269,7 +282,17 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
         fetchWorkbookSnapshots(dashboard.dashboardID);
     };
 
+    const handleResetToTemplate = () => {
+        clearDashboardState(BACKOFFICE_PRESET_ID);
+        handleSelect(backofficePresetDashboard);
+    };
+
     const fetchWorkbookSnapshots = (dashboardId: string) => {
+        if (dashboardId === BACKOFFICE_PRESET_ID) {
+            setWorkbookSnapshots({});
+            setIsLoadingSnapshots(false);
+            return;
+        }
         dashboardsApi
             .getSnapshots(dashboardId)
             .then(setWorkbookSnapshots)
@@ -413,30 +436,35 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                 </CollapsibleTrigger>
                                 <CollapsibleContent>
                                     <SidebarMenu>
-                                        {dashboards.map((d) => (
+                                        {dashboards.map((d) => {
+                                            const isPreset = d.dashboardID === BACKOFFICE_PRESET_ID;
+                                            const isActive = selected?.dashboardID === d.dashboardID;
+                                            return (
                                             <SidebarMenuItem key={d.dashboardID}>
                                                 <SidebarMenuButton
                                                     onClick={() => handleSelect(d)}
-                                                    isActive={selected?.dashboardID === d.dashboardID}
+                                                    isActive={isActive}
                                                     className={cn(
                                                         "py-5 rounded-lg transition-all duration-150 text-sm",
-                                                        selected?.dashboardID === d.dashboardID
+                                                        isActive
                                                             ? "bg-sidebar-accent text-primary font-semibold"
                                                             : "text-sidebar-foreground/80 hover:text-sidebar-foreground"
                                                     )}
                                                     id={`dashboard-btn-${d.dashboardID}`}
                                                 >
-                                                    <span className={cn(
-                                                        selected?.dashboardID === d.dashboardID
-                                                            ? "text-primary"
-                                                            : "text-muted-foreground"
-                                                    )}>
+                                                    <span className={cn(isActive ? "text-primary" : "text-muted-foreground")}>
                                                         {getDashboardIcon(d.name)}
                                                     </span>
-                                                    <span>{d.name}</span>
+                                                    <span className="flex-1">{d.name}</span>
+                                                    {isPreset && (
+                                                        <span className="shrink-0 text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25 group-data-[collapsible=icon]:hidden">
+                                                            Template
+                                                        </span>
+                                                    )}
                                                 </SidebarMenuButton>
                                             </SidebarMenuItem>
-                                        ))}
+                                            );
+                                        })}
                                     </SidebarMenu>
                                 </CollapsibleContent>
                             </SidebarGroup>
@@ -579,6 +607,25 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     </div>
                                 </div>
                                 <div id="dashboard-toast-container" className="flex-1 flex items-center justify-end gap-3">
+                                    {/* Reset to template button — only for preset */}
+                                    {selected?.dashboardID === BACKOFFICE_PRESET_ID && (
+                                        <button
+                                            onClick={handleResetToTemplate}
+                                            title="Discard customizations and restore the original Financial View layout"
+                                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all duration-150 bg-amber-500/10 border border-amber-500/35 text-amber-400 hover:bg-amber-500/20"
+                                        >
+                                            Reset Template
+                                        </button>
+                                    )}
+                                    {/* Measures button */}
+                                    <button
+                                        onClick={() => setMeasureRegistryOpen(true)}
+                                        title="Define custom measures (scalars, formulas, extended columns)"
+                                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all duration-150 bg-purple-500/10 border border-purple-500/35 text-purple-300 hover:bg-purple-500/20"
+                                    >
+                                        <FlaskConical size={15} />
+                                        <span>Measures</span>
+                                    </button>
                                     {/* Add Widget button */}
                                     <button
                                         onClick={() => setAddWidgetModalOpen(true)}
@@ -672,6 +719,13 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                                     Select a dashboard from the sidebar to start exploring your
                                     data.
                                 </p>
+                                <button
+                                    onClick={() => handleSelect(backofficePresetDashboard)}
+                                    className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors mx-auto"
+                                >
+                                    <BarChart2 className="w-4 h-4" />
+                                    Load Financial View Template
+                                </button>
                             </div>
                         </div>
                     )}
@@ -692,12 +746,32 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                 />
             )}
 
+            {measureRegistryOpen && (
+                <MeasureRegistryDrawer onClose={() => setMeasureRegistryOpen(false)} />
+            )}
+
             {editingWidget && (
-                <EditWidgetModal
-                    item={editingWidget}
-                    onClose={() => setEditingWidgetId(null)}
-                    onSave={handleSaveEdit}
-                />
+                editingWidget.widget?.componentName === "StatementTabsWidget"
+                    ? (
+                        <StatementTabsEditor
+                            item={editingWidget}
+                            dashboardId={selected!.dashboardID}
+                            onClose={() => setEditingWidgetId(null)}
+                        />
+                    ) : editingWidget.widget?.defaultProps?.widgetConfig?.version === "v2"
+                    ? (
+                        <BackOfficeWidgetConfigEditor
+                            item={editingWidget}
+                            dashboardId={selected!.dashboardID}
+                            onClose={() => setEditingWidgetId(null)}
+                        />
+                    ) : (
+                        <EditWidgetModal
+                            item={editingWidget}
+                            onClose={() => setEditingWidgetId(null)}
+                            onSave={handleSaveEdit}
+                        />
+                    )
             )}
 
             <AlertHistoryPanel

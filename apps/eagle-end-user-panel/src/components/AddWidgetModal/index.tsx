@@ -4,18 +4,19 @@ import { useCsvDataStore, type CsvDataset } from "@/store/csvDataStore";
 import type { FormulaStep } from "@/lib/formulaEngine";
 import type { LocalDataConfig } from "@/components/dashboard-renderer/types";
 import AppearanceEditor, { applyAppearanceToProps, extractAppearanceValues } from "@/components/EditWidgetModal/AppearanceEditor";
-import { CURATED_WIDGETS } from "./widgetTypes";
+import { CURATED_WIDGETS, BACKOFFICE_WIDGETS } from "./widgetTypes";
 import StepSelectWidget from "./StepSelectWidget";
 import StepCsvUpload from "./StepCsvUpload";
 import StepFormulaBuilder from "./StepFormulaBuilder";
 import StepFieldMapping, { WIDGET_FIELDS } from "./StepFieldMapping";
+import { widgetLibrary } from "@gsc-tech/eagle-widget-library";
 
 interface Props {
     onClose: () => void;
     onAdd: (config: {
         componentName: string;
         widgetTitle: string;
-        localDataConfig: LocalDataConfig;
+        localDataConfig: LocalDataConfig | null;
         fieldMapping: Record<string, string>;
     }) => void;
 }
@@ -77,7 +78,15 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
         return true;
     };
 
+    const isBackOfficeSelected = !!selectedComponent &&
+        BACKOFFICE_WIDGETS.some((w) => w.componentName === selectedComponent);
+
     const handleNext = () => {
+        // BackOffice widgets skip all CSV steps — add directly from step 0.
+        if (step === 0 && isBackOfficeSelected) {
+            handleConfirmBackOffice();
+            return;
+        }
         if (step === 3 && selectedComponent) {
             seedAppearanceDefaults(selectedComponent, fieldMapping);
         }
@@ -86,6 +95,19 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
         } else {
             handleConfirm();
         }
+    };
+
+    const handleConfirmBackOffice = () => {
+        if (!selectedComponent) return;
+        const wDef = widgetLibrary[selectedComponent];
+        const defaultProps = (wDef?.defaultProps as Record<string, unknown>) ?? {};
+        const wMeta = BACKOFFICE_WIDGETS.find((w) => w.componentName === selectedComponent);
+        onAdd({
+            componentName: selectedComponent,
+            widgetTitle: widgetTitle || wMeta?.label || selectedComponent,
+            localDataConfig: null,
+            fieldMapping: defaultProps as Record<string, string>,
+        });
     };
 
     const handleConfirm = () => {
@@ -207,10 +229,41 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                 {/* Step content */}
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     {step === 0 && (
-                        <StepSelectWidget
-                            selected={selectedComponent}
-                            onSelect={setSelectedComponent}
-                        />
+                        <div className="space-y-5">
+                            <StepSelectWidget
+                                selected={selectedComponent}
+                                onSelect={setSelectedComponent}
+                            />
+                            {/* BackOffice widgets — added directly, no CSV needed */}
+                            <div>
+                                <p className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-3">BackOffice Widgets</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {BACKOFFICE_WIDGETS.map((w) => {
+                                        const Icon = w.icon;
+                                        const isSelected = selectedComponent === w.componentName;
+                                        return (
+                                            <button
+                                                key={w.componentName}
+                                                onClick={() => setSelectedComponent(w.componentName)}
+                                                className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all duration-150 ${
+                                                    isSelected
+                                                        ? "border-blue-500 bg-blue-500/10"
+                                                        : "border-zinc-700 bg-zinc-800/50 hover:border-zinc-500"
+                                                }`}
+                                            >
+                                                <div className={`mt-0.5 p-2 rounded-lg shrink-0 ${isSelected ? "bg-blue-500/20 text-blue-400" : "bg-zinc-700 text-zinc-400"}`}>
+                                                    <Icon size={16} />
+                                                </div>
+                                                <div>
+                                                    <div className={`text-sm font-semibold ${isSelected ? "text-blue-300" : "text-zinc-200"}`}>{w.label}</div>
+                                                    <div className="text-xs text-zinc-500 mt-0.5 leading-tight">{w.description}</div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
                     )}
                     {step === 1 && (
                         <StepCsvUpload
@@ -274,7 +327,7 @@ export default function AddWidgetModal({ onClose, onAdd }: Props) {
                                     : "bg-zinc-700 text-zinc-500 cursor-not-allowed"
                             }`}
                         >
-                            {step === STEPS.length - 1 ? "Add to Dashboard" : "Next"}
+                            {step === STEPS.length - 1 || (step === 0 && isBackOfficeSelected) ? "Add to Dashboard" : "Next"}
                         </button>
                     </div>
                 </div>

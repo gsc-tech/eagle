@@ -1,6 +1,7 @@
 import { useDashboardStateStore } from "@/store/dashboardStateStore";
 import type { LayoutItem } from "@/components/dashboard-renderer/types";
 import type { Tab } from "@/pages/home";
+import { BACKOFFICE_PRESET_ID } from "@/presets/backofficePresetDashboard";
 
 function parseBackendTabs(publishedLayout: any): Tab[] {
     if (publishedLayout?.tabs && Array.isArray(publishedLayout.tabs)) {
@@ -55,7 +56,17 @@ export function useDashboardLoader() {
             const storedWidgets  = (stored.layouts[firstTabId] || [])
                 .filter((l) => !isUserAdded(l))
                 .map((l) => l.i).sort().join(",");
-            if (backendWidgets !== storedWidgets) widgetsMatch = false;
+            if (backendWidgets !== storedWidgets) {
+            // For the preset the published layout never changes, so a stored subset
+            // just means the user intentionally removed some widgets — not a reset.
+            if (dashboardID === BACKOFFICE_PRESET_ID) {
+                const storedIds = storedWidgets.split(",").filter(Boolean);
+                const backendSet = new Set(backendWidgets.split(",").filter(Boolean));
+                if (!storedIds.every((id) => backendSet.has(id))) widgetsMatch = false;
+            } else {
+                widgetsMatch = false;
+            }
+        }
         }
 
         // ── Backend changed: reset positions, carry over user-added widgets ───
@@ -78,7 +89,16 @@ export function useDashboardLoader() {
             const storedLayout = stored.layouts[bt.id];
             if (!storedLayout) return bt;
 
-            const merged = bt.layout.map((backendItem) => {
+            // For the preset: only render widgets the user still has (respects removals).
+            // For regular dashboards: render all backend widgets so newly published ones appear.
+            const storedNonUserIds = new Set(
+                storedLayout.filter((s) => !isUserAdded(s)).map((s) => s.i)
+            );
+            const backendSource = dashboardID === BACKOFFICE_PRESET_ID
+                ? bt.layout.filter((item) => storedNonUserIds.has(item.i))
+                : bt.layout;
+
+            const merged = backendSource.map((backendItem) => {
                 const stored = storedLayout.find((s) => s.i === backendItem.i);
                 if (!stored) return backendItem;
                 return { ...backendItem, x: stored.x, y: stored.y, w: stored.w, h: stored.h };
