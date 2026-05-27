@@ -1262,7 +1262,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     const existing = limitsData.find(l =>
                         String(l.account) === String(acc) &&
-                        String(l.product) === String(prod)
+                        String(l.product) === String(prod) &&
+                        (activeTab === 'Future' || String(l.productName) === String(prodName || ""))
                     );
 
                     const currentOutrightLimit = existing ? Number(existing.outrightLimit) : 0;
