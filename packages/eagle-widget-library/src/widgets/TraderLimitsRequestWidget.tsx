@@ -871,10 +871,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     const { data: rawData, refetch } = useWidgetData(apiUrl as string, {
         pollInterval,
-        parameters: {
-            ...currentParams,
-            instrumentType: activeTab.toLowerCase().replace(/s$/, '')
-        },
+        parameters: currentParams,
         isTokenRequired,
         getFirebaseToken,
     });
@@ -888,7 +885,12 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
     useEffect(() => {
         if (rawData && Array.isArray(rawData)) {
-            const mapped = rawData.map((item: any, idx: number) => ({
+            const instrumentType = activeTab.toLowerCase().replace(/s$/, '');
+            const filtered = rawData.filter((item: any) => {
+                const itemType = (item.category || item.instrumentType || '').toLowerCase();
+                return itemType.includes(instrumentType);
+            });
+            const mapped = filtered.map((item: any) => ({
                 account: item.accountId || item.account || item.Account || "—",
                 product: item.product || item.Symbol || "—",
                 productName: item.productName || item.product_name || item.Instrument || "",
@@ -898,7 +900,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
             }));
             setLimitsData(mapped);
         }
-    }, [rawData]);
+    }, [rawData, activeTab]);
 
     const dataKeys = useMemo(() => {
         const base = ["account", "product", "productName", "exchange", "outrightLimit"];
@@ -1003,7 +1005,7 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
     }, [limitsData, dataKeys, productOptionsFutures, productOptionsOptions, accountNumbersOptions]);
 
     const handleAddNewRow = () => {
-        setNewRows(prev => [...prev, Date.now()]);
+        setNewRows(prev => [Date.now(), ...prev]);
     };
 
     const handleRemoveNewRow = (id: number) => {
@@ -1262,7 +1264,8 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
 
                     const existing = limitsData.find(l =>
                         String(l.account) === String(acc) &&
-                        String(l.product) === String(prod)
+                        String(l.product) === String(prod) &&
+                        (activeTab === 'Future' || String(l.productName) === String(prodName || ""))
                     );
 
                     const currentOutrightLimit = existing ? Number(existing.outrightLimit) : 0;
@@ -1496,23 +1499,6 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                             </tr>
                         </thead>
                         <tbody>
-                            {/* Existing Rows */}
-                            {paginatedLimitsData.map(({ row, originalIdx }) => (
-                                <TableRow
-                                    key={`existing-${originalIdx}`}
-                                    data={row}
-                                    columns={dataKeys}
-                                    darkMode={darkMode}
-                                    resolvedLimitField={resolvedLimitField}
-                                    colorizeNumeric={colorizeNumeric}
-                                    onSubmit={handleSubmit}
-                                    showRequestCols={showRequestCols}
-                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${originalIdx}`]: s }))}
-                                    readOnly={readOnly}
-                                    activeTab={activeTab}
-                                />
-                            ))}
-
                             {/* New Rows */}
                             {newRows.map((rid) => (
                                 <TableRow
@@ -1530,6 +1516,23 @@ export const TraderLimitsRequestWidget: React.FC<TraderLimitsRequestWidgetProps>
                                     onStateChange={(s) => setRowStates(prev => ({ ...prev, [`new-${rid}`]: s }))}
                                     readOnly={readOnly}
                                     productOptions={activeTab == 'Future' ? productOptionsFutures : productOptionsOptions}
+                                    activeTab={activeTab}
+                                />
+                            ))}
+
+                            {/* Existing Rows */}
+                            {paginatedLimitsData.map(({ row, originalIdx }) => (
+                                <TableRow
+                                    key={`existing-${originalIdx}`}
+                                    data={row}
+                                    columns={dataKeys}
+                                    darkMode={darkMode}
+                                    resolvedLimitField={resolvedLimitField}
+                                    colorizeNumeric={colorizeNumeric}
+                                    onSubmit={handleSubmit}
+                                    showRequestCols={showRequestCols}
+                                    onStateChange={(s) => setRowStates(prev => ({ ...prev, [`existing-${originalIdx}`]: s }))}
+                                    readOnly={readOnly}
                                     activeTab={activeTab}
                                 />
                             ))}
