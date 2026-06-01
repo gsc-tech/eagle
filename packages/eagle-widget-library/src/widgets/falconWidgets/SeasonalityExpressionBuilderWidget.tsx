@@ -59,9 +59,7 @@ export function SeasonalityExpressionBuilderWidget(
   } = props;
 
   const [pendingExpression, setPendingExpression] = useState<string | null>(() => {
-    const p = usePendingBuilderNavStore.getState().pending;
-    console.log("[SeasonalityExpressionBuilderWidget] useState init (widgetId:", id, ") — pending store on init:", p ? { expression: p.expression, market: p.market } : null);
-    return p?.expression ?? initialWidgetState?.expression ?? null;
+    return usePendingBuilderNavStore.getState().pending?.expression ?? initialWidgetState?.expression ?? null;
   });
   const [pendingMatrix, setPendingMatrix] = useState<SymbolMatrix[] | undefined>(() => {
     return usePendingBuilderNavStore.getState().pending?.symbolMatrix ?? initialWidgetState?.symbolMatrix;
@@ -77,24 +75,33 @@ export function SeasonalityExpressionBuilderWidget(
   // the tab switch. Clear the store so sibling builders don't also claim it.
   useEffect(() => {
     const p = usePendingBuilderNavStore.getState().pending;
-    console.log("[SeasonalityExpressionBuilderWidget] mount effect (widgetId:", id, ") — pending store:", p ? { expression: p.expression, market: p.market } : null);
-    if (!p) {
-      console.log("[SeasonalityExpressionBuilderWidget] ❌ no pending payload on mount — hydration skipped. Widget will wait for open-in-builder event.");
-      return;
-    }
-    console.log("[SeasonalityExpressionBuilderWidget] ✅ claimed pending nav on mount (widgetId:", id, "):", p.expression, p.market);
+    if (!p) return;
     usePendingBuilderNavStore.getState().clear();
     setPendingExpression(p.expression);
     setPendingMatrix(p.symbolMatrix);
     setPendingMarket(p.market);
     onWidgetStateChange?.({ expression: p.expression, market: p.market, symbolMatrix: p.symbolMatrix });
     if (p.expression) {
-      onGroupedParametersChange?.({ [groupId]: p.expression });
-      widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
-        expression: p.expression,
-        sourceWidgetId: id ?? "",
-        groupId,
+      console.log("[SeasonalityExpressionBuilderWidget] claimed pending nav →", {
+        expr: p.expression, markerCount: p.overlayMarkers?.length ?? 0,
+        markerIds: p.overlayMarkers?.map((m) => m.id),
       });
+      onGroupedParametersChange?.({ [groupId]: p.expression });
+      // Defer so sibling chart widgets finish their own mount effects (and
+      // subscribe to expression-loaded) before this emit fires.
+      const overlayMarkers = p.overlayMarkers;
+      const expression = p.expression;
+      setTimeout(() => {
+        console.log("[SeasonalityExpressionBuilderWidget] deferred emit expression-loaded →", {
+          expr: expression, markerCount: overlayMarkers?.length ?? 0,
+        });
+        widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
+          expression,
+          sourceWidgetId: id ?? "",
+          groupId,
+          overlayMarkers,
+        });
+      }, 0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount only
@@ -134,26 +141,22 @@ export function SeasonalityExpressionBuilderWidget(
   // bound chart widget in the same group re-renders.
   useEffect(() => {
     const unsub = widgetEventBus.subscribe("seasonality:open-in-builder", (p) => {
-      console.log("[SeasonalityExpressionBuilderWidget] open-in-builder received (widgetId:", id, "):", {
-        expression: p.expression,
-        market: p.market,
-        _dispatchedByNavigation: p._dispatchedByNavigation,
-        hasMatrix: Array.isArray(p.symbolMatrix) && p.symbolMatrix.length > 0,
-        groupId,
-      });
       setPendingExpression(p.expression);
       setPendingMatrix(p.symbolMatrix);
       setPendingMarket(p.market);
       onWidgetStateChange?.({ expression: p.expression, market: p.market, symbolMatrix: p.symbolMatrix });
       if (p.expression) {
+        console.log("[SeasonalityExpressionBuilderWidget] open-in-builder → forwarding to chart →", {
+          expr: p.expression, markerCount: p.overlayMarkers?.length ?? 0,
+          markerIds: p.overlayMarkers?.map((m) => m.id),
+        });
         onGroupedParametersChange?.({ [groupId]: p.expression });
         widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
           expression: p.expression,
           sourceWidgetId: id ?? "",
           groupId,
+          overlayMarkers: p.overlayMarkers,
         });
-      } else {
-        console.warn("[SeasonalityExpressionBuilderWidget] open-in-builder received empty expression — builder will not auto-chart");
       }
     });
     return unsub;

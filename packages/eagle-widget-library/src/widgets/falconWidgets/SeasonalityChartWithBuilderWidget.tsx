@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WidgetContainer } from "../../components/WidgetContainer";
 import {
   SeasonalityExpressionBuilder,
@@ -23,7 +23,10 @@ import { AddToWatchlistModal } from "../../components/seasonality/AddToWatchlist
 import { SetAlertModal } from "../../components/seasonality/SetAlertModal";
 import { SeasonalityChart, extractYearLabel, type SeasonalityChartType } from "../../components/seasonality/SeasonalityChart";
 import { widgetEventBus, WIDGET_EVENTS } from "../../store/widgetEventBus";
+import { usePendingBuilderNavStore } from "../../store/pendingBuilderNavStore";
 import { falconApiClient } from "../../utils/falconApiClient";
+import { useSeasonalityAlertsStore } from "../../store/seasonalityAlertsStore";
+import { alertConditionToOverlayMarkers } from "../../utils/seasonality";
 import type { BaseWidgetProps } from "../../types";
 import type { ProductContract, SymbolMatrix } from "../../utils/seasonality";
 import type { SeasonalityMarket } from "../../store/seasonalityWatchlistStore";
@@ -110,7 +113,90 @@ export function SeasonalityChartWithBuilderWidget(
   const [pendingFromBus, setPendingFromBus] = useState<string | null>(null);
   const [pendingMatrix, setPendingMatrix] = useState<SymbolMatrix[] | undefined>(undefined);
   const [pendingMarket, setPendingMarket] = useState<SeasonalityMarket | undefined>(undefined);
-  const [overlayMarkers, setOverlayMarkers] = useState<OverlayMarker[] | undefined>(undefined);
+
+  // Alert IDs referenced by the last alert navigation — used to derive live markers.
+  const [payloadAlertIds, setPayloadAlertIds] = useState<Set<string>>(new Set());
+
+  // On mount: claim a pending navigation payload written by the nav hook before
+  // the tab switch. This handles the race where the 80ms re-emit fires before
+  // the widget mounts (canvas is gated by isLoadingSnapshots).
+  useEffect(() => {
+    const p = usePendingBuilderNavStore.getState().pending;
+    if (!p) return;
+    usePendingBuilderNavStore.getState().clear();
+    setPendingFromBus(p.expression);
+    setPendingMatrix(p.symbolMatrix);
+    setPendingMarket(p.market);
+    setExpression(p.expression);
+    const ids = p.overlayMarkers
+      ? new Set(p.overlayMarkers.map((m) => m.id).filter(Boolean) as string[])
+      : new Set<string>();
+    setPayloadAlertIds(ids);
+    console.log("[SeasonalityChartWithBuilder] claimed pending nav on mount →", {
+      expr: p.expression, markerCount: p.overlayMarkers?.length ?? 0,
+      markerIds: p.overlayMarkers?.map((m) => m.id),
+    });
+    onGroupedParametersChange?.({ [liveGroupId]: p.expression });
+    widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
+      expression: p.expression,
+      sourceWidgetId: id ?? "",
+      groupId: liveGroupId,
+      overlayMarkers: p.overlayMarkers,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount only
+
+  // Live alerts store — same pattern as QuickViewChartModal so drag/delete
+  // reflect immediately without reopening the widget.
+  const alerts = useSeasonalityAlertsStore((s) => s.alerts);
+  const deleteAlert = useSeasonalityAlertsStore((s) => s.deleteAlert);
+  const updateAlertCondition = useSeasonalityAlertsStore((s) => s.updateAlertCondition);
+
+  const overlayMarkers = useMemo<OverlayMarker[] | undefined>(() => {
+    console.log("[SeasonalityChartWithBuilder] useMemo overlayMarkers →", {
+      payloadAlertIds: [...payloadAlertIds],
+      storeAlertCount: alerts.length,
+      storeAlertIds: alerts.map((a) => a.id),
+    });
+    if (!payloadAlertIds.size) return undefined;
+    const markers: OverlayMarker[] = [];
+    for (const alert of alerts) {
+      if (!payloadAlertIds.has(alert.id)) continue;
+      const derived = alertConditionToOverlayMarkers(alert.condition, alert.id);
+      console.log("[SeasonalityChartWithBuilder] derived markers for alert", alert.id, "→", derived);
+      if (!derived) continue;
+      for (const m of derived) {
+        markers.push({
+          ...m,
+          onDelete: () =>
+            deleteAlert(alert.id).catch((e) =>
+              console.error("[SeasonalityChartWithBuilderWidget] deleteAlert failed", e),
+            ),
+        });
+      }
+    }
+    console.log("[SeasonalityChartWithBuilder] final overlayMarkers →", markers);
+    return markers.length ? markers : undefined;
+  }, [alerts, payloadAlertIds, deleteAlert]);
+
+  const handleDragEnd = (marker: OverlayMarker, newValue: number) => {
+    if (!marker.id) return;
+    const alert = useSeasonalityAlertsStore.getState().alerts.find((a) => a.id === marker.id);
+    if (!alert) return;
+    const condition = { ...alert.condition, value: { ...alert.condition.value } };
+    if (condition.type === "inRange") {
+      const distLow = Math.abs((condition.value.low ?? 0) - marker.value);
+      const distHigh = Math.abs((condition.value.high ?? 0) - marker.value);
+      if (distLow < distHigh) condition.value = { ...condition.value, low: newValue };
+      else condition.value = { ...condition.value, high: newValue };
+    } else {
+      condition.value = { ...condition.value, rhs: newValue };
+    }
+    updateAlertCondition(marker.id, condition).catch((e) =>
+      console.error("[SeasonalityChartWithBuilderWidget] updateAlertCondition failed", e),
+    );
+  };
+
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [modalExpression, setModalExpression] = useState("");
@@ -149,11 +235,23 @@ export function SeasonalityChartWithBuilderWidget(
   // above. Overlay markers travel with alert right-clicks only.
   useEffect(() => {
     const unsub = widgetEventBus.subscribe("seasonality:open-in-builder", (p) => {
+      const ids = p.overlayMarkers
+        ? new Set(
+            (p.overlayMarkers as OverlayMarker[])
+              .map((m) => m.id)
+              .filter(Boolean) as string[],
+          )
+        : new Set<string>();
+      console.log("[SeasonalityChartWithBuilder] open-in-builder received →", {
+        expr: p.expression,
+        rawMarkers: p.overlayMarkers,
+        extractedIds: [...ids],
+      });
       setPendingFromBus(p.expression);
       setPendingMatrix(p.symbolMatrix);
       setPendingMarket(p.market);
       setExpression(p.expression);
-      setOverlayMarkers(p.overlayMarkers ? (p.overlayMarkers as OverlayMarker[]) : undefined);
+      setPayloadAlertIds(ids);
       onGroupedParametersChange?.({ [liveGroupId]: p.expression });
       widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
         expression: p.expression,
@@ -178,7 +276,7 @@ export function SeasonalityChartWithBuilderWidget(
   const handleChart = (expr: string) => {
     if (!expr) return;
     setExpression(expr);
-    setOverlayMarkers(undefined);
+    setPayloadAlertIds(new Set());
     onGroupedParametersChange?.({ [liveGroupId]: expr });
     widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_EXPRESSION_LOADED, {
       expression: expr,
@@ -300,6 +398,7 @@ export function SeasonalityChartWithBuilderWidget(
               groupId={liveGroupId}
               yearsBack={effectiveYearsBack}
               overlayMarkers={overlayMarkers}
+              onOverlayMarkerDragEnd={handleDragEnd}
               darkMode={darkMode}
               de={de}
               selectedYears={chartType === "average" ? selectedYears : undefined}

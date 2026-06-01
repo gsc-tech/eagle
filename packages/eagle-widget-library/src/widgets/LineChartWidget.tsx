@@ -1096,32 +1096,45 @@ export const LineChartWidget: React.FC<LineChartWidgetProps> = ({
       // External sync cleared — hide cursor on this chart so it doesn't linger
       // after the source chart's mouse left. Instant duration (0) avoids a
       // visible fade that would conflict with the natural local-mouseout hide.
-      try { (cursor as unknown as { hide: (d: number) => void }).hide(0); } catch { /* disposed */ }
+      try { cursor.hide(0); } catch { /* disposed */ }
       return;
     }
 
-    const positionX = (xAxis as am5xy.DateAxis<am5xy.AxisRenderer>)
-      .valueToPosition(externalCursorAxisX);
-    if (!Number.isFinite(positionX)) return;
+    // Map the shared *data value* (a date timestamp) to a point on THIS chart's
+    // axis. We invert the emit path exactly so the cursor lands on the same date
+    // even when sibling charts have different x-ranges or zoom levels:
+    //   emit:  getPrivate("positionX") --toAxisPosition--> --positionToValue--> value
+    //   apply: value --valueToPosition--> --toGlobalPosition--> plot-relative pos
+    // `toGlobalPosition` (am5 ≥ 5.4.2) is the documented zoom-aware inverse of
+    // `toAxisPosition`; using `valueToPosition` alone breaks once a chart is zoomed.
+    const dateAxis = xAxis as am5xy.DateAxis<am5xy.AxisRenderer>;
+    const axisPos = dateAxis.valueToPosition(externalCursorAxisX);
+    if (!Number.isFinite(axisPos)) return;
+    const plotPos = xAxis.toGlobalPosition(axisPos);
 
     const plot = chart.plotContainer;
-    const pixelX = plot.x() + positionX * plot.width();
-    const pixelY = plot.y() + plot.height() / 2;
+    // `handleMove` expects a point in the chart's GLOBAL display space, so map
+    // the plot-relative position through the plot container's transform.
+    const globalPoint = plot.toGlobal({ x: plotPos * plot.width(), y: plot.height() / 2 });
 
+    // `handleMove(point, skipEvent)` is the amCharts 5 API for programmatically
+    // moving the cursor (the old code called `triggerMove`, which only existed in
+    // amCharts v4 — so the cursor never actually moved). It auto-shows the cursor
+    // and, with skipEvent=false, also updates the axis date label + series
+    // tooltips on this follower (Falcon parity).
+    //
+    // handleMove fires `cursormoved` synchronously; `suppressEmitRef` makes the
+    // handler skip re-emitting into the store, so the synced position never
+    // echoes back and bounces between charts. The dispatch is synchronous, so we
+    // can clear the guard immediately after the call returns.
     suppressEmitRef.current = true;
-    // Show cursor first — without this it stays hidden when the mouse is not
-    // physically on this chart (cursor is only auto-shown by native pointer events).
-    try { (cursor as unknown as { show: (d: number) => void }).show(0); } catch { /* disposed */ }
-    // `triggerMove` exists on XYCursor at runtime but is not in amCharts 5's
-    // public TS surface. Guard with typeof so a missing method never crashes the
-    // chart — cursor sync simply won't work on that version, which is acceptable.
-    const triggerMove = (cursor as unknown as Record<string, unknown>).triggerMove;
-    if (typeof triggerMove === "function") {
-      triggerMove.call(cursor, { x: pixelX, y: pixelY }, "none");
-    }
-    requestAnimationFrame(() => {
+    try {
+      cursor.handleMove(globalPoint, false);
+    } catch {
+      /* disposed mid-frame */
+    } finally {
       suppressEmitRef.current = false;
-    });
+    }
   }, [externalCursorAxisX]);
 
   // ── External X-axis range sync (programmatic zoom/pan + loop guard) ────────

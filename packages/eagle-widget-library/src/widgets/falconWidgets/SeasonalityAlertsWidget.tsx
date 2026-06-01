@@ -116,19 +116,16 @@ export function SeasonalityAlertsWidget(props: SeasonalityAlertsWidgetProps) {
   const handleRowRightClick = (alert: SeasonalityAlert) => {
     const expr = alert.expression[0] ?? "";
     const market = alert.market ?? marketFromExpression(expr);
-    console.log("[SeasonalityAlertsWidget] right-click alert:", {
-      id: alert.id,
-      name: alert.name,
-      rawExpression: alert.expression,
-      resolvedExpr: expr,
-      market,
-      navTargets,
-      targetTabId: navTargets ? pickSeasonalityTabId(navTargets, market) : "no navTargets",
+    const markers = alertConditionToOverlayMarkers(alert.condition, alert.id);
+    console.log("[SeasonalityAlertsWidget] right-click →", {
+      alertId: alert.id, expr, market,
+      markerCount: markers?.length ?? 0,
+      markerIds: markers?.map((m) => m.id),
     });
     widgetEventBus.emit(WIDGET_EVENTS.SEASONALITY_OPEN_IN_BUILDER, {
       expression: expr,
       market,
-      overlayMarkers: alertConditionToOverlayMarkers(alert.condition),
+      overlayMarkers: markers,
       ...(navTargets && {
         targetDashboardId: navTargets.dashboardId,
         targetTabId: pickSeasonalityTabId(navTargets, market),

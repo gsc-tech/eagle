@@ -43,6 +43,8 @@ export interface WidgetEventMap {
         expression: string;
         sourceWidgetId: string;
         groupId: string;
+        /** Present when expression came from an alert navigation — carries threshold markers. */
+        overlayMarkers?: AlertOverlayMarker[];
     };
 
     // Emitted after a watchlist item is added or a list is mutated.

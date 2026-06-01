@@ -43,38 +43,29 @@ function resolveSeasonalityTarget(market: SeasonalityMarket | undefined): {
     dashboardId: string;
     tabId: string;
 } | null {
-    if (!market) {
-        console.log("[resolveSeasonalityTarget] market is undefined, aborting");
-        return null;
-    }
+    if (!market) return null;
     const dashboards = useAvailableDashboardsStore.getState().dashboards;
-    console.log("[resolveSeasonalityTarget] market:", market, "| available dashboards:", dashboards.map(d => ({ id: d.id, name: d.name })));
 
     const dash = dashboards.find((d) => d.name.trim().toLowerCase() === SEASONALITY_DASHBOARD_NAME)
         ?? dashboards.find((d) => d.name.toLowerCase().includes(SEASONALITY_DASHBOARD_NAME));
 
     if (!dash) {
-        console.warn("[resolveSeasonalityTarget] no dashboard matching 'seasonality' found");
+        console.warn("[SeasonalityNav] no dashboard matching 'seasonality' found");
         return null;
     }
-
-    console.log("[resolveSeasonalityTarget] matched dashboard:", { id: dash.id, name: dash.name }, "| tabs:", dash.tabs.map(t => ({ id: t.id, title: t.title })));
 
     const keywords = MARKET_TAB_KEYWORDS[market] ?? [];
     const customFallback = dash.tabs.find((t) => t.title.toLowerCase().includes("custom"));
 
     for (const kw of keywords) {
         const tab = dash.tabs.find((t) => t.title.toLowerCase().includes(kw));
-        if (tab) {
-            console.log("[resolveSeasonalityTarget] matched tab via keyword", JSON.stringify(kw), "→", { id: tab.id, title: tab.title });
-            return { dashboardId: dash.id, tabId: tab.id };
-        }
+        if (tab) return { dashboardId: dash.id, tabId: tab.id };
     }
     if (customFallback) {
-        console.warn("[resolveSeasonalityTarget] no market-specific tab matched for", market, "— falling back to custom tab:", customFallback.title);
+        console.warn("[SeasonalityNav] no market-specific tab for", market, "— falling back to custom");
         return { dashboardId: dash.id, tabId: customFallback.id };
     }
-    console.warn("[resolveSeasonalityTarget] no tab found at all for market:", market);
+    console.warn("[SeasonalityNav] no tab found for market:", market);
     return null;
 }
 
@@ -100,28 +91,23 @@ export function useSeasonalityNavigation(handlers: SeasonalityNavigationHandlers
         // (a) seasonality:open-in-builder → dashboard:navigate-to
         const unsubOpen = widgetEventBus.subscribe("seasonality:open-in-builder", (p) => {
             if (p._dispatchedByNavigation) return; // re-emit echo; ignore
-            console.log("[useSeasonalityNavigation] (a) open-in-builder received:", {
-                expression: p.expression,
-                market: p.market,
-                targetDashboardId: p.targetDashboardId,
-                targetTabId: p.targetTabId,
-                hasSymbolMatrix: Array.isArray(p.symbolMatrix) && p.symbolMatrix.length > 0,
+            console.log("[SeasonalityNav] (a) open-in-builder →", {
+                expr: p.expression, market: p.market,
+                markerCount: Array.isArray(p.overlayMarkers) ? p.overlayMarkers.length : 0,
+                markerIds: Array.isArray(p.overlayMarkers) ? p.overlayMarkers.map((m: { id?: string }) => m.id) : [],
+                targetDashboardId: p.targetDashboardId, targetTabId: p.targetTabId,
             });
-            // Prefer explicit navTargets from the emitting widget; otherwise
-            // auto-resolve a dashboard named "Seasonality" with market tabs.
             let dashboardId = p.targetDashboardId;
             let tabId = p.targetTabId;
             if (!dashboardId || !tabId) {
-                console.log("[useSeasonalityNavigation] no explicit navTargets — falling back to auto-resolve");
                 const resolved = resolveSeasonalityTarget(p.market);
                 if (!resolved) {
-                    console.warn("[useSeasonalityNavigation] auto-resolve failed, navigation aborted");
-                    return; // can't navigate
+                    console.warn("[SeasonalityNav] auto-resolve failed, navigation aborted");
+                    return;
                 }
                 dashboardId = resolved.dashboardId;
                 tabId = resolved.tabId;
             }
-            console.log("[useSeasonalityNavigation] emitting navigate-to:", { dashboardId, tabId, expression: p.expression });
             widgetEventBus.emit("dashboard:navigate-to", {
                 dashboardId,
                 tabId,
@@ -136,13 +122,11 @@ export function useSeasonalityNavigation(handlers: SeasonalityNavigationHandlers
 
         // (b) dashboard:navigate-to → host switch + re-emit for builder hydration
         const unsubNav = widgetEventBus.subscribe("dashboard:navigate-to", (p) => {
-            console.log("[useSeasonalityNavigation] (b) navigate-to received:", { dashboardId: p.dashboardId, tabId: p.tabId, initialState: p.initialState });
             const ok = handlersRef.current.selectDashboard(p.dashboardId);
             if (!ok) {
-                console.warn(`[useSeasonalityNavigation] dashboard "${p.dashboardId}" not found — selectDashboard returned false`);
+                console.warn(`[SeasonalityNav] dashboard "${p.dashboardId}" not found`);
                 return;
             }
-            console.log("[useSeasonalityNavigation] selectDashboard ok, now switching tab to:", p.tabId);
             if (p.tabId) handlersRef.current.setActiveTab(p.tabId);
 
             const init = p.initialState;
@@ -153,22 +137,25 @@ export function useSeasonalityNavigation(handlers: SeasonalityNavigationHandlers
                     symbolMatrix: init.symbolMatrix as SymbolMatrix[] | undefined,
                     overlayMarkers: init.overlayMarkers as AlertOverlayMarker[] | undefined,
                 };
-                // Write to the pending store BEFORE the tab switch re-renders so
-                // the builder can read it synchronously on mount — the 80ms event
-                // re-emit is a best-effort fast path for widgets already mounted.
                 usePendingBuilderNavStore.getState().set(navPayload);
-                console.log("[useSeasonalityNavigation] ✅ wrote pending nav to store:", navPayload.expression, navPayload.market);
-                console.log("[useSeasonalityNavigation] pending store state immediately after set:", usePendingBuilderNavStore.getState().pending);
+                console.log("[SeasonalityNav] (b) wrote pending store →", {
+                    expr: navPayload.expression,
+                    markerCount: navPayload.overlayMarkers?.length ?? 0,
+                    markerIds: navPayload.overlayMarkers?.map((m) => m.id),
+                });
                 setTimeout(() => {
-                    const stillPending = usePendingBuilderNavStore.getState().pending;
-                    console.log("[useSeasonalityNavigation] ⏱ 80ms re-emit firing. Pending store still has payload?", !!stillPending, "expression:", navPayload.expression);
+                    console.log("[SeasonalityNav] (b) re-emitting open-in-builder →", {
+                        expr: navPayload.expression,
+                        markerCount: navPayload.overlayMarkers?.length ?? 0,
+                        markerIds: navPayload.overlayMarkers?.map((m) => m.id),
+                    });
                     widgetEventBus.emit("seasonality:open-in-builder", {
                         ...navPayload,
                         _dispatchedByNavigation: true,
                     });
                 }, REEMIT_DELAY_MS);
             } else {
-                console.warn("[useSeasonalityNavigation] ❌ no expression in initialState, builder will not be hydrated", init);
+                console.warn("[SeasonalityNav] ❌ no expression in initialState, builder will not be hydrated", init);
             }
         });
 

@@ -6,11 +6,14 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WidgetContainer } from "../../components/WidgetContainer";
 import { SeasonalityChart, extractYearLabel, type SeasonalityChartType } from "../../components/seasonality/SeasonalityChart";
 import type { BaseWidgetProps } from "../../types";
 import { widgetEventBus } from "../../store/widgetEventBus";
+import { useSeasonalityAlertsStore } from "../../store/seasonalityAlertsStore";
+import { alertConditionToOverlayMarkers } from "../../utils/seasonality";
+import type { OverlayMarker } from "../LineChartWidget";
 
 export type SeasonalityChartWidgetMode = "bound" | "standalone";
 
@@ -83,11 +86,65 @@ export function SeasonalityChartWidget(props: SeasonalityChartWidgetProps) {
     }
   }, [mode, groupValue, boundExpression]);
 
+  // ── Alert overlay markers (live from store, same pattern as QuickViewChartModal) ─
+  const [payloadAlertIds, setPayloadAlertIds] = useState<Set<string>>(new Set());
+  const alerts = useSeasonalityAlertsStore((s) => s.alerts);
+  const deleteAlert = useSeasonalityAlertsStore((s) => s.deleteAlert);
+  const updateAlertCondition = useSeasonalityAlertsStore((s) => s.updateAlertCondition);
+
+  const overlayMarkers = useMemo<OverlayMarker[] | undefined>(() => {
+    if (!payloadAlertIds.size) return undefined;
+    const markers: OverlayMarker[] = [];
+    for (const alert of alerts) {
+      if (!payloadAlertIds.has(alert.id)) continue;
+      const derived = alertConditionToOverlayMarkers(alert.condition, alert.id);
+      if (!derived) continue;
+      for (const m of derived) {
+        markers.push({
+          ...m,
+          onDelete: () =>
+            deleteAlert(alert.id).catch((e) =>
+              console.error("[SeasonalityChartWidget] deleteAlert failed", e),
+            ),
+        });
+      }
+    }
+    console.log("[SeasonalityChartWidget] overlayMarkers recomputed →", {
+      payloadAlertIds: [...payloadAlertIds], markerCount: markers.length,
+    });
+    return markers.length ? markers : undefined;
+  }, [alerts, payloadAlertIds, deleteAlert]);
+
+  const handleDragEnd = (marker: OverlayMarker, newValue: number) => {
+    if (!marker.id) return;
+    const alert = useSeasonalityAlertsStore.getState().alerts.find((a) => a.id === marker.id);
+    if (!alert) return;
+    const condition = { ...alert.condition, value: { ...alert.condition.value } };
+    if (condition.type === "inRange") {
+      const distLow = Math.abs((condition.value.low ?? 0) - marker.value);
+      const distHigh = Math.abs((condition.value.high ?? 0) - marker.value);
+      if (distLow < distHigh) condition.value = { ...condition.value, low: newValue };
+      else condition.value = { ...condition.value, high: newValue };
+    } else {
+      condition.value = { ...condition.value, rhs: newValue };
+    }
+    updateAlertCondition(marker.id, condition).catch((e) =>
+      console.error("[SeasonalityChartWidget] updateAlertCondition failed", e),
+    );
+  };
+
   useEffect(() => {
     if (mode !== "bound") return;
     const unsub = widgetEventBus.subscribe("seasonality:expression-loaded", (p) => {
       if (p.groupId !== liveGroupId) return;
       setBoundExpression(p.expression);
+      const ids = p.overlayMarkers
+        ? new Set(p.overlayMarkers.map((m) => m.id).filter(Boolean) as string[])
+        : new Set<string>();
+      console.log("[SeasonalityChartWidget] expression-loaded →", {
+        expr: p.expression, extractedIds: [...ids],
+      });
+      setPayloadAlertIds(ids);
     });
     return unsub;
   }, [mode, liveGroupId]);
@@ -222,6 +279,8 @@ export function SeasonalityChartWidget(props: SeasonalityChartWidgetProps) {
               expression={expression}
               groupId={liveGroupId}
               yearsBack={effectiveYearsBack}
+              overlayMarkers={overlayMarkers}
+              onOverlayMarkerDragEnd={handleDragEnd}
               darkMode={darkMode}
               selectedYears={type === "average" ? selectedYears : undefined}
               onAvailableYears={type === "average" ? setAvailableYears : undefined}
