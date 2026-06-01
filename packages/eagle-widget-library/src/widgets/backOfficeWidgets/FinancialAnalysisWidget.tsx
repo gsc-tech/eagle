@@ -135,7 +135,7 @@ function CustomTooltip({
         {payload.map((p: any) => {
           const safeKey = sanitizeKey(String(p.dataKey ?? ""));
           const seriesLabel = chartConfig[safeKey]?.label ?? chartConfig[String(p.dataKey ?? "")]?.label ?? String(p.dataKey ?? "");
-          const color = p.stroke ?? p.fill ?? chartConfig[safeKey]?.color ?? "hsl(var(--muted-foreground))";
+          const color = p.stroke ?? p.fill ?? chartConfig[safeKey]?.color ?? "var(--muted-foreground)";
           return (
             <div key={p.dataKey} className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: color }} />
@@ -174,7 +174,7 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
 
   const tooltip = (
     <ChartTooltip
-      cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 4" }}
+      cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeDasharray: "4 4" }}
       content={
         <CustomTooltip
           xKey={xKey}
@@ -191,7 +191,7 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
     return (
       <g>
         <circle cx={x} cy={y} r={4} fill={`var(--color-${sanitizeKey(seriesKey)})`} />
-        <text x={x + 10} y={y - 5} fill="hsl(var(--muted-foreground))" fontSize={11} fontWeight="bold" className="tabular-nums" textAnchor="start">
+        <text x={x + 10} y={y - 5} fill="var(--muted-foreground)" fontSize={11} fontWeight="bold" className="tabular-nums" textAnchor="start">
           {formatValue(value, isPercent)}
         </text>
       </g>
@@ -204,10 +204,10 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
     case "area":
       chartContent = (
         <AreaChart data={data} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
-          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />}
-          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />}
-          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : v} domain={["auto", "auto"]} />}
-          <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1} />
+          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />}
+          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />}
+          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : v} domain={["auto", "auto"]} />}
+          <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
           {tooltip}
           {wConfig.series.map((s) => {
             const safeKey = sanitizeKey(s.key);
@@ -224,15 +224,15 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
     case "line":
       chartContent = (
         <LineChart data={data} margin={{ top: 20, right: 80, left: 10, bottom: 10 }}>
-          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />}
-          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />}
-          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : v} domain={["auto", "auto"]} />}
-          <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1} />
+          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />}
+          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />}
+          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : v} domain={["auto", "auto"]} />}
+          <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
           {tooltip}
           {wConfig.series.map((s) => {
             const safeKey = sanitizeKey(s.key);
             return (
-              <Line key={s.key} dataKey={s.key} type="monotone" stroke={`var(--color-${safeKey})`} strokeWidth={3} dot={{ r: 2, strokeWidth: 2, fill: "hsl(var(--background))" }} activeDot={{ r: 6, strokeWidth: 0 }} connectNulls>
+              <Line key={s.key} dataKey={s.key} type="monotone" stroke={`var(--color-${safeKey})`} strokeWidth={3} dot={{ r: 2, strokeWidth: 2, fill: "var(--background)" }} activeDot={{ r: 6, strokeWidth: 0 }} connectNulls>
                 {wConfig.showLabels !== false && <LabelList dataKey={s.key} content={renderEndLabel(s.key)} />}
               </Line>
             );
@@ -258,11 +258,11 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
 
       chartContent = (
         <BarChart data={absData} margin={{ top: 30, right: 80, left: 10, bottom: 10 }}>
-          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />}
-          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />}
-          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : formatCompact(v)} domain={[0, "auto"]} />}
+          {wConfig.showGrid && <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />}
+          {wConfig.showXAxis && <XAxis dataKey={xKey} tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />}
+          {wConfig.showYAxis && <YAxis tickLine={false} axisLine={false} tickMargin={8} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} tickFormatter={(v) => isPercent ? `${v}%` : formatCompact(v)} domain={[0, "auto"]} />}
           <ChartTooltip
-            cursor={{ fill: "hsl(var(--muted))", opacity: 0.15 }}
+            cursor={{ fill: "var(--muted)", opacity: 0.15 }}
             content={(ttProps: any) => {
               const { active, payload } = ttProps;
               if (!active || !payload?.length) return null;
@@ -318,13 +318,13 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
     case "bar":
       chartContent = (
         <BarChart data={data} layout={wConfig.layout || "horizontal"} margin={{ top: wConfig.layout === "vertical" ? 10 : 30, right: 80, left: 10, bottom: 10 }}>
-          {wConfig.showGrid && <CartesianGrid vertical={wConfig.layout === "vertical"} strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />}
+          {wConfig.showGrid && <CartesianGrid vertical={wConfig.layout === "vertical"} strokeDasharray="3 3" stroke="var(--border)" opacity={0.5} />}
           {wConfig.showXAxis && (
             <XAxis
               dataKey={wConfig.layout === "vertical" ? undefined : xKey}
               type={wConfig.layout === "vertical" ? "number" : "category"}
               tickLine={false} axisLine={false} tickMargin={8}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               {...(wConfig.layout === "vertical" ? { padding: { left: 80, right: 80 }, domain: ["auto", "auto"] } : {})}
             />
           )}
@@ -333,13 +333,13 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
               dataKey={wConfig.layout === "vertical" ? xKey : undefined}
               type={wConfig.layout === "vertical" ? "category" : "number"}
               tickLine={false} axisLine={false} tickMargin={8}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
               tickFormatter={(v) => isPercent && wConfig.layout !== "vertical" ? `${v}%` : v}
               {...(wConfig.layout !== "vertical" ? { domain: ["auto", "auto"] } : {})}
             />
           )}
-          {wConfig.layout !== "vertical" && <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1} />}
-          <ChartTooltip cursor={{ fill: "hsl(var(--muted))", opacity: 0.15 }} content={<CustomTooltip xKey={xKey} isPercent={isPercent} chartConfig={rechartConfig} />} />
+          {wConfig.layout !== "vertical" && <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />}
+          <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.15 }} content={<CustomTooltip xKey={xKey} isPercent={isPercent} chartConfig={rechartConfig} />} />
           {wConfig.series.map((s) => {
             const safeKey = sanitizeKey(s.key);
             return (
@@ -352,7 +352,7 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
                     const tX = isVertical ? (isNeg ? x + width - 12 : x + width + 12) : x + width / 2;
                     const tY = isVertical ? y + h / 2 : isNeg ? y + h + 22 : y - 12;
                     return (
-                      <text x={tX} y={tY} fill="hsl(var(--muted-foreground))" fontSize={11} fontWeight="bold"
+                      <text x={tX} y={tY} fill="var(--muted-foreground)" fontSize={11} fontWeight="bold"
                         textAnchor={isVertical ? (isNeg ? "end" : "start") : "middle"} dominantBaseline="middle" className="tabular-nums">
                         {formatValue(value, isPercent)}
                       </text>
@@ -407,7 +407,7 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
           <Pie data={data} dataKey="value" nameKey="name" innerRadius={innerRadius} strokeWidth={0} paddingAngle={0} startAngle={90} endAngle={450} label={type === "pie" ? renderInsideLabel : undefined} labelLine={false}>
             {data.map((_: any, index: number) => {
               if (isGauge) {
-                const color = index === 0 ? `var(--color-${sanitizeKey(wConfig.series[0]?.key ?? "filled")})` : "hsl(var(--accent-foreground))";
+                const color = index === 0 ? `var(--color-${sanitizeKey(wConfig.series[0]?.key ?? "filled")})` : "var(--accent-foreground)";
                 return <Cell key={`cell-${index}`} fill={color} fillOpacity={index === 0 ? 1 : 0.15} />;
               }
               const safeKey = multiSeries ? sanitizeKey(wConfig.series[index]?.key ?? wConfig.series[0]?.key ?? "value") : baseKey;
@@ -423,10 +423,10 @@ function SingleChart({ chart, height }: { chart: ChartItemConfig; height: number
                 const displayVal = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(rawValue);
                 return (
                   <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
-                    <tspan x={cx} dy={chart.gaugeOverflow ? "-1.2em" : "0"} fontSize={18} fontWeight={700} fill="hsl(var(--foreground))" className="tabular-nums">{displayVal}</tspan>
+                    <tspan x={cx} dy={chart.gaugeOverflow ? "-1.2em" : "0"} fontSize={18} fontWeight={700} fill="var(--foreground)" className="tabular-nums">{displayVal}</tspan>
                     {chart.gaugeOverflow && (
                       <>
-                        <tspan x={cx} dy="1.4em" fontSize={11} fill="hsl(var(--muted-foreground))">/{new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(chart.gaugeOverflow.maxValue)}</tspan>
+                        <tspan x={cx} dy="1.4em" fontSize={11} fill="var(--muted-foreground)">/{new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(chart.gaugeOverflow.maxValue)}</tspan>
                         <tspan x={cx} dy="1.5em" fontSize={9} fontWeight={700} fill="hsl(38 92% 50%)">⚠ LIMIT</tspan>
                       </>
                     )}

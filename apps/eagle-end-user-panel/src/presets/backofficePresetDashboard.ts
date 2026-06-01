@@ -72,7 +72,7 @@ export const backofficePresetDashboard: DashboardRecord = {
           {
             i: "bo-pnl-heatmap",
             x: 0, y: 4, w: 3, h: 5,
-            minW: 2, minH: 3,
+            minW: 3, minH: 3,
             widget: {
               componentName: "FinancialAnalysisWidget",
               name: "Net P&L (Ex. R&C)",

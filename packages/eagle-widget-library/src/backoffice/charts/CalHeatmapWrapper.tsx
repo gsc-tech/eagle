@@ -31,6 +31,14 @@ interface CalHeatmapProps {
   darkMode?: boolean;
 }
 
+// Estimate how many months fit given available pixel width.
+// WeekdayLabel: 40px, nav buttons: ~80px, per-month: ~130px.
+function monthsFitInWidth(px: number): number {
+  const available = px - 40 - 80;
+  const months = Math.floor(available / 130);
+  return Math.max(1, Math.min(4, months));
+}
+
 export default function CalendarHeatmap({
   data,
   domainRangeLowerLimit,
@@ -42,7 +50,18 @@ export default function CalendarHeatmap({
   darkMode = false,
 }: CalHeatmapProps) {
   const resolvedTheme = darkMode ? "dark" : "light";
-  const [displayRange] = useState<number>(4);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [displayRange, setDisplayRange] = useState<number>(4);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setDisplayRange(monthsFitInWidth(entry.contentRect.width));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const decimalFormatter = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
@@ -185,7 +204,7 @@ export default function CalendarHeatmap({
   ]);
 
   return (
-    <div className="w-full">
+    <div ref={wrapperRef} className="w-full">
       {groupLabel && (
         <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground/60 mb-4 pl-10">
           {groupLabel}
