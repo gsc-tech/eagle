@@ -356,6 +356,7 @@ export const TraderLimitsApprovalWidget: React.FC<TraderLimitsApprovalWidgetProp
             // Add rows with formatted data
             const rowsToExport = requests.map(req => ({
                 ...req,
+                currentLimit: req.previousLimit,
                 requestedAt: req.requestedAt ? new Date(req.requestedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : "—"
             }));
 
