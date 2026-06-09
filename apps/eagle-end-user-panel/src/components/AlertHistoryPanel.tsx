@@ -47,7 +47,7 @@ function HistoryAlertRow({
                 {alert.dateType === "expiry" ? "EXP" : "FTD"}
             </span>
             <span className="text-[11px] text-zinc-500 shrink-0">
-                {alert.daysUntilExpiry === 0 ? "Today" : `T-${alert.daysUntilExpiry}`}
+                {alert.daysUntilExpiry === 0 ? "Today" : alert.daysUntilExpiry < 0 ? `${Math.abs(alert.daysUntilExpiry)}d ago` : `T-${alert.daysUntilExpiry}`}
             </span>
             <span className={cn("text-xs font-extrabold shrink-0", alert.activePosition > 0 ? "text-blue-400" : "text-orange-400")}>
                 {alert.activePosition > 0 ? `+${alert.activePosition}` : String(alert.activePosition)}
@@ -79,7 +79,10 @@ export function AlertHistoryPanel({ open, onClose }: AlertHistoryPanelProps) {
     const markAll      = useAlertsStore((s) => s.markAllAddressed);
     const dismissAlert = useAlertsStore((s) => s.dismissAlert);
 
-    const active    = alerts.filter((a) => !a.addressed);
+    const active    = alerts.filter((a) => !a.addressed).sort((a, b) => {
+        if (a.severity === b.severity) return a.daysUntilExpiry - b.daysUntilExpiry;
+        return a.severity === "critical" ? -1 : 1;
+    });
     const addressed = alerts.filter((a) => a.addressed);
 
     return (

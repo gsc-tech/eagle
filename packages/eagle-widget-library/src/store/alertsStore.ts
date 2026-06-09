@@ -55,13 +55,14 @@ export const useAlertsStore = create<AlertsState>((set, get) => ({
     refreshAlerts: (getPosition) => {
         const { calendarEvents } = get();
         const now = new Date();
-        now.setHours(12, 0, 0, 0);
+        now.setUTCHours(12, 0, 0, 0);
         const newAlerts: ExpiryAlert[] = [];
 
         calendarEvents.forEach((event) => {
+            if (event.dateType !== "expiry") return;
             const eventDate = new Date(event.date + "T12:00:00Z");
             const daysAway = Math.ceil((eventDate.getTime() - now.getTime()) / 86_400_000);
-            if (daysAway < 0 || daysAway > 10) return;
+            if (daysAway > 10) return;
 
             const parsed = parseSymbol(`${event.symbol}${event.contractCode}`);
             if (!parsed) return;

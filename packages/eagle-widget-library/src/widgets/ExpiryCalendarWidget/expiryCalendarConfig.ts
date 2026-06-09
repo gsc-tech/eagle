@@ -234,7 +234,7 @@ export function parseApiResponse(raw: unknown, overrides?: Record<string, string
         const contractCode = String(c.contractCode ?? "").trim();
         const base = `${symbol}_${contractCode}`;
 
-        if (c.expiry) events.push({
+        if (c.FNDminus2) events.push({
           id: `${base}_exp_${ctr++}`, date: isoToDateKey(c.FNDminus2),
           symbol, productName, contractCode, exchange, currency,
           dateType: "expiry", _group: group, _color: cfg.color,
