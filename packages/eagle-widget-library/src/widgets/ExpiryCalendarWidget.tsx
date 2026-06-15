@@ -186,12 +186,34 @@ function isoToLocal(iso: string): Date {
   return new Date(iso + "T12:00:00Z");
 }
 
+const DYNAMIC_GROUP_COLORS = [
+  { color: "#f43f5e", bg: "rgba(244,63,94,0.08)",   darkBg: "rgba(244,63,94,0.14)"   },
+  { color: "#8b5cf6", bg: "rgba(139,92,246,0.08)",  darkBg: "rgba(139,92,246,0.14)"  },
+  { color: "#14b8a6", bg: "rgba(20,184,166,0.08)",  darkBg: "rgba(20,184,166,0.14)"  },
+  { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  darkBg: "rgba(245,158,11,0.14)"  },
+  { color: "#10b981", bg: "rgba(16,185,129,0.08)",  darkBg: "rgba(16,185,129,0.14)"  },
+  { color: "#0ea5e9", bg: "rgba(14,165,233,0.08)",  darkBg: "rgba(14,165,233,0.14)"  },
+  { color: "#d946ef", bg: "rgba(217,70,239,0.08)",  darkBg: "rgba(217,70,239,0.14)"  },
+  { color: "#64748b", bg: "rgba(100,116,139,0.08)", darkBg: "rgba(100,116,139,0.14)" },
+];
+
+const dynamicGroupRegistry: Record<string, { color: string; bg: string; darkBg: string; icon: string }> = {};
+
+function getGroupConfig(group: string): { color: string; bg: string; darkBg: string; icon: string } {
+  if (GROUP_CONFIG[group]) return GROUP_CONFIG[group];
+  if (dynamicGroupRegistry[group]) return dynamicGroupRegistry[group];
+  const palette = DYNAMIC_GROUP_COLORS[Object.keys(dynamicGroupRegistry).length % DYNAMIC_GROUP_COLORS.length];
+  dynamicGroupRegistry[group] = { ...palette, icon: "📦" };
+  return dynamicGroupRegistry[group];
+}
+
 function resolveGroup(symbol: string, apiCategory?: string, overrides?: Record<string, string>): string {
   if (overrides?.[symbol]) return overrides[symbol];
   if (apiCategory) {
     const norm = CATEGORY_NORMALISE[apiCategory.toLowerCase()];
     if (norm) return norm;
-    if (GROUP_CONFIG[apiCategory]) return apiCategory;
+    // Use the raw category as a group name (handles any asset_class value from the API)
+    return apiCategory;
   }
   return PRODUCT_GROUPS[symbol]?.groupName ?? "Other";
 }
@@ -256,7 +278,7 @@ function parseApiResponse(raw: unknown, overrides?: Record<string, string>): Exp
     const exchange    = String(rec.exchange ?? "").trim();
     const currency    = rec.currency ? String(rec.currency).trim() : undefined;
     const group       = resolveGroup(symbol, rec.category, overrides);
-    const cfg         = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+    const cfg         = getGroupConfig(group);
 
     if (Array.isArray(rec.contracts) && rec.contracts.length > 0) {
       rec.contracts.forEach((c: any) => {
@@ -387,7 +409,7 @@ function Chip({ active, children, onClick, dk }: { active: boolean; children: Re
 // ─── Group Dot ────────────────────────────────────────────────────────────────
 
 function GroupDot({ group, size = 8 }: { group: string; size?: number }) {
-  const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+  const cfg = getGroupConfig(group);
   return <span style={{ display: "inline-block", width: size, height: size, borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />;
 }
 
@@ -440,7 +462,7 @@ const EventBadge = memo(({ event, dk, activePosition, accountBreakdown }: {
   activePosition?: number;
   accountBreakdown?: { accountId: string; qty: number }[];
 }) => {
-  const cfg = GROUP_CONFIG[event._group] ?? GROUP_CONFIG["Other"];
+  const cfg = getGroupConfig(event._group);
   const t   = tok(dk);
   const hasBreakdown = (accountBreakdown?.length ?? 0) > 0;
   // Show position badge if net != 0, OR if any account has a position (catches ±0 netting)
@@ -778,10 +800,10 @@ const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: {
                     Other Contracts
                   </div>
                 )}
-                {GROUP_ORDER.concat(["Other"]).map(group => {
+                {[...GROUP_ORDER, ...Object.keys(byGroup).filter(g => !GROUP_ORDER.includes(g) && g !== "Other").sort(), "Other"].map(group => {
                   const evts = byGroup[group];
                   if (!evts?.length) return null;
-                  const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+                  const cfg = getGroupConfig(group);
                   return (
                     <div key={group} style={{ marginBottom: 12 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
@@ -887,7 +909,7 @@ UpcomingItem.displayName = "UpcomingItem";
 
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
-function Legend({ dk }: { dk: boolean }) {
+function Legend({ dk, activeGroups }: { dk: boolean; activeGroups: string[] }) {
   const t = tok(dk);
   return (
     <div style={{
@@ -896,8 +918,8 @@ function Legend({ dk }: { dk: boolean }) {
       flexShrink: 0, alignItems: "center",
       background: dk ? "#0a0a0e" : "#f8fafc",
     }}>
-      {GROUP_ORDER.map(g => {
-        const cfg = GROUP_CONFIG[g];
+      {activeGroups.map(g => {
+        const cfg = getGroupConfig(g);
         return (
           <div key={g} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 600, color: t.textMuted }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.color, display: "inline-block" }} />
@@ -1003,7 +1025,10 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   const availableGroups = useMemo(() => {
     const s = new Set<string>();
     allEventsRef.current.forEach(e => s.add(e._group));
-    return GROUP_ORDER.filter(g => s.has(g));
+    const known = GROUP_ORDER.filter(g => s.has(g));
+    const dynamic = [...s].filter(g => !GROUP_ORDER.includes(g) && g !== "Other").sort();
+    const other = s.has("Other") ? ["Other"] : [];
+    return [...known, ...dynamic, ...other];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parseVersion]);
 
@@ -1278,7 +1303,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             </div>
             <div style={{ padding: "6px 14px 10px" }}>
               {availableGroups.map(g => {
-                const cfg = GROUP_CONFIG[g] ?? GROUP_CONFIG["Other"];
+                const cfg = getGroupConfig(g);
                 const checked = categoryFilter.size === 0 || categoryFilter.has(g);
                 return (
                   <label key={g} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 2px", cursor: "pointer" }}>
@@ -1320,8 +1345,8 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             </div>
             <div style={{ maxHeight: 280, overflowY: "auto", padding: "6px 14px 10px" }}>
               {availableSymbols.map(sym => {
-                const group = PRODUCT_GROUPS[sym]?.groupName ?? "Other";
-                const cfg   = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+                const group = allEventsRef.current.find(e => e.symbol === sym)?._group ?? PRODUCT_GROUPS[sym]?.groupName ?? "Other";
+                const cfg   = getGroupConfig(group);
                 const checked = symbolFilter.size === 0 || symbolFilter.has(sym);
                 const pName = allEventsRef.current.find(e => e.symbol === sym)?.productName ?? sym;
                 return (
@@ -1470,7 +1495,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
               ))}
             </div>
 
-            <Legend dk={dk} />
+            <Legend dk={dk} activeGroups={availableGroups} />
           </div>
 
           {/* ── Day detail panel ── */}
