@@ -59,7 +59,7 @@ const agLightTheme = themeQuartz.withParams({
 
 // ─── Static constants ─────────────────────────────────────────────────────────
 
-const TODAY = new Date("2026-04-10T12:00:00Z");
+const TODAY = new Date();
 const TODAY_STR = TODAY.toDateString();
 const AG_ROW_HEIGHT = 38; // must match agDarkTheme / agLightTheme rowHeight
 
@@ -387,7 +387,7 @@ export const EconomicCalendarWidget: React.FC<EconomicCalendarWidgetProps & { da
 
   // ── Timezone ─────────────────────────────────────────────────────────────
   const [selectedTz, setSelectedTz] = useState<TzOption>(
-    () => TIMEZONES.find(t => t.iana === "Asia/Tehran") ?? TIMEZONES[8]
+    () => TIMEZONES.find(t => t.iana === "Asia/Kolkata") ?? TIMEZONES[12]
   );
 
   // ── Fetch ────────────────────────────────────────────────────────────────
