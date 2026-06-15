@@ -13,8 +13,8 @@ import { usePositionsStore } from "../../store/positionsStore";
 import { useAlertsStore } from "../../store/alertsStore";
 import {
   type ExpiryCalendarWidgetProps, type ExpiryEvent, type ViewMode,
-  GROUP_CONFIG, GROUP_ORDER, PRODUCT_GROUPS,
-  getToday, toDateKey, isoToLocal, parseApiResponse, getPositionForEvent,
+  GROUP_ORDER, PRODUCT_GROUPS,
+  getToday, toDateKey, isoToLocal, parseApiResponse, getPositionForEvent, getGroupConfig,
 } from "./expiryCalendarConfig";
 import {
   FilterPopover, CB, Chip, GroupDot, ViewModeToggle,
@@ -97,7 +97,10 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
   const availableGroups = useMemo(() => {
     const s = new Set<string>();
     allEventsRef.current.forEach(e => s.add(e._group));
-    return GROUP_ORDER.filter(g => s.has(g));
+    const known = GROUP_ORDER.filter(g => s.has(g));
+    const dynamic = [...s].filter(g => !GROUP_ORDER.includes(g) && g !== "Other").sort();
+    const other = s.has("Other") ? ["Other"] : [];
+    return [...known, ...dynamic, ...other];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parseVersion]);
 
@@ -322,7 +325,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             </div>
             <div className="px-3.5 py-2 pb-2.5">
               {availableGroups.map(g => {
-                const cfg = GROUP_CONFIG[g] ?? GROUP_CONFIG["Other"];
+                const cfg = getGroupConfig(g);
                 const checked = categoryFilter.size === 0 || categoryFilter.has(g);
                 return (
                   <label key={g} className="flex items-center gap-2 py-1.5 cursor-pointer">
@@ -364,8 +367,8 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
             </div>
             <div className="max-h-[280px] overflow-y-auto px-3.5 py-2 pb-2.5 widget-scrollbar">
               {availableSymbols.map(sym => {
-                const group = PRODUCT_GROUPS[sym]?.groupName ?? "Other";
-                const cfg   = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+                const group = allEventsRef.current.find(e => e.symbol === sym)?._group ?? PRODUCT_GROUPS[sym]?.groupName ?? "Other";
+                const cfg   = getGroupConfig(group);
                 const checked = symbolFilter.size === 0 || symbolFilter.has(sym);
                 const pName = allEventsRef.current.find(e => e.symbol === sym)?.productName ?? sym;
                 return (
@@ -476,7 +479,7 @@ export const ExpiryCalendarWidget: React.FC<ExpiryCalendarWidgetProps & { darkMo
                 />
               ))}
             </div>
-            <Legend />
+            <Legend activeGroups={availableGroups} />
           </div>
 
           {/* ── Day detail panel ── */}

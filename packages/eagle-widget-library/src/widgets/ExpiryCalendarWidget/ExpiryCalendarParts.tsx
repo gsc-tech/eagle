@@ -5,7 +5,7 @@ import { usePositionsStore } from "../../store/positionsStore";
 import {
   type ExpiryEvent, type EventDateType, type ViewMode, type GetPositionFn,
   GROUP_CONFIG, GROUP_ORDER, DATE_TYPE_CONFIG,
-  isoToLocal, getToday, getPositionForEvent, getPositionForEventByAccount,
+  isoToLocal, getToday, getPositionForEvent, getPositionForEventByAccount, getGroupConfig,
 } from "./expiryCalendarConfig";
 
 // ─── FilterPopover ────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ export function Chip({ active, children, onClick }: { active: boolean; children:
 // ─── Group Dot ────────────────────────────────────────────────────────────────
 
 export function GroupDot({ group, size = 8 }: { group: string; size?: number }) {
-  const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+  const cfg = getGroupConfig(group);
   return (
     <span
       className="inline-block rounded-full shrink-0"
@@ -157,7 +157,7 @@ export const EventBadge = memo(({ event, dk, activePosition, accountBreakdown }:
   activePosition?: number;
   accountBreakdown?: { accountId: string; qty: number }[];
 }) => {
-  const cfg = GROUP_CONFIG[event._group] ?? GROUP_CONFIG["Other"];
+  const cfg = getGroupConfig(event._group);
   const hasBreakdown = (accountBreakdown?.length ?? 0) > 0;
   const hasPos = (activePosition !== undefined && activePosition !== 0) || hasBreakdown || (accountBreakdown?.length ?? 0) === 1;
 
@@ -437,10 +437,10 @@ export const DayDetailPanel = memo(({ date, events, dk, onClose, getPosition }: 
                     Other Contracts
                   </div>
                 )}
-                {GROUP_ORDER.concat(["Other"]).map(group => {
+                {[...GROUP_ORDER, ...Object.keys(byGroup).filter(g => !GROUP_ORDER.includes(g) && g !== "Other").sort(), "Other"].map(group => {
                   const evts = byGroup[group];
                   if (!evts?.length) return null;
-                  const cfg = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+                  const cfg = getGroupConfig(group);
                   return (
                     <div key={group} className="mb-3">
                       <div className="flex items-center gap-1.5 mb-1.5">
@@ -513,7 +513,7 @@ export const UpcomingItem = memo(({ dateKey, events, dk, isSelected, onClick }: 
       </div>
       <div className="flex flex-wrap gap-0.5">
         {events.slice(0, 6).map(e => {
-          const cfg = GROUP_CONFIG[e._group] ?? GROUP_CONFIG["Other"];
+          const cfg = getGroupConfig(e._group);
           return (
             <span
               key={e.id}
@@ -541,11 +541,11 @@ UpcomingItem.displayName = "UpcomingItem";
 
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
-export function Legend() {
+export function Legend({ activeGroups }: { activeGroups: string[] }) {
   return (
     <div className="flex flex-wrap gap-x-2.5 gap-y-1 px-3 py-1.5 border-t border-gray-200 dark:border-zinc-800 shrink-0 items-center bg-gray-50 dark:bg-zinc-950">
-      {GROUP_ORDER.map(g => {
-        const cfg = GROUP_CONFIG[g];
+      {activeGroups.map(g => {
+        const cfg = getGroupConfig(g);
         return (
           <div key={g} className="flex items-center gap-1 text-[10px] font-semibold text-gray-400 dark:text-zinc-500">
             <span className="inline-block rounded-full w-[7px] h-[7px]" style={{ background: cfg.color }} />

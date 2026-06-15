@@ -164,12 +164,33 @@ export function isoToLocal(iso: string): Date {
   return new Date(iso + "T12:00:00Z");
 }
 
+const DYNAMIC_GROUP_COLORS = [
+  { color: "#f43f5e", bg: "rgba(244,63,94,0.08)",   darkBg: "rgba(244,63,94,0.14)"   },
+  { color: "#8b5cf6", bg: "rgba(139,92,246,0.08)",  darkBg: "rgba(139,92,246,0.14)"  },
+  { color: "#14b8a6", bg: "rgba(20,184,166,0.08)",  darkBg: "rgba(20,184,166,0.14)"  },
+  { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  darkBg: "rgba(245,158,11,0.14)"  },
+  { color: "#10b981", bg: "rgba(16,185,129,0.08)",  darkBg: "rgba(16,185,129,0.14)"  },
+  { color: "#0ea5e9", bg: "rgba(14,165,233,0.08)",  darkBg: "rgba(14,165,233,0.14)"  },
+  { color: "#d946ef", bg: "rgba(217,70,239,0.08)",  darkBg: "rgba(217,70,239,0.14)"  },
+  { color: "#64748b", bg: "rgba(100,116,139,0.08)", darkBg: "rgba(100,116,139,0.14)" },
+];
+
+const dynamicGroupRegistry: Record<string, { color: string; bg: string; darkBg: string; icon: string }> = {};
+
+export function getGroupConfig(group: string): { color: string; bg: string; darkBg: string; icon: string } {
+  if (GROUP_CONFIG[group]) return GROUP_CONFIG[group];
+  if (dynamicGroupRegistry[group]) return dynamicGroupRegistry[group];
+  const palette = DYNAMIC_GROUP_COLORS[Object.keys(dynamicGroupRegistry).length % DYNAMIC_GROUP_COLORS.length];
+  dynamicGroupRegistry[group] = { ...palette, icon: "📦" };
+  return dynamicGroupRegistry[group];
+}
+
 export function resolveGroup(symbol: string, apiCategory?: string, overrides?: Record<string, string>): string {
   if (overrides?.[symbol]) return overrides[symbol];
   if (apiCategory) {
     const norm = CATEGORY_NORMALISE[apiCategory.toLowerCase()];
     if (norm) return norm;
-    if (GROUP_CONFIG[apiCategory]) return apiCategory;
+    return apiCategory;
   }
   return PRODUCT_GROUPS[symbol]?.groupName ?? "Other";
 }
@@ -227,7 +248,7 @@ export function parseApiResponse(raw: unknown, overrides?: Record<string, string
     const exchange    = String(rec.exchange ?? "").trim();
     const currency    = rec.currency ? String(rec.currency).trim() : undefined;
     const group       = resolveGroup(symbol, rec.category, overrides);
-    const cfg         = GROUP_CONFIG[group] ?? GROUP_CONFIG["Other"];
+    const cfg         = getGroupConfig(group);
 
     if (Array.isArray(rec.contracts) && rec.contracts.length > 0) {
       rec.contracts.forEach((c: any) => {
