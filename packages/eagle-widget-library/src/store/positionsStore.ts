@@ -31,7 +31,7 @@ export interface PositionsState {
      * contractLabel is the human-readable form used in positionsStore keys, e.g. "MAR26".
      *
      * NOTE: Marex and Excel represent the same underlying net position from different risk
-     * systems. Do NOT sum them — use coalesce: take Marex if non-zero, else Excel.
+     * systems. Do NOT sum them — use coalesce: take Excel if non-zero, else Marex.
      * `active` is the best single value to use for display/alerting.
      */
     getPosition: (symbol: string, label: string) => { marex: number; excel: number; active: number };
@@ -130,7 +130,7 @@ export const usePositionsStore = create<PositionsState>((set, get) => ({
         const m = marex[symbol]?.[label] ?? 0;
         const e = excel[symbol]?.[label] ?? 0;
         // Coalesce: Marex and Excel represent the same net position from different systems.
-        // Prefer Marex when available; fall back to Excel. Never sum.
+        // Prefer Excel when available; fall back to Marex. Never sum.
         const active = e !== 0 ? e : m;
         return { marex: m, excel: e, active };
     },
